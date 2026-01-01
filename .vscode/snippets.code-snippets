@@ -1,0 +1,205 @@
+{
+    "Next.js Page Component": {
+        "prefix": "npage",
+        "body": [
+            "export default function ${1:PageName}() {",
+            "  return (",
+            "    <div className=\"${2:container}\">",
+            "      <h1>${3:Page Title}</h1>",
+            "      $0",
+            "    </div>",
+            "  )",
+            "}"
+        ],
+        "description": "Create a Next.js page component"
+    },
+    "Client Component": {
+        "prefix": "nclient",
+        "body": [
+            "'use client'",
+            "",
+            "import { ${1:useState} } from 'react'",
+            "",
+            "export default function ${2:ComponentName}() {",
+            "  $0",
+            "  return (",
+            "    <div>",
+            "      ",
+            "    </div>",
+            "  )",
+            "}"
+        ],
+        "description": "Create a client component"
+    },
+    "Server Component (async)": {
+        "prefix": "nserver",
+        "body": [
+            "import { createClient } from '@/lib/supabase/server'",
+            "",
+            "export default async function ${1:ComponentName}() {",
+            "  const supabase = await createClient()",
+            "  const { data } = await supabase.from('${2:table}').select('*')",
+            "  $0",
+            "  return (",
+            "    <div>",
+            "      ",
+            "    </div>",
+            "  )",
+            "}"
+        ],
+        "description": "Create an async server component with Supabase"
+    },
+    "Supabase Query": {
+        "prefix": "sbquery",
+        "body": [
+            "const { data, error } = await supabase",
+            "  .from('${1:table}')",
+            "  .select('${2:*}')",
+            "  ${3:.eq('column', 'value')}",
+            "$0"
+        ],
+        "description": "Supabase query"
+    },
+    "Supabase Insert": {
+        "prefix": "sbinsert",
+        "body": [
+            "const { data, error } = await supabase",
+            "  .from('${1:table}')",
+            "  .insert([",
+            "    { ${2:column}: ${3:value} }",
+            "  ])",
+            "  .select()",
+            "$0"
+        ],
+        "description": "Supabase insert"
+    },
+    "Supabase Update": {
+        "prefix": "sbupdate",
+        "body": [
+            "const { data, error } = await supabase",
+            "  .from('${1:table}')",
+            "  .update({ ${2:column}: ${3:value} })",
+            "  .eq('${4:id_column}', ${5:id_value})",
+            "  .select()",
+            "$0"
+        ],
+        "description": "Supabase update"
+    },
+    "Supabase Delete": {
+        "prefix": "sbdelete",
+        "body": [
+            "const { error } = await supabase",
+            "  .from('${1:table}')",
+            "  .delete()",
+            "  .eq('${2:id_column}', ${3:id_value})",
+            "$0"
+        ],
+        "description": "Supabase delete"
+    },
+    "Use Supabase Query Hook": {
+        "prefix": "usesbquery",
+        "body": [
+            "const { data: ${1:items}, loading, error } = useSupabaseQuery<${2:Type}>({",
+            "  table: '${3:table}',",
+            "  select: '${4:*}',",
+            "  filter: { column: '${5:column}', operator: '${6:eq}', value: ${7:value} },",
+            "  orderBy: { column: '${8:created_at}', ascending: ${9:false} },",
+            "  realtime: ${10:false},",
+            "})",
+            "$0"
+        ],
+        "description": "Use Supabase query hook"
+    },
+    "Use User Hook": {
+        "prefix": "useuser",
+        "body": [
+            "const { user, loading } = useUser()",
+            "$0"
+        ],
+        "description": "Use user authentication hook"
+    },
+    "shadcn Card": {
+        "prefix": "card",
+        "body": [
+            "<Card>",
+            "  <CardHeader>",
+            "    <CardTitle>${1:Title}</CardTitle>",
+            "    <CardDescription>${2:Description}</CardDescription>",
+            "  </CardHeader>",
+            "  <CardContent>",
+            "    $0",
+            "  </CardContent>",
+            "</Card>"
+        ],
+        "description": "shadcn Card component"
+    },
+    "shadcn Button": {
+        "prefix": "btn",
+        "body": [
+            "<Button ${1:variant=\"${2:default}\"} ${3:size=\"${4:default}\"} onClick={${5:handleClick}}>",
+            "  ${6:Button Text}",
+            "</Button>",
+            "$0"
+        ],
+        "description": "shadcn Button component"
+    },
+    "Supabase Auth Sign In": {
+        "prefix": "sbsignin",
+        "body": [
+            "const { data, error } = await supabase.auth.signInWithPassword({",
+            "  email: ${1:email},",
+            "  password: ${2:password},",
+            "})",
+            "$0"
+        ],
+        "description": "Supabase sign in with password"
+    },
+    "Supabase Auth Sign Up": {
+        "prefix": "sbsignup",
+        "body": [
+            "const { data, error } = await supabase.auth.signUp({",
+            "  email: ${1:email},",
+            "  password: ${2:password},",
+            "})",
+            "$0"
+        ],
+        "description": "Supabase sign up"
+    },
+    "Supabase OAuth": {
+        "prefix": "sboauth",
+        "body": [
+            "const { data, error } = await supabase.auth.signInWithOAuth({",
+            "  provider: '${1|google,github,gitlab,facebook|}',",
+            "  options: {",
+            "    redirectTo: `\\${window.location.origin}/auth/callback`,",
+            "  },",
+            "})",
+            "$0"
+        ],
+        "description": "Supabase OAuth sign in"
+    },
+    "Supabase Realtime Channel": {
+        "prefix": "sbrealtime",
+        "body": [
+            "const channel = supabase",
+            "  .channel('${1:channel-name}')",
+            "  .on(",
+            "    'postgres_changes',",
+            "    {",
+            "      event: '${2|*,INSERT,UPDATE,DELETE|}',",
+            "      schema: 'public',",
+            "      table: '${3:table}',",
+            "    },",
+            "    (payload) => {",
+            "      console.log('Change received!', payload)",
+            "      $0",
+            "    }",
+            "  )",
+            "  .subscribe()",
+            "",
+            "// Cleanup",
+            "return () => supabase.removeChannel(channel)"
+        ],
+        "description": "Supabase realtime subscription"
+    }
+}
