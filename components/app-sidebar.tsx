@@ -11,6 +11,8 @@ import {
   Settings,
   ChevronRight,
   LogOut,
+  Wallet,
+  History,
 } from 'lucide-react'
 
 import { NavMain } from '@/components/nav-main'
@@ -37,64 +39,18 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
-    title: 'Habitaciones',
-    url: '/habitaciones',
+    title: 'Rack',
+    url: '/rack',
     icon: Bed,
-    items: [
-      {
-        title: 'Todas las habitaciones',
-        url: '/habitaciones',
-      },
-      {
-        title: 'Disponibilidad',
-        url: '/habitaciones/disponibilidad',
-      },
-      {
-        title: 'Categorías',
-        url: '/habitaciones/categorias',
-      },
-    ],
   },
   {
-    title: 'Reservas',
-    url: '/reservas',
-    icon: Calendar,
+    title: 'Cajas',
+    url: '/cajas',
+    icon: Wallet,
     items: [
       {
-        title: 'Todas las reservas',
-        url: '/reservas',
-      },
-      {
-        title: 'Nueva reserva',
-        url: '/reservas/nueva',
-      },
-      {
-        title: 'Estadías activas',
-        url: '/reservas/estadias',
-      },
-    ],
-  },
-  {
-    title: 'Huéspedes',
-    url: '/huespedes',
-    icon: Users,
-  },
-  {
-    title: 'Facturación',
-    url: '/facturacion',
-    icon: Receipt,
-    items: [
-      {
-        title: 'Comprobantes',
-        url: '/facturacion/comprobantes',
-      },
-      {
-        title: 'Caja',
-        url: '/facturacion/caja',
-      },
-      {
-        title: 'Reportes',
-        url: '/facturacion/reportes',
+        title: 'Historial de Turnos',
+        url: '/cajas/historial',
       },
     ],
   },
@@ -105,7 +61,11 @@ const navItems = [
     items: [
       {
         title: 'General',
-        url: '/configuracion/general',
+        url: '/configuracion',
+      },
+      {
+        title: 'Habitaciones',
+        url: '/configuracion/habitaciones',
       },
       {
         title: 'Usuarios',
@@ -114,6 +74,10 @@ const navItems = [
       {
         title: 'Tarifas',
         url: '/configuracion/tarifas',
+      },
+      {
+        title: 'Cajas',
+        url: '/configuracion/cajas',
       },
       {
         title: 'Series',
@@ -128,9 +92,9 @@ export function AppSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   user: {
-    nombre_completo: string
-    email: string
-    rol: 'admin' | 'recepcion' | 'limpieza' | 'contador'
+    nombres: string
+    apellidos?: string | null
+    rol?: 'ADMIN' | 'RECEPCION' | 'HOUSEKEEPING'
   }
 }) {
   const pathname = usePathname()

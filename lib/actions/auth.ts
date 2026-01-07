@@ -43,7 +43,7 @@ export async function login(prevState: LoginState | null, formData: FormData): P
         // 3. Verificar que el usuario existe en la tabla usuarios
         const { data: usuario, error: usuarioError } = await supabase
             .from('usuarios')
-            .select('id, email, nombre_completo, rol, activo')
+            .select('id, nombres, apellidos, rol, estado')
             .eq('id', data.user.id)
             .single()
 
@@ -58,7 +58,7 @@ export async function login(prevState: LoginState | null, formData: FormData): P
             return { error: 'Usuario no autorizado' }
         }
 
-        if (!usuario.activo) {
+        if (!usuario.estado) {
             await supabase.auth.signOut()
             return { error: 'Usuario inactivo. Contacte al administrador' }
         }

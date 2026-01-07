@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 export async function createClient() {
     const cookieStore = await cookies()
@@ -24,6 +25,25 @@ export async function createClient() {
                     }
                 },
             },
+        }
+    )
+}
+
+/**
+ * Cliente admin con service_role key
+ * SOLO usar para operaciones administrativas como:
+ * - Crear usuarios en auth
+ * - Operaciones que requieren bypassing RLS
+ */
+export function createAdminClient() {
+    return createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
         }
     )
 }

@@ -16,8 +16,8 @@ export default async function DashboardLayout({
 
     // Serializar solo los campos necesarios
     const userData = {
-        nombre_completo: user.nombre_completo,
-        email: user.email,
+        nombres: user.nombres,
+        apellidos: user.apellidos,
         rol: user.rol,
     }
 

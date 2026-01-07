@@ -35,18 +35,20 @@ export function NavUser({
   onLogout,
 }: {
   user: {
-    nombre_completo: string
-    email: string
-    rol: 'admin' | 'recepcion' | 'limpieza' | 'contador'
+    nombres: string
+    apellidos?: string | null
+    rol?: 'ADMIN' | 'RECEPCION' | 'HOUSEKEEPING'
   }
   onLogout: () => void
 }) {
   const { isMobile } = useSidebar()
 
   // Defensive check durante hidratación
-  if (!user || !user.nombre_completo) {
+  if (!user || !user.nombres) {
     return null
   }
+
+  const nombreCompleto = `${user.nombres} ${user.apellidos || ''}`.trim()
 
   const getInitials = (name: string) => {
     return name
@@ -57,12 +59,12 @@ export function NavUser({
       .slice(0, 2)
   }
 
-  const getRoleName = (rol: string) => {
+  const getRoleName = (rol?: string) => {
+    if (!rol) return 'Usuario'
     const roles: Record<string, string> = {
-      admin: 'Administrador',
-      recepcion: 'Recepción',
-      limpieza: 'Limpieza',
-      contador: 'Contador',
+      ADMIN: 'Administrador',
+      RECEPCION: 'Recepción',
+      HOUSEKEEPING: 'Limpieza',
     }
     return roles[rol] || rol
   }
@@ -78,11 +80,11 @@ export function NavUser({
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarFallback className="rounded-lg">
-                  {getInitials(user.nombre_completo)}
+                  {getInitials(nombreCompleto)}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{user.nombre_completo}</span>
+                <span className="truncate font-semibold">{nombreCompleto}</span>
                 <span className="truncate text-xs text-muted-foreground">
                   {getRoleName(user.rol)}
                 </span>
@@ -100,12 +102,14 @@ export function NavUser({
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarFallback className="rounded-lg">
-                    {getInitials(user.nombre_completo)}
+                    {getInitials(nombreCompleto)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{user.nombre_completo}</span>
-                  <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+                  <span className="truncate font-semibold">{nombreCompleto}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {getRoleName(user.rol)}
+                  </span>
                 </div>
               </div>
             </DropdownMenuLabel>
