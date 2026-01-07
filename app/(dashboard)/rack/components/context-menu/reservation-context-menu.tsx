@@ -26,8 +26,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { LogIn, CreditCard, XCircle, Loader2 } from 'lucide-react'
+import { LogIn, CreditCard, XCircle, Loader2, LogOut } from 'lucide-react'
 import { checkInRapido, cancelarReserva } from '@/lib/actions/rack'
+import { realizarCheckout, validarCheckout } from '@/lib/actions/checkout'
+import { registrarPago } from '@/lib/actions/pagos'
 import { format, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { RackReserva } from '@/lib/actions/rack'
@@ -41,6 +43,7 @@ type Props = {
 export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
   const [pagoDialogOpen, setPagoDialogOpen] = useState(false)
   const [cancelarDialogOpen, setCancelarDialogOpen] = useState(false)
+  const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false)
   const [procesando, setProcesando] = useState(false)
   
   // Datos del pago
@@ -50,6 +53,7 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
 
   const fechaEntrada = new Date(reserva.fecha_entrada)
   const puedeHacerCheckin = isToday(fechaEntrada) && reserva.estado === 'RESERVADA'
+  const puedeHacerCheckout = reserva.estado === 'CHECKED_IN'
 
   const handleCheckInRapido = async () => {
     if (!puedeHacerCheckin) return
@@ -88,21 +92,14 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
 
     setProcesando(true)
     try {
-      // Importar y usar la función de pagos
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-
-      const { error } = await supabase
-        .from('pagos')
-        .insert({
-          reserva_id: reserva.id,
-          monto: parseFloat(montoPago),
-          metodo_pago: metodoPago,
-          numero_operacion: numeroOperacion || null,
-          fecha_pago: new Date().toISOString()
-        })
-
-      if (error) throw error
+      // Usar la nueva función de pagos
+      await registrarPago({
+        reserva_id: reserva.id,
+        caja_turno_id: '', // Se obtendrá automáticamente
+        metodo_pago: metodoPago as any,
+        monto: parseFloat(montoPago),
+        referencia_pago: numeroOperacion || undefined
+      })
 
       setPagoDialogOpen(false)
       setMontoPago('')
@@ -111,7 +108,46 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
       onUpdate()
     } catch (error) {
       console.error('Error al registrar pago:', error)
-      alert('Error al registrar el pago')
+      alert(error instanceof Error ? error.message : 'Error al registrar el pago')
+    } finally {
+      setProcesando(false)
+    }
+  }
+
+  const handleCheckout = async () => {
+    setProcesando(true)
+    try {
+      // Primero validar
+      const validacion = await validarCheckout(reserva.id)
+      
+      if (!validacion.puede_checkout) {
+        const mensaje = validacion.saldo_pendiente 
+          ? `${validacion.motivo}. Saldo pendiente: S/ ${validacion.saldo_pendiente.toFixed(2)}`
+          : validacion.motivo
+        
+        if (!confirm(`${mensaje}\n\n¿Desea realizar checkout de todos modos? (Forzar checkout)`)) {
+          setProcesando(false)
+          return
+        }
+        
+        // Check-out forzado
+        await realizarCheckout({
+          reserva_id: reserva.id,
+          forzar_checkout: true
+        })
+      } else {
+        // Check-out normal
+        await realizarCheckout({
+          reserva_id: reserva.id
+        })
+      }
+
+      setCheckoutDialogOpen(false)
+      onUpdate()
+      alert('Check-out realizado exitosamente')
+    } catch (error) {
+      console.error('Error en checkout:', error)
+      alert(error instanceof Error ? error.message : 'Error al hacer check-out')
     } finally {
       setProcesando(false)
     }
@@ -132,6 +168,19 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
               >
                 <LogIn className="mr-2 h-4 w-4" />
                 Check-in Rápido
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          )}
+
+          {puedeHacerCheckout && (
+            <>
+              <ContextMenuItem
+                onClick={() => setCheckoutDialogOpen(true)}
+                disabled={procesando}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Check-out
               </ContextMenuItem>
               <ContextMenuSeparator />
             </>
@@ -217,6 +266,41 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
             <Button onClick={handleRegistrarPago} disabled={procesando}>
               {procesando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Registrar Pago
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Checkout */}
+      <Dialog open={checkoutDialogOpen} onOpenChange={setCheckoutDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Check-out</DialogTitle>
+            <DialogDescription>
+              {reserva.codigo_reserva} - Hab. {(reserva as any).habitaciones?.numero}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <p className="text-sm">
+              ¿Confirmar check-out para {reserva.huespedes?.nombres} {reserva.huespedes?.apellidos}?
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Se validará el saldo pendiente antes de realizar el check-out.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCheckoutDialogOpen(false)}
+              disabled={procesando}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleCheckout} disabled={procesando}>
+              {procesando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmar Check-out
             </Button>
           </DialogFooter>
         </DialogContent>

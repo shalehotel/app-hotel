@@ -44,6 +44,11 @@ const navItems = [
     icon: Bed,
   },
   {
+    title: 'Ocupaciones',
+    url: '/ocupaciones',
+    icon: Users,
+  },
+  {
     title: 'Cajas',
     url: '/cajas',
     icon: Wallet,

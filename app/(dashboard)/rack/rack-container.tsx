@@ -6,7 +6,7 @@ import { PanelRightOpen } from 'lucide-react'
 import { CommandBar } from './components/command-bar/command-bar'
 import { SmartSidebar } from './components/smart-sidebar/smart-sidebar'
 import { RackGrid } from './components/main-grid/rack-grid'
-import { ReservationDetail } from './components/slide-over/reservation-detail'
+import { ReservationDetailSheet } from '@/components/reservas/reservation-detail-sheet'
 import { NewReservationDialog } from './components/dialogs/new-reservation-dialog'
 import { ModalAperturaTurno } from '@/components/cajas/modal-apertura-turno'
 import { useRackData } from '@/hooks/use-rack-data'
@@ -165,11 +165,19 @@ export function RackContainer() {
         />
       </div>
 
-      {/* ZONA D: Slide-over para detalles de reserva */}
-      <ReservationDetail
-        reservationId={selectedReservationId}
-        onClose={() => setSelectedReservationId(null)}
-      />
+      {/* Sheet unificado para detalles de reserva */}
+      {selectedReservationId && (
+        <ReservationDetailSheet
+          reservaId={selectedReservationId}
+          open={!!selectedReservationId}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedReservationId(null)
+              refetch() // Recargar datos por si hubo cambios
+            }
+          }}
+        />
+      )}
 
       {/* Dialog para nueva reserva */}
       {newReservation && (
