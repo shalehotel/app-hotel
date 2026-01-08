@@ -31,6 +31,8 @@ import {
 import { logout } from '@/lib/actions/auth'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useCheckTurno } from '@/hooks/use-check-turno'
+import { WidgetTurnoSidebar } from '@/components/cajas/widget-turno-sidebar'
 
 // Datos de navegación
 const navItems = [
@@ -114,6 +116,7 @@ export function AppSidebar({
   }
 }) {
   const pathname = usePathname()
+  const { loading, hasActiveTurno, turno, refetch } = useCheckTurno()
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -136,6 +139,13 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navItems} />
+        
+        {/* Widget de Turno Activo */}
+        {!loading && hasActiveTurno && turno && (
+          <div className="mt-auto pt-4">
+            <WidgetTurnoSidebar turno={turno} onTurnoCerrado={refetch} />
+          </div>
+        )}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} onLogout={logout} />

@@ -69,10 +69,10 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
               <CardTitle className="text-sm font-medium">Turno Activo</CardTitle>
             </div>
-            <Badge variant="secondary" className="bg-green-600 text-white">
+            <Badge variant="secondary" className="bg-blue-500 text-white dark:bg-blue-600">
               <Lock className="h-3 w-3 mr-1" />
               Abierto
             </Badge>

@@ -249,7 +249,13 @@ export async function getHistorialComprobantes(filtros?: {
     throw new Error('Error al cargar historial de comprobantes')
   }
 
-  return data || []
+  // Concatenar serie y numero para crear numero_completo
+  const comprobantesConNumeroCompleto = (data || []).map((c: any) => ({
+    ...c,
+    numero_completo: `${c.serie}-${String(c.numero).padStart(8, '0')}`
+  }))
+
+  return comprobantesConNumeroCompleto
 }
 
 // ========================================

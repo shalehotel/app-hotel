@@ -25,7 +25,7 @@ import {
   realizarCheckout,
   validarCheckout
 } from '@/lib/actions/checkout'
-import { registrarPago, getTotalPagado, getSaldoPendiente } from '@/lib/actions/pagos'
+import { getSaldoPendiente } from '@/lib/actions/pagos'
 import { 
   DoorOpen, 
   DoorClosed, 
@@ -69,6 +69,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+import { RegistrarPagoDialog } from '@/components/cajas/registrar-pago-dialog'
+
 type ReservationDetailSheetProps = {
   reservaId: string
   open: boolean
@@ -88,12 +90,6 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange }: Reserv
   const [pagoDialogOpen, setPagoDialogOpen] = useState(false)
   const [forceCheckout, setForceCheckout] = useState(false)
   
-  // Form pago
-  const [montoPago, setMontoPago] = useState('')
-  const [metodoPago, setMetodoPago] = useState('EFECTIVO')
-  const [referenciaPago, setReferenciaPago] = useState('')
-  const [notaPago, setNotaPago] = useState('')
-
   useEffect(() => {
     if (open && reservaId) {
       cargarDatos()
@@ -163,47 +159,6 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange }: Reserv
       setForceCheckout(false)
     } catch (error: any) {
       toast.error(error.message || 'Error al realizar check-out')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  async function handleRegistrarPago() {
-    if (!reserva || !montoPago) {
-      toast.error('Ingrese el monto del pago')
-      return
-    }
-
-    const monto = parseFloat(montoPago)
-    if (isNaN(monto) || monto <= 0) {
-      toast.error('Ingrese un monto válido')
-      return
-    }
-
-    try {
-      setActionLoading(true)
-      await registrarPago({
-        reserva_id: reserva.id,
-        caja_turno_id: '', // Se obtendrá automáticamente
-        monto,
-        metodo_pago: metodoPago as 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'YAPE' | 'PLIN' | 'OTRO',
-        referencia_pago: referenciaPago || undefined,
-        nota: notaPago || undefined
-      })
-      
-      toast.success('Pago registrado exitosamente')
-      
-      // Limpiar formulario
-      setMontoPago('')
-      setMetodoPago('EFECTIVO')
-      setReferenciaPago('')
-      setNotaPago('')
-      
-      // Recargar datos
-      await cargarDatos()
-      setPagoDialogOpen(false)
-    } catch (error: any) {
-      toast.error(error.message || 'Error al registrar el pago')
     } finally {
       setActionLoading(false)
     }
@@ -364,7 +319,7 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange }: Reserv
                             disabled={actionLoading}
                           >
                             <CreditCard className="h-5 w-5 mr-2" />
-                            Registrar Pago (Debe S/ {reserva.saldo_pendiente.toFixed(2)})
+                            Cobrar y Facturar (S/ {reserva.saldo_pendiente.toFixed(2)})
                           </Button>
                         )}
                         
@@ -454,7 +409,7 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange }: Reserv
                     {esCheckedIn && (
                       <Button onClick={() => setPagoDialogOpen(true)} size="sm">
                         <CreditCard className="h-4 w-4 mr-2" />
-                        Agregar Pago
+                        Cobrar y Facturar
                       </Button>
                     )}
                   </CardHeader>
@@ -571,79 +526,21 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange }: Reserv
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog: Registrar Pago */}
-      <Dialog open={pagoDialogOpen} onOpenChange={setPagoDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Registrar Pago</DialogTitle>
-            <DialogDescription>
-              Saldo pendiente: <strong className="text-destructive">S/ {reserva.saldo_pendiente.toFixed(2)}</strong>
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="monto">Monto (S/)</Label>
-              <Input
-                id="monto"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={montoPago}
-                onChange={(e) => setMontoPago(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="metodo">Método de Pago</Label>
-              <Select value={metodoPago} onValueChange={setMetodoPago}>
-                <SelectTrigger id="metodo">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="EFECTIVO">Efectivo</SelectItem>
-                  <SelectItem value="TARJETA">Tarjeta</SelectItem>
-                  <SelectItem value="TRANSFERENCIA">Transferencia</SelectItem>
-                  <SelectItem value="YAPE">Yape</SelectItem>
-                  <SelectItem value="PLIN">Plin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {metodoPago !== 'EFECTIVO' && (
-              <div>
-                <Label htmlFor="referencia">Número de Operación</Label>
-                <Input
-                  id="referencia"
-                  placeholder="Ej: 1234567890"
-                  value={referenciaPago}
-                  onChange={(e) => setReferenciaPago(e.target.value)}
-                />
-              </div>
-            )}
-
-            <div>
-              <Label htmlFor="nota">Nota (opcional)</Label>
-              <Input
-                id="nota"
-                placeholder="Ej: Adelanto, Pago parcial..."
-                value={notaPago}
-                onChange={(e) => setNotaPago(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPagoDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleRegistrarPago} disabled={actionLoading || !montoPago}>
-              {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Registrar Pago
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Dialog: Registrar Pago (Nuevo Componente) */}
+      <RegistrarPagoDialog 
+        open={pagoDialogOpen} 
+        onOpenChange={setPagoDialogOpen}
+        reserva={{
+          id: reserva.id,
+          saldo_pendiente: reserva.saldo_pendiente,
+          titular_nombre: reserva.titular_nombre,
+          titular_tipo_doc: reserva.titular_tipo_doc,
+          titular_numero_doc: reserva.titular_numero_doc,
+          habitacion_numero: reserva.habitacion_numero,
+          precio_pactado: reserva.precio_pactado
+        }}
+        onSuccess={cargarDatos}
+      />
     </>
   )
 }

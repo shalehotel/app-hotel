@@ -15,14 +15,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { createMovimiento } from '@/lib/actions/movimientos'
 import { 
-  createMovimiento, 
   type TipoMovimiento,
   type MonedaMovimiento,
   type CategoriaMovimiento,
   getCategoriasMovimiento,
   getCategoriaLabel
-} from '@/lib/actions/movimientos'
+} from '@/lib/utils/movimientos'
 import { toast } from 'sonner'
 import { Loader2, TrendingUp, TrendingDown, DollarSign, Receipt } from 'lucide-react'
 

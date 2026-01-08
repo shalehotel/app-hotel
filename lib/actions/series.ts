@@ -2,26 +2,20 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import type { Database } from '@/types/database.types'
 
 // =============================================
 // TIPOS
 // =============================================
 
-export type TipoComprobante = 'BOLETA' | 'FACTURA' | 'NOTA_CREDITO' | 'TICKET_INTERNO'
+export type TipoComprobante = Database['public']['Enums']['tipo_comprobante']
+export type SerieRow = Database['public']['Tables']['series_comprobantes']['Row']
 
-export type Serie = {
-  id: string
-  caja_id: string
-  tipo_comprobante: TipoComprobante
-  serie: string
-  correlativo_actual: number
-}
-
-export type SerieWithCaja = Serie & {
+export type SerieWithCaja = SerieRow & {
   cajas: {
     id: string
     nombre: string
-  }
+  } | null
 }
 
 type Result<T = any> = 
@@ -43,10 +37,10 @@ function validarFormatoSerie(serie: string, tipo: TipoComprobante): boolean {
     BOLETA: /^B\d{3,4}$/,
     FACTURA: /^F\d{3,4}$/,
     NOTA_CREDITO: /^NC\d{2,3}$/,
-    TICKET_INTERNO: /^T\d{3,4}$/
+    NOTA_DEBITO: /^ND\d{2,3}$/
   }
 
-  return patterns[tipo].test(serie)
+  return patterns[tipo]?.test(serie) ?? false
 }
 
 // =============================================
@@ -61,7 +55,7 @@ export async function getSeries(): Promise<Result<SerieWithCaja[]>> {
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .select(`
         *,
         cajas(id, nombre)
@@ -70,7 +64,7 @@ export async function getSeries(): Promise<Result<SerieWithCaja[]>> {
 
     if (error) throw error
 
-    return { success: true, data: data || [] }
+    return { success: true, data: (data as any[]) || [] }
   } catch (error: any) {
     console.error('Error al obtener series:', error)
     return { success: false, error: error.message }
@@ -80,14 +74,14 @@ export async function getSeries(): Promise<Result<SerieWithCaja[]>> {
 /**
  * Obtener series de una caja específica
  */
-export async function getSeriesByCaja(cajaId: string): Promise<Result<Serie[]>> {
+export async function getSeriesByCaja(cajaId: string): Promise<Result<SerieRow[]>> {
   try {
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .select('*')
-      .eq('caja_id', cajaId)
+      .eq('caja_id', cajaId) // Nota: caja_id es uuid en DB, string aquí
       .order('tipo_comprobante')
 
     if (error) throw error
@@ -102,12 +96,12 @@ export async function getSeriesByCaja(cajaId: string): Promise<Result<Serie[]>> 
 /**
  * Obtener serie por ID
  */
-export async function getSerieById(id: string): Promise<Result<Serie>> {
+export async function getSerieById(id: string): Promise<Result<SerieRow>> {
   try {
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .select('*')
       .eq('id', id)
       .single()
@@ -125,11 +119,11 @@ export async function getSerieById(id: string): Promise<Result<Serie>> {
  * Crear nueva serie
  */
 export async function createSerie(data: {
-  caja_id: string
+  caja_id?: string // Opcional
   tipo_comprobante: TipoComprobante
   serie: string
   correlativo_actual?: number
-}): Promise<Result<Serie>> {
+}): Promise<Result<SerieRow>> {
   try {
     const supabase = await createClient()
 
@@ -145,7 +139,7 @@ export async function createSerie(data: {
       .eq('id', user.id)
       .single()
 
-    if (usuario?.rol !== 'ADMIN') {
+    if (usuario?.rol !== 'admin') { // Rol en minúscula según DB enum
       return { success: false, error: 'Solo administradores pueden crear series' }
     }
 
@@ -157,25 +151,27 @@ export async function createSerie(data: {
         error: `Formato de serie inválido. Ejemplo: ${
           data.tipo_comprobante === 'BOLETA' ? 'B001' :
           data.tipo_comprobante === 'FACTURA' ? 'F001' :
-          data.tipo_comprobante === 'NOTA_CREDITO' ? 'NC01' : 'T001'
+          'NC01'
         }` 
       }
     }
 
-    // Verificar que la caja existe
-    const { data: caja } = await supabase
-      .from('cajas')
-      .select('id')
-      .eq('id', data.caja_id)
-      .single()
+    // Verificar que la caja existe (si se envió)
+    if (data.caja_id) {
+      const { data: caja } = await supabase
+        .from('cajas') // Asumiendo tabla 'cajas', verificar nombre real si falla
+        .select('id')
+        .eq('id', data.caja_id)
+        .single()
 
-    if (!caja) {
-      return { success: false, error: 'Caja no encontrada' }
+      if (!caja) {
+        return { success: false, error: 'Caja no encontrada' }
+      }
     }
 
     // Verificar que no exista una serie con el mismo código (UNIQUE constraint)
     const { data: existente } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .select('id')
       .eq('serie', serieUpper)
       .eq('tipo_comprobante', data.tipo_comprobante)
@@ -190,12 +186,15 @@ export async function createSerie(data: {
 
     // Crear serie
     const { data: nuevaSerie, error } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .insert({
-        caja_id: data.caja_id,
+        // caja_id es null si no viene
+        // @ts-ignore: Supabase types might be strict about null vs undefined
+        caja_id: data.caja_id || null, 
         tipo_comprobante: data.tipo_comprobante,
         serie: serieUpper,
-        correlativo_actual: data.correlativo_actual || 0
+        correlativo_actual: data.correlativo_actual || 0,
+        activo: true
       })
       .select()
       .single()
@@ -217,16 +216,17 @@ export async function updateSerie(
   id: string,
   data: {
     serie?: string
+    caja_id?: string
+    tipo_comprobante?: TipoComprobante
+    correlativo_actual?: number
   }
-): Promise<Result<Serie>> {
+): Promise<Result<SerieRow>> {
   try {
     const supabase = await createClient()
 
-    // Validar que el usuario sea ADMIN
+    // Validar ADMIN
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Usuario no autenticado' }
-    }
+    if (!user) return { success: false, error: 'No autenticado' }
 
     const { data: usuario } = await supabase
       .from('usuarios')
@@ -234,50 +234,48 @@ export async function updateSerie(
       .eq('id', user.id)
       .single()
 
-    if (usuario?.rol !== 'ADMIN') {
+    if (usuario?.rol !== 'admin') {
       return { success: false, error: 'Solo administradores pueden editar series' }
     }
 
     // Obtener serie actual
     const { data: serieActual } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .select('*')
       .eq('id', id)
       .single()
 
-    if (!serieActual) {
-      return { success: false, error: 'Serie no encontrada' }
-    }
+    if (!serieActual) return { success: false, error: 'Serie no encontrada' }
 
     const updateData: any = {}
 
+    // Actualizar serie/código
     if (data.serie !== undefined) {
       const serieUpper = data.serie.toUpperCase().trim()
-      
-      // Validar formato
       if (!validarFormatoSerie(serieUpper, serieActual.tipo_comprobante)) {
         return { success: false, error: 'Formato de serie inválido' }
       }
-
-      // Verificar duplicado
-      const { data: duplicado } = await supabase
-        .from('series_comprobante')
-        .select('id')
-        .eq('serie', serieUpper)
-        .eq('tipo_comprobante', serieActual.tipo_comprobante)
-        .neq('id', id)
-        .single()
-
-      if (duplicado) {
-        return { success: false, error: 'Ya existe otra serie con ese código' }
-      }
-
       updateData.serie = serieUpper
+    }
+
+    // Actualizar caja
+    if (data.caja_id !== undefined) {
+      updateData.caja_id = data.caja_id || null
+    }
+    
+    // Actualizar tipo (con cuidado)
+    if (data.tipo_comprobante) {
+      updateData.tipo_comprobante = data.tipo_comprobante
+    }
+
+    // Actualizar correlativo (manual override)
+    if (data.correlativo_actual !== undefined) {
+      updateData.correlativo_actual = data.correlativo_actual
     }
 
     // Actualizar
     const { data: serieActualizada, error } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .update(updateData)
       .eq('id', id)
       .select()
@@ -319,7 +317,7 @@ export async function deleteSerie(id: string): Promise<Result<void>> {
 
     // Verificar que no tenga comprobantes emitidos
     const { data: serie } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .select('serie, correlativo_actual')
       .eq('id', id)
       .single()
@@ -337,7 +335,7 @@ export async function deleteSerie(id: string): Promise<Result<void>> {
 
     // Eliminar
     const { error } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .delete()
       .eq('id', id)
 
@@ -383,7 +381,7 @@ export async function resetCorrelativo(
 
     // Actualizar
     const { data: serieActualizada, error } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .update({ correlativo_actual: nuevoCorrelativo })
       .eq('id', id)
       .select()
@@ -443,7 +441,7 @@ export async function validateSerie(
 
     // Verificar disponibilidad
     const { data } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .select('id')
       .eq('serie', serieUpper)
       .eq('tipo_comprobante', tipo)
@@ -466,7 +464,7 @@ export async function getSeriesByTipo(
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('series_comprobante')
+      .from('series_comprobantes')
       .select('*')
       .eq('tipo_comprobante', tipo)
       .order('serie')

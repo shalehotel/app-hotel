@@ -148,15 +148,29 @@ export async function deleteHabitacion(id: string) {
         return { error: 'No se puede eliminar. La habitación tiene reservas activas (check-in).' }
     }
 
-    const { error } = await supabase
-        .from('habitaciones')
-        .delete()
-        .eq('id', id)
-
-    if (error) {
-        return { error: error.message }
-    }
-
     revalidatePath('/habitaciones')
     return { success: true }
+}
+
+// ========================================
+// ESTADO DE LIMPIEZA
+// ========================================
+export async function updateEstadoLimpieza(habitacionId: string, estado: 'LIMPIA' | 'SUCIA' | 'EN_LIMPIEZA') {
+    const supabase = await createClient()
+
+    try {
+        const { error } = await supabase
+            .from('habitaciones')
+            .update({ estado_limpieza: estado })
+            .eq('id', habitacionId)
+
+        if (error) throw error
+
+        revalidatePath('/rack')
+        revalidatePath('/habitaciones')
+        return { success: true }
+    } catch (error: any) {
+        console.error('Error updateEstadoLimpieza:', error)
+        return { error: 'Error al actualizar limpieza' }
+    }
 }

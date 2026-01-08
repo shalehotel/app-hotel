@@ -2,19 +2,15 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import type { 
+  TipoMovimiento, 
+  MonedaMovimiento, 
+  CategoriaMovimiento 
+} from '@/lib/utils/movimientos'
 
 // =============================================
-// TIPOS
+// TIPOS (Re-export para compatibilidad de Server Actions)
 // =============================================
-
-export type TipoMovimiento = 'INGRESO' | 'EGRESO'
-export type MonedaMovimiento = 'PEN' | 'USD'
-export type CategoriaMovimiento = 
-  | 'GASTO_OPERATIVO' 
-  | 'GASTO_EMERGENCIA' 
-  | 'DOTACION_SENCILLO' 
-  | 'AJUSTE'
-  | 'OTRO'
 
 export type Movimiento = {
   id: string
@@ -310,31 +306,4 @@ export async function deleteMovimiento(
     console.error('Error al eliminar movimiento:', error)
     return { success: false, error: error.message }
   }
-}
-
-/**
- * Obtener categorías disponibles para movimientos
- */
-export async function getCategoriasMovimiento(): Promise<CategoriaMovimiento[]> {
-  return [
-    'GASTO_OPERATIVO',
-    'GASTO_EMERGENCIA',
-    'DOTACION_SENCILLO',
-    'AJUSTE',
-    'OTRO'
-  ]
-}
-
-/**
- * Obtener label amigable de una categoría
- */
-export async function getCategoriaLabel(categoria: CategoriaMovimiento | null): Promise<string> {
-  const labels: Record<CategoriaMovimiento, string> = {
-    'GASTO_OPERATIVO': 'Gasto Operativo',
-    'GASTO_EMERGENCIA': 'Gasto de Emergencia',
-    'DOTACION_SENCILLO': 'Dotación de Sencillo',
-    'AJUSTE': 'Ajuste',
-    'OTRO': 'Otro'
-  }
-  return categoria ? labels[categoria] : 'Sin categoría'
 }

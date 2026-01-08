@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -22,21 +21,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -46,15 +30,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Power, PowerOff, DollarSign } from 'lucide-react'
-import { 
-  createTarifa, 
-  updateTarifa, 
+import { Plus } from 'lucide-react'
+import {
+  createTarifa,
+  updateTarifa,
   toggleTarifaActiva,
   deleteTarifa,
-  type Tarifa
 } from '@/lib/actions/tarifas'
 import { toast } from 'sonner'
+import { DataTable } from '@/components/tables/data-table'
+import { tarifasColumns, type Tarifa } from './columns'
 
 type Tipo = {
   id: string
@@ -72,7 +57,7 @@ type Props = {
   categorias: Categoria[]
 }
 
-export function TarifasClient({ tarifas, tipos, categorias }: Props) {
+export function TarifasClientNew({ tarifas, tipos, categorias }: Props) {
   const [open, setOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -85,7 +70,7 @@ export function TarifasClient({ tarifas, tipos, categorias }: Props) {
 
     try {
       const formData = new FormData(e.currentTarget)
-      
+
       if (editingId) {
         await updateTarifa(editingId, formData)
         toast.success('Tarifa actualizada correctamente')
@@ -93,7 +78,7 @@ export function TarifasClient({ tarifas, tipos, categorias }: Props) {
         await createTarifa(formData)
         toast.success('Tarifa creada correctamente')
       }
-      
+
       setOpen(false)
       setEditingId(null)
     } catch (error: any) {
@@ -119,281 +104,190 @@ export function TarifasClient({ tarifas, tipos, categorias }: Props) {
 
   const handleDelete = async () => {
     if (!selectedTarifaId) return
-    
+
     try {
       await deleteTarifa(selectedTarifaId)
       toast.success('Tarifa eliminada')
       setDeleteDialogOpen(false)
+      setSelectedTarifaId(null)
     } catch (error: any) {
       toast.error(error.message)
     }
   }
 
-  const editingTarifa = editingId ? tarifas.find(t => t.id === editingId) : null
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('es-PE', {
-      style: 'currency',
-      currency: 'PEN'
-    }).format(price)
+  const openDeleteDialog = (tarifaId: string) => {
+    setSelectedTarifaId(tarifaId)
+    setDeleteDialogOpen(true)
   }
+
+  const editingTarifa = editingId ? tarifas.find((t) => t.id === editingId) : null
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Tarifas ({tarifas.length})</CardTitle>
-              <CardDescription>Define precios base y mínimos negociables</CardDescription>
-            </div>
-            <Dialog open={open} onOpenChange={(isOpen) => {
-              setOpen(isOpen)
-              if (!isOpen) setEditingId(null)
-            }}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4" />
-                  Nueva Tarifa
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <form onSubmit={handleSubmit}>
-                  <DialogHeader>
-                    <DialogTitle>
-                      {editingId ? 'Editar Tarifa' : 'Nueva Tarifa'}
-                    </DialogTitle>
-                    <DialogDescription>
-                      {editingId 
-                        ? 'Modifica los precios de la tarifa'
-                        : 'Define una nueva tarifa para tipo y categoría'
-                      }
-                    </DialogDescription>
-                  </DialogHeader>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-medium">Tarifas ({tarifas.length})</h3>
+          <p className="text-sm text-muted-foreground">
+            Define precios base y mínimos negociables
+          </p>
+        </div>
+        <Dialog
+          open={open}
+          onOpenChange={(isOpen) => {
+            setOpen(isOpen)
+            if (!isOpen) setEditingId(null)
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nueva Tarifa
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {editingId ? 'Editar' : 'Nueva'} Tarifa
+              </DialogTitle>
+              <DialogDescription>
+                Define el precio para un tipo y categoría de habitación
+              </DialogDescription>
+            </DialogHeader>
 
-                  <div className="grid gap-4 py-4">
-                    {!editingId && (
-                      <>
-                        <div className="grid gap-2">
-                          <Label htmlFor="tipo_habitacion_id">Tipo de Habitación</Label>
-                          <Select name="tipo_habitacion_id" required>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecciona tipo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {tipos.map(tipo => (
-                                <SelectItem key={tipo.id} value={tipo.id}>
-                                  {tipo.nombre}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+            <form onSubmit={handleSubmit}>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="tipo_habitacion_id">Tipo *</Label>
+                  <Select
+                    name="tipo_habitacion_id"
+                    defaultValue={editingTarifa?.tipo_habitacion_id}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tipos.map((tipo) => (
+                        <SelectItem key={tipo.id} value={tipo.id}>
+                          {tipo.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                        <div className="grid gap-2">
-                          <Label htmlFor="categoria_habitacion_id">Categoría</Label>
-                          <Select name="categoria_habitacion_id" required>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecciona categoría" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {categorias.map(cat => (
-                                <SelectItem key={cat.id} value={cat.id}>
-                                  {cat.nombre}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </>
-                    )}
+                <div className="grid gap-2">
+                  <Label htmlFor="categoria_habitacion_id">Categoría *</Label>
+                  <Select
+                    name="categoria_habitacion_id"
+                    defaultValue={editingTarifa?.categoria_habitacion_id}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categorias.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                    <div className="grid gap-2">
-                      <Label htmlFor="nombre_tarifa">Nombre de Tarifa</Label>
-                      <Input
-                        id="nombre_tarifa"
-                        name="nombre_tarifa"
-                        placeholder="Ej: Tarifa Base 2025"
-                        defaultValue={editingTarifa?.nombre_tarifa}
-                        required
-                      />
-                    </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="precio_base">Precio Base (S/) *</Label>
+                  <Input
+                    id="precio_base"
+                    name="precio_base"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="100.00"
+                    defaultValue={editingTarifa?.precio_base}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Precio regular de venta
+                  </p>
+                </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="precio_base">
-                          Precio Base
-                          <span className="text-xs text-muted-foreground ml-1">(sugerido)</span>
-                        </Label>
-                        <Input
-                          id="precio_base"
-                          name="precio_base"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="70.00"
-                          defaultValue={editingTarifa?.precio_base}
-                          required
-                        />
-                      </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="precio_minimo">Precio Mínimo (S/) *</Label>
+                  <Input
+                    id="precio_minimo"
+                    name="precio_minimo"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="80.00"
+                    defaultValue={editingTarifa?.precio_minimo}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Precio mínimo negociable
+                  </p>
+                </div>
 
-                      <div className="grid gap-2">
-                        <Label htmlFor="precio_minimo">
-                          Precio Mínimo
-                          <span className="text-xs text-muted-foreground ml-1">(negociable)</span>
-                        </Label>
-                        <Input
-                          id="precio_minimo"
-                          name="precio_minimo"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="50.00"
-                          defaultValue={editingTarifa?.precio_minimo}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="fecha_inicio">Desde (opcional)</Label>
-                        <Input
-                          id="fecha_inicio"
-                          name="fecha_inicio"
-                          type="date"
-                          defaultValue={editingTarifa?.fecha_inicio || ''}
-                        />
-                      </div>
-
-                      <div className="grid gap-2">
-                        <Label htmlFor="fecha_fin">Hasta (opcional)</Label>
-                        <Input
-                          id="fecha_fin"
-                          name="fecha_fin"
-                          type="date"
-                          defaultValue={editingTarifa?.fecha_fin || ''}
-                        />
-                      </div>
-                    </div>
+                {editingId && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="activa">Estado</Label>
+                    <Select
+                      name="activa"
+                      defaultValue={editingTarifa?.activa ? 'true' : 'false'}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">Activa</SelectItem>
+                        <SelectItem value="false">Inactiva</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                )}
+              </div>
 
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button type="submit" disabled={loading}>
-                      {loading ? 'Guardando...' : editingId ? 'Actualizar' : 'Crear'}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tipo / Categoría</TableHead>
-                <TableHead>Nombre Tarifa</TableHead>
-                <TableHead>Precio Base</TableHead>
-                <TableHead>Precio Mínimo</TableHead>
-                <TableHead>Vigencia</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tarifas.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    No hay tarifas registradas
-                  </TableCell>
-                </TableRow>
-              ) : (
-                tarifas.map((tarifa) => (
-                  <TableRow key={tarifa.id}>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{tarifa.tipos_habitacion?.nombre}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {tarifa.categorias_habitacion?.nombre}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{tarifa.nombre_tarifa}</TableCell>
-                    <TableCell className="font-medium">
-                      {formatPrice(tarifa.precio_base)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatPrice(tarifa.precio_minimo)}
-                    </TableCell>
-                    <TableCell>
-                      {tarifa.fecha_inicio || tarifa.fecha_fin ? (
-                        <div className="text-xs">
-                          {tarifa.fecha_inicio && (
-                            <div>Desde: {new Date(tarifa.fecha_inicio).toLocaleDateString('es-PE')}</div>
-                          )}
-                          {tarifa.fecha_fin && (
-                            <div>Hasta: {new Date(tarifa.fecha_fin).toLocaleDateString('es-PE')}</div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">Indefinida</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {tarifa.activa ? (
-                        <Badge variant="secondary" className="bg-blue-500 text-white dark:bg-blue-600">
-                          ACTIVA
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">INACTIVA</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(tarifa)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleToggleActiva(tarifa.id, tarifa.activa)}
-                        >
-                          {tarifa.activa ? (
-                            <PowerOff className="h-4 w-4" />
-                          ) : (
-                            <Power className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              <DialogFooter>
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Guardando...' : 'Guardar'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
+      <DataTable
+        columns={tarifasColumns}
+        data={tarifas}
+        searchKey="tipo"
+        searchPlaceholder="Buscar por tipo o categoría..."
+        meta={{
+          onEdit: handleEdit,
+          onToggleActiva: handleToggleActiva,
+          onDelete: openDeleteDialog,
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar tarifa?</AlertDialogTitle>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción desactivará la tarifa. No se eliminará del sistema por seguridad.
+              Esta acción no se puede deshacer. La tarifa será eliminada
+              permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>
-              Desactivar
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

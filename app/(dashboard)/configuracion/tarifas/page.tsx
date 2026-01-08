@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { DashboardHeader } from '@/components/dashboard-header'
 import { getTarifas } from '@/lib/actions/tarifas'
 import { getTiposHabitacion, getCategoriasHabitacion } from '@/lib/actions/configuracion-habitaciones'
-import { TarifasClient } from './tarifas-client'
+import { TarifasClientNew } from './tarifas-client-new'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export default async function TarifasPage() {
@@ -30,7 +30,7 @@ export default async function TarifasPage() {
         </div>
 
         <Suspense fallback={<Skeleton className="h-[400px]" />}>
-          <TarifasClient 
+          <TarifasClientNew 
             tarifas={tarifas}
             tipos={tipos}
             categorias={categorias}

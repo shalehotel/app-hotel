@@ -7,11 +7,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { differenceInDays } from 'date-fns'
-import { format } from 'date-fns'
+import { differenceInDays, format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { DollarSign, Receipt, AlertCircle, Users } from 'lucide-react'
+import { 
+  DollarSign, 
+  AlertCircle, 
+  CalendarDays, 
+  Moon, 
+  CreditCard, 
+  MessageSquare,
+  User
+} from 'lucide-react'
 import { ReservationContextMenu } from '../context-menu/reservation-context-menu'
 import type { RackReserva } from '@/lib/actions/rack'
 
@@ -45,42 +54,125 @@ export function ReservationBlock({ reserva, nights, onClick, onUpdate }: Props) 
     new Date(reserva.fecha_entrada)
   )
 
-  const totalEstimado = reserva.precio_pactado * totalNoches
+  // Usar precio pactado directamente si existe, o calcular estimado
+  // En este componente asumimos que el precio viene en total o diario
+  // pero el cálculo más seguro es el que viene del backend o simple mult
+  const totalEstimado = (reserva.precio_pactado || 0) * (totalNoches || 1)
 
-  // Calcular estados financieros (mock por ahora, se puede mejorar con query real)
-  const estaPagado = reserva.precio_pactado > 0 // Mock: considerar pagado si hay precio
-  const tieneDeuda = !estaPagado
-  const estaFacturado = false // Mock: en fase 2 se conecta con comprobantes
+  // Calcular estados financieros REALES
+  const saldo = reserva.saldo_pendiente || 0
+  const tieneDeuda = saldo > 0.5 // Tolerancia de 50 céntimos
+  const estaPagado = !tieneDeuda
   const tieneObservaciones = reserva.notas && reserva.notas.length > 0
 
-  // Construir tooltip rico con información completa
+  // Helper para iniciales
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase()
+  }
+
+  // Construir tooltip moderno y visualmente integrado
   const tooltipContent = (
-    <div className="space-y-2 text-left min-w-[250px]">
-      <div className="font-semibold border-b pb-1">
-        {huespedCompleto}
+    <div className="w-[280px] p-0">
+      {/* Header: Avatar y Nombre */}
+      <div className="flex items-start gap-3 p-3 pb-3">
+        <Avatar className="h-9 w-9 border ring-1 ring-background shadow-sm">
+          <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+            {reserva.huespedes ? getInitials(reserva.huespedes.nombres + ' ' + reserva.huespedes.apellidos) : '??'}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0 flex flex-col justify-center h-9">
+          <p className="font-semibold text-sm truncate leading-none mb-1.5">
+            {huespedCompleto}
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">
+              {reserva.codigo_reserva}
+            </span>
+            <Badge 
+              variant={tieneDeuda ? "destructive" : "secondary"} 
+              className={cn("text-[10px] h-4 px-1.5 font-medium rounded-sm shadow-none", !tieneDeuda && "bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400")}
+            >
+              {tieneDeuda ? "Pendiente" : "Pagado"}
+            </Badge>
+          </div>
+        </div>
       </div>
-      <div className="space-y-1 text-xs">
-        <p><span className="text-muted-foreground">Código:</span> {reserva.codigo_reserva}</p>
-        <p><span className="text-muted-foreground">Entrada:</span> {format(new Date(reserva.fecha_entrada), 'dd MMM yyyy', { locale: es })}</p>
-        <p><span className="text-muted-foreground">Salida:</span> {format(new Date(reserva.fecha_salida), 'dd MMM yyyy', { locale: es })}</p>
-        <p><span className="text-muted-foreground">Noches:</span> {totalNoches}</p>
-        <p><span className="text-muted-foreground">Total:</span> S/ {totalEstimado.toFixed(2)}</p>
-        {reserva.notas && (
-          <p className="pt-1 border-t"><span className="text-muted-foreground">Notas:</span> {reserva.notas}</p>
-        )}
+
+      <Separator />
+
+      {/* Body: Datos clave con iconos */}
+      <div className="grid grid-cols-2 gap-x-2 gap-y-3 p-3 bg-muted/5">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
+            <CalendarDays className="w-3 h-3" />
+            <span className="text-[10px] font-medium uppercase tracking-wider">Llegada</span>
+          </div>
+          <p className="text-xs font-medium pl-4.5">{format(new Date(reserva.fecha_entrada), 'EEE d MMM', { locale: es })}</p>
+        </div>
+        
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
+            <CalendarDays className="w-3 h-3" />
+            <span className="text-[10px] font-medium uppercase tracking-wider">Salida</span>
+          </div>
+          <p className="text-xs font-medium pl-4.5">{format(new Date(reserva.fecha_salida), 'EEE d MMM', { locale: es })}</p>
+        </div>
+
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
+            <Moon className="w-3 h-3" />
+            <span className="text-[10px] font-medium uppercase tracking-wider">Duración</span>
+          </div>
+          <p className="text-xs font-medium pl-4.5">{totalNoches} noches</p>
+        </div>
+
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
+            <CreditCard className="w-3 h-3" />
+            <span className="text-[10px] font-medium uppercase tracking-wider">Total</span>
+          </div>
+          <p className="text-xs font-medium pl-4.5">S/ {totalEstimado.toFixed(2)}</p>
+        </div>
       </div>
+
+      {/* Footer: Estado Financiero o Notas */}
+      {(tieneDeuda || reserva.notas) && (
+        <>
+          <Separator />
+          <div className="p-3 bg-muted/30 space-y-2.5">
+            {tieneDeuda && (
+              <div className="flex justify-between items-center text-xs px-1">
+                <span className="text-muted-foreground font-medium">Saldo pendiente</span>
+                <span className="font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded">S/ {saldo.toFixed(2)}</span>
+              </div>
+            )}
+            
+            {reserva.notas && (
+              <div className="flex items-start gap-2 text-xs text-muted-foreground bg-background p-2 rounded border shadow-sm">
+                <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 text-primary/60" />
+                <span className="italic line-clamp-2 leading-relaxed">"{reserva.notas}"</span>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 
   return (
-    <TooltipProvider delayDuration={300}>
+    <TooltipProvider delayDuration={200}>
       <Tooltip>
         <ReservationContextMenu reserva={reserva} onUpdate={onUpdate}>
           <TooltipTrigger asChild>
             <div
               className={cn(
-                'absolute inset-1 rounded border-2 cursor-pointer transition-colors z-10',
-                'flex flex-col justify-between px-2 py-1 text-white shadow-sm',
+                'absolute inset-1 rounded-md border shadow-sm cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] z-10',
+                'flex flex-col justify-between px-2.5 py-1.5 text-white',
                 getStatusColor(reserva.estado)
               )}
               style={{
@@ -106,36 +198,38 @@ export function ReservationBlock({ reserva, nights, onClick, onUpdate }: Props) 
                 </div>
                 <div className="flex gap-0.5 flex-shrink-0">
                   {tieneDeuda && (
-                    <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center" title="Tiene deuda">
-                      <DollarSign className="w-2.5 h-2.5" />
+                    <div className="w-4 h-4 rounded-full bg-red-600 border border-red-400 flex items-center justify-center shadow-sm animate-pulse" title={`Deuda: S/ ${saldo.toFixed(2)}`}>
+                      <DollarSign className="w-3 h-3 text-white" />
                     </div>
                   )}
                   {estaPagado && (
-                    <div className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center" title="Pagado">
-                      <DollarSign className="w-2.5 h-2.5" />
-                    </div>
-                  )}
-                  {estaFacturado && (
-                    <div className="w-4 h-4 rounded-full bg-blue-400 flex items-center justify-center" title="Facturado">
-                      <Receipt className="w-2.5 h-2.5" />
+                    <div className="w-4 h-4 rounded-full bg-green-500 border border-green-400 flex items-center justify-center shadow-sm" title="Pagado">
+                      <DollarSign className="w-3 h-3 text-white" />
                     </div>
                   )}
                   {tieneObservaciones && (
-                    <div className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center" title="Tiene observaciones">
-                      <AlertCircle className="w-2.5 h-2.5" />
+                    <div className="w-4 h-4 rounded-full bg-yellow-500 border border-yellow-400 flex items-center justify-center shadow-sm" title="Tiene observaciones">
+                      <AlertCircle className="w-3 h-3 text-white" />
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Footer: Precio */}
-              <div className="text-xs font-semibold">
-                S/ {totalEstimado.toFixed(2)}
+              <div className="text-xs font-semibold flex justify-between items-end">
+                <span>S/ {totalEstimado.toFixed(2)}</span>
+                {tieneDeuda && (
+                  <span className="text-[9px] bg-red-700 px-1 rounded text-white ml-1">Debe</span>
+                )}
               </div>
             </div>
           </TooltipTrigger>
         </ReservationContextMenu>
-        <TooltipContent side="top" className="bg-gray-900 text-white border-gray-700">
+        <TooltipContent 
+          side="top" 
+          className="bg-popover text-popover-foreground p-0 overflow-hidden shadow-xl border border-border/60" 
+          sideOffset={5}
+        >
           {tooltipContent}
         </TooltipContent>
       </Tooltip>

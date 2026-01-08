@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { OcupacionesTable } from './ocupaciones-table'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DashboardHeader } from '@/components/dashboard-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getEstadisticasOcupaciones } from '@/lib/actions/ocupaciones'
 import { Hotel, DoorOpen, DoorClosed, AlertTriangle } from 'lucide-react'
@@ -15,59 +15,45 @@ async function EstadisticasOcupaciones() {
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Reservas Pendientes</CardTitle>
+      <div className="rounded-lg border bg-card p-4">
+        <div className="flex items-center justify-between space-y-0 pb-2">
+          <p className="text-sm font-medium">Reservas Pendientes</p>
           <Hotel className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.total_reservas}</div>
-          <p className="text-xs text-muted-foreground">
-            Sin check-in
-          </p>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="text-2xl font-bold">{stats.total_reservas}</div>
+        <p className="text-xs text-muted-foreground">Sin check-in</p>
+      </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Check-ins Activos</CardTitle>
+      <div className="rounded-lg border bg-card p-4">
+        <div className="flex items-center justify-between space-y-0 pb-2">
+          <p className="text-sm font-medium">Check-ins Activos</p>
           <DoorOpen className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.total_checkins}</div>
-          <p className="text-xs text-muted-foreground">
-            Huéspedes en hotel
-          </p>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="text-2xl font-bold">{stats.total_checkins}</div>
+        <p className="text-xs text-muted-foreground">Huéspedes en hotel</p>
+      </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Check-outs</CardTitle>
+      <div className="rounded-lg border bg-card p-4">
+        <div className="flex items-center justify-between space-y-0 pb-2">
+          <p className="text-sm font-medium">Check-outs</p>
           <DoorClosed className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.total_checkouts}</div>
-          <p className="text-xs text-muted-foreground">
-            Salidas completadas
-          </p>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="text-2xl font-bold">{stats.total_checkouts}</div>
+        <p className="text-xs text-muted-foreground">Salidas completadas</p>
+      </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Pendiente de Cobro</CardTitle>
+      <div className="rounded-lg border bg-card p-4">
+        <div className="flex items-center justify-between space-y-0 pb-2">
+          <p className="text-sm font-medium">Pendiente de Cobro</p>
           <AlertTriangle className="h-4 w-4 text-destructive" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-destructive">
-            S/ {stats.monto_total_deuda.toFixed(2)}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {stats.total_con_deuda} reservas con deuda
-          </p>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="text-2xl font-bold text-destructive">
+          S/ {stats.monto_total_deuda.toFixed(2)}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {stats.total_con_deuda} reservas con deuda
+        </p>
+      </div>
     </div>
   )
 }
@@ -76,16 +62,11 @@ function EstadisticasSkeleton() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {[...Array(4)].map((_, i) => (
-        <Card key={i}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <Skeleton className="h-4 w-[100px]" />
-            <Skeleton className="h-4 w-4" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-8 w-[60px] mb-2" />
-            <Skeleton className="h-3 w-[120px]" />
-          </CardContent>
-        </Card>
+        <div key={i} className="rounded-lg border bg-card p-4">
+          <Skeleton className="h-4 w-[100px] mb-2" />
+          <Skeleton className="h-8 w-[60px] mb-2" />
+          <Skeleton className="h-3 w-[120px]" />
+        </div>
       ))}
     </div>
   )
@@ -93,33 +74,39 @@ function EstadisticasSkeleton() {
 
 export default function OcupacionesPage() {
   return (
-    <div className="flex-1 space-y-6 p-8 pt-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Ocupaciones Actuales</h2>
-          <p className="text-muted-foreground">
+    <>
+      <DashboardHeader 
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Ocupaciones Actuales' }
+        ]}
+      />
+      
+      <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-bold tracking-tight">Ocupaciones Actuales</h2>
+          <p className="text-sm text-muted-foreground">
             Gestiona las reservas activas, check-ins, check-outs y pagos pendientes
           </p>
         </div>
-      </div>
 
-      <Suspense fallback={<EstadisticasSkeleton />}>
-        <EstadisticasOcupaciones />
-      </Suspense>
+        <Suspense fallback={<EstadisticasSkeleton />}>
+          <EstadisticasOcupaciones />
+        </Suspense>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Todas las Ocupaciones</CardTitle>
-          <CardDescription>
-            Lista completa de reservas, check-ins y check-outs recientes
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold">Todas las Ocupaciones</h3>
+            <p className="text-sm text-muted-foreground">
+              Lista completa de reservas, check-ins y check-outs recientes
+            </p>
+          </div>
+
           <Suspense fallback={<Skeleton className="h-[400px]" />}>
             <OcupacionesTable />
           </Suspense>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </div>
+    </>
   )
 }

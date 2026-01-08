@@ -19,32 +19,60 @@ import {
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Sparkles, Wrench, Ban, Info } from 'lucide-react'
-import { marcarHabitacionLimpia, cambiarEstadoHabitacion } from '@/lib/actions/rack'
+import { Sparkles, Wrench, Ban, Info, Key, UserCheck, UserX, SprayCan } from 'lucide-react'
+import { cambiarEstadoHabitacion } from '@/lib/actions/rack'
+import { toggleHuespedPresente } from '@/lib/actions/reservas'
+import { updateEstadoLimpieza } from '@/lib/actions/habitaciones'
 import type { RackHabitacion } from '@/lib/actions/rack'
+import { toast } from 'sonner'
 
 type Props = {
   children: React.ReactNode
   habitacion: RackHabitacion
+  reservaActiva?: { id: string, huesped_presente: boolean } | null
   onUpdate: () => void
 }
 
-export function RoomContextMenu({ children, habitacion, onUpdate }: Props) {
+export function RoomContextMenu({ children, habitacion, reservaActiva, onUpdate }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogType, setDialogType] = useState<'limpiar' | 'mantenimiento' | 'bloquear' | null>(null)
   const [nota, setNota] = useState('')
   const [procesando, setProcesando] = useState(false)
 
-  const handleMarcarLimpia = async () => {
-    if (habitacion.estado_limpieza === 'LIMPIA') return
+  const handleUpdateLimpieza = async (estado: 'LIMPIA' | 'SUCIA') => {
+    if (habitacion.estado_limpieza === estado) return
     
     setProcesando(true)
     try {
-      await marcarHabitacionLimpia(habitacion.id)
-      onUpdate()
+      const result = await updateEstadoLimpieza(habitacion.id, estado)
+      if (result.success) {
+        toast.success(`Habitación marcada como ${estado}`)
+        onUpdate()
+      } else {
+        toast.error('Error al actualizar limpieza')
+      }
     } catch (error) {
-      console.error('Error al marcar limpia:', error)
-      alert('Error al actualizar habitación')
+      console.error('Error limpieza:', error)
+      toast.error('Error de conexión')
+    } finally {
+      setProcesando(false)
+    }
+  }
+
+  const handleTogglePresencia = async (presente: boolean) => {
+    if (!reservaActiva) return
+    setProcesando(true)
+    try {
+      const result = await toggleHuespedPresente(reservaActiva.id, presente)
+      if (result.success) {
+        toast.success(presente ? 'Huésped marcado DENTRO' : 'Huésped marcado FUERA (Llave recibida)')
+        onUpdate()
+      } else {
+        toast.error(result.error || 'Error al actualizar presencia')
+      }
+    } catch (error) {
+      console.error('Error presencia:', error)
+      toast.error('Error de conexión')
     } finally {
       setProcesando(false)
     }
@@ -59,7 +87,7 @@ export function RoomContextMenu({ children, habitacion, onUpdate }: Props) {
       onUpdate()
     } catch (error) {
       console.error('Error al cambiar estado:', error)
-      alert('Error al actualizar habitación')
+      toast.error('Error al actualizar estado')
     } finally {
       setProcesando(false)
     }
@@ -86,7 +114,8 @@ export function RoomContextMenu({ children, habitacion, onUpdate }: Props) {
 
   const handleConfirmar = () => {
     if (dialogType === 'limpiar') {
-      handleMarcarLimpia()
+      handleUpdateLimpieza('LIMPIA')
+      setDialogOpen(false)
     } else if (dialogType === 'mantenimiento') {
       handleCambiarEstado('MANTENIMIENTO')
     } else if (dialogType === 'bloquear') {
@@ -100,20 +129,48 @@ export function RoomContextMenu({ children, habitacion, onUpdate }: Props) {
         <ContextMenuTrigger asChild>
           {children}
         </ContextMenuTrigger>
-        <ContextMenuContent className="w-56">
-          {habitacion.estado_limpieza === 'SUCIA' && (
+        <ContextMenuContent className="w-64">
+          
+          {/* SECCIÓN 1: CONTROL DE LLAVE (PRESENCIA) */}
+          {reservaActiva && (
             <>
-              <ContextMenuItem
-                onClick={() => abrirDialog('limpiar')}
-                disabled={procesando}
-              >
-                <Sparkles className="mr-2 h-4 w-4 text-blue-500" />
-                Marcar como Limpia
-              </ContextMenuItem>
+              {reservaActiva.huesped_presente ? (
+                <ContextMenuItem 
+                  onClick={() => handleTogglePresencia(false)}
+                  className="text-orange-600 focus:text-orange-700"
+                >
+                  <Key className="mr-2 h-4 w-4" />
+                  Recibir Llave (Marcar Fuera)
+                </ContextMenuItem>
+              ) : (
+                <ContextMenuItem 
+                  onClick={() => handleTogglePresencia(true)}
+                  className="text-green-600 focus:text-green-700"
+                >
+                  <UserCheck className="mr-2 h-4 w-4" />
+                  Entregar Llave (Marcar Dentro)
+                </ContextMenuItem>
+              )}
               <ContextMenuSeparator />
             </>
           )}
 
+          {/* SECCIÓN 2: LIMPIEZA */}
+          {habitacion.estado_limpieza === 'SUCIA' ? (
+            <ContextMenuItem onClick={() => handleUpdateLimpieza('LIMPIA')}>
+              <Sparkles className="mr-2 h-4 w-4 text-blue-500" />
+              Marcar como Limpia
+            </ContextMenuItem>
+          ) : (
+            <ContextMenuItem onClick={() => handleUpdateLimpieza('SUCIA')}>
+              <SprayCan className="mr-2 h-4 w-4 text-gray-500" />
+              Marcar como Sucia
+            </ContextMenuItem>
+          )}
+          
+          <ContextMenuSeparator />
+
+          {/* SECCIÓN 3: MANTENIMIENTO */}
           <ContextMenuItem
             onClick={() => abrirDialog('mantenimiento')}
             disabled={procesando || habitacion.estado_servicio === 'MANTENIMIENTO'}

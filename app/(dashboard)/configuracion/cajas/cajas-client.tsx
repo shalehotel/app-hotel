@@ -120,12 +120,12 @@ export function CajasClient() {
                   <TableCell className="font-medium">{caja.nombre}</TableCell>
                   <TableCell>
                     {caja.estado ? (
-                      <Badge variant="secondary" className="bg-green-500 text-white">
+                      <Badge variant="secondary" className="bg-blue-500 text-white dark:bg-blue-600">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         Activa
                       </Badge>
                     ) : (
-                      <Badge variant="secondary" className="bg-gray-500 text-white">
+                      <Badge variant="outline">
                         <XCircle className="h-3 w-3 mr-1" />
                         Inactiva
                       </Badge>
@@ -141,7 +141,7 @@ export function CajasClient() {
                   </TableCell>
                   <TableCell>
                     {caja.turno_activo ? (
-                      <Badge variant="secondary" className="bg-orange-500 text-white">
+                      <Badge variant="secondary">
                         Sí
                       </Badge>
                     ) : (

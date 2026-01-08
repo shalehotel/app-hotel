@@ -58,11 +58,11 @@ export function TurnoDetailSheet({ turnoId, open, onClose }: Props) {
     const dif = detalle.estadisticas.diferencia_pen
 
     if (Math.abs(dif) < 0.01) {
-      return <Badge className="bg-green-100 text-green-800 border-green-300">🟢 CUADRADA</Badge>
+      return <Badge variant="secondary" className="bg-blue-500 text-white dark:bg-blue-600">CUADRADA</Badge>
     } else if (dif < 0) {
-      return <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-300">🔴 FALTANTE</Badge>
+      return <Badge variant="destructive">FALTANTE</Badge>
     } else {
-      return <Badge className="bg-blue-100 text-blue-800 border-blue-300">🔵 SOBRANTE</Badge>
+      return <Badge variant="outline">SOBRANTE</Badge>
     }
   }
 

@@ -38,14 +38,14 @@ export function HistorialCierresTable({ cierres }: Props) {
 
   const getEstadoBadge = (estado: CierrePasado['estado']) => {
     const variants = {
-      CUADRADA: { variant: 'default' as const, className: 'bg-green-100 text-green-800 border-green-300', icon: '🟢' },
-      FALTANTE: { variant: 'destructive' as const, className: 'bg-red-100 text-red-800 border-red-300', icon: '🔴' },
-      SOBRANTE: { variant: 'default' as const, className: 'bg-blue-100 text-blue-800 border-blue-300', icon: '🔵' }
+      CUADRADA: { variant: 'secondary' as const, className: 'bg-blue-500 text-white dark:bg-blue-600' },
+      FALTANTE: { variant: 'destructive' as const, className: '' },
+      SOBRANTE: { variant: 'outline' as const, className: '' }
     }
     const config = variants[estado]
     return (
       <Badge variant={config.variant} className={config.className}>
-        {config.icon} {estado}
+        {estado}
       </Badge>
     )
   }

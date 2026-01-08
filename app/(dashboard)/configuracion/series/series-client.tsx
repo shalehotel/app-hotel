@@ -13,24 +13,19 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { SerieDialog } from '@/components/series/serie-dialog'
-import { getSeries } from '@/lib/actions/series'
-import type { Database } from '@/types/database.types'
-
-type Serie = Database['public']['Tables']['series_comprobante']['Row'] & {
-  cajas: { nombre: string } | null
-}
+import { getSeries, type SerieWithCaja } from '@/lib/actions/series'
 
 export function SeriesClient() {
-  const [series, setSeries] = useState<Serie[]>([])
+  const [series, setSeries] = useState<SerieWithCaja[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [selectedSerie, setSelectedSerie] = useState<Serie | undefined>()
+  const [selectedSerie, setSelectedSerie] = useState<SerieWithCaja | undefined>()
 
   const loadSeries = async () => {
     setLoading(true)
     const result = await getSeries()
     if (result.success && result.data) {
-      setSeries(result.data as Serie[])
+      setSeries(result.data)
     }
     setLoading(false)
   }
@@ -39,7 +34,7 @@ export function SeriesClient() {
     loadSeries()
   }, [])
 
-  const handleEdit = (serie: Serie) => {
+  const handleEdit = (serie: SerieWithCaja) => {
     setSelectedSerie(serie)
     setDialogOpen(true)
   }
@@ -54,7 +49,7 @@ export function SeriesClient() {
     BOLETA: 'Boleta',
     FACTURA: 'Factura',
     NOTA_CREDITO: 'Nota de Crédito',
-    TICKET_INTERNO: 'Ticket Interno',
+    NOTA_DEBITO: 'Nota de Débito',
   }
 
   if (loading) {
@@ -108,7 +103,7 @@ export function SeriesClient() {
                     )}
                   </TableCell>
                   <TableCell className="font-mono">
-                    {serie.correlativo_actual.toString().padStart(8, '0')}
+                    {(serie.correlativo_actual || 0).toString().padStart(8, '0')}
                   </TableCell>
                   <TableCell>
                     <Button

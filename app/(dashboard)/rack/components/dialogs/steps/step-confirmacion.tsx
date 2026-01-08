@@ -3,19 +3,11 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, CheckCircle, Clock } from 'lucide-react'
+import { Loader2, CheckCircle, Clock, CreditCard } from 'lucide-react'
 import { crearReservaDesdeRack } from '@/lib/actions/rack'
 import type { RackHabitacion } from '@/lib/actions/rack'
 
@@ -27,6 +19,7 @@ type Props = {
   totalEstimado: number
   onSuccess: () => void
   onClose: () => void
+  onPaymentRequest: (reservaId: string) => void
 }
 
 export function StepConfirmacion({
@@ -36,7 +29,8 @@ export function StepConfirmacion({
   totalNoches,
   totalEstimado,
   onSuccess,
-  onClose
+  onClose,
+  onPaymentRequest
 }: Props) {
   const [guardando, setGuardando] = useState(false)
   const [tipoAccion, setTipoAccion] = useState<'reserva' | 'checkin' | null>(null)
@@ -46,22 +40,31 @@ export function StepConfirmacion({
     setGuardando(true)
 
     try {
-      await crearReservaDesdeRack({
+      const result = await crearReservaDesdeRack({
         habitacion_id: habitacion.id,
         huespedes: formData.huespedes,
         fecha_entrada: formData.fecha_entrada,
         fecha_salida: formData.fecha_salida,
         precio_pactado: formData.precio_pactado,
         estado: accion === 'checkin' ? 'CHECKED_IN' : 'RESERVADA',
-        pago: formData.registrar_pago ? {
-          metodo_pago: formData.metodo_pago,
-          monto: formData.monto_pagado,
-          numero_operacion: formData.numero_operacion
-        } : null
+        // Ya no enviamos pago aquí, se maneja aparte
+        pago: null
       })
 
-      onSuccess()
-      onClose()
+      if (result.error) {
+        alert(result.error)
+        return
+      }
+
+      onSuccess() // Refrescar Rack
+
+      if (formData.registrar_pago && result.data?.id) {
+        // Si marcó pagar, abrimos el flujo de pago con el ID creado
+        onPaymentRequest(result.data.id)
+      } else {
+        onClose() // Si no, cerramos todo
+      }
+
     } catch (error) {
       console.error('Error creating reservation:', error)
       alert('Error al crear la reserva')
@@ -116,15 +119,6 @@ export function StepConfirmacion({
               </span>
             </div>
 
-            {formData.huespedes && formData.huespedes.length > 1 && (
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Acompañantes:</span>
-                <span className="font-medium">
-                  {formData.huespedes.filter((h: any) => !h.es_titular).length} persona{formData.huespedes.filter((h: any) => !h.es_titular).length !== 1 ? 's' : ''}
-                </span>
-              </div>
-            )}
-
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Documento:</span>
               <span className="font-medium">
@@ -136,88 +130,38 @@ export function StepConfirmacion({
           <Separator />
 
           <div className="flex justify-between">
-            <span className="font-semibold">Total:</span>
+            <span className="font-semibold">Total a Pagar:</span>
             <span className="text-xl font-bold">S/ {totalEstimado.toFixed(2)}</span>
           </div>
         </div>
       </div>
 
-      {/* Opciones de Pago */}
-      <div className="space-y-3">
-        <Label>¿Registrar pago ahora?</Label>
-        
-        <RadioGroup
-          value={formData.registrar_pago ? 'si' : 'no'}
-          onValueChange={(value) => updateFormData({ registrar_pago: value === 'si' })}
-        >
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="no" id="no-pago" />
-            <label htmlFor="no-pago" className="text-sm cursor-pointer">
-              No, continuar sin pago
-            </label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="si" id="si-pago" />
-            <label htmlFor="si-pago" className="text-sm cursor-pointer">
-              Sí, registrar pago ahora
-            </label>
-          </div>
-        </RadioGroup>
-      </div>
-
-      {/* Formulario de Pago */}
-      {formData.registrar_pago && (
-        <div className="space-y-4 p-4 border rounded-lg">
-          <div className="space-y-2">
-            <Label>Método de Pago</Label>
-            <Select
-              value={formData.metodo_pago || ''}
-              onValueChange={(value) => updateFormData({ metodo_pago: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona método" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="EFECTIVO">Efectivo</SelectItem>
-                <SelectItem value="TARJETA">Tarjeta</SelectItem>
-                <SelectItem value="TRANSFERENCIA">Transferencia</SelectItem>
-                <SelectItem value="YAPE">Yape</SelectItem>
-                <SelectItem value="PLIN">Plin</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Monto a Pagar</Label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.monto_pagado}
-              onChange={(e) => updateFormData({ monto_pagado: parseFloat(e.target.value) || 0 })}
-              placeholder="0.00"
-            />
-          </div>
-
-          {formData.metodo_pago && formData.metodo_pago !== 'EFECTIVO' && (
-            <div className="space-y-2">
-              <Label>Número de Operación</Label>
-              <Input
-                value={formData.numero_operacion || ''}
-                onChange={(e) => updateFormData({ numero_operacion: e.target.value })}
-                placeholder="Número de transacción"
-              />
-            </div>
-          )}
+      {/* Opción de Pago Diferido */}
+      <div className="flex items-start space-x-2 p-4 border border-blue-200 bg-blue-50 rounded-lg">
+        <Checkbox 
+          id="pagar_ahora" 
+          checked={formData.registrar_pago}
+          onCheckedChange={(checked) => updateFormData({ registrar_pago: checked === true })}
+        />
+        <div className="grid gap-1.5 leading-none">
+          <Label 
+            htmlFor="pagar_ahora" 
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Proceder al cobro inmediatamente
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Al finalizar, se abrirá la ventana para emitir el comprobante de pago.
+          </p>
         </div>
-      )}
+      </div>
 
       {/* Botones de Acción */}
       <div className="space-y-3 pt-4 border-t">
         <Button
           className="w-full"
           size="lg"
-          variant="default"
+          variant="outline"
           onClick={() => handleSubmit('reserva')}
           disabled={guardando}
         >
@@ -226,7 +170,7 @@ export function StepConfirmacion({
           ) : (
             <Clock className="mr-2 h-4 w-4" />
           )}
-          Crear Reserva (para después)
+          Solo Reservar (Sin Check-in)
         </Button>
 
         <Button
@@ -240,7 +184,7 @@ export function StepConfirmacion({
           ) : (
             <CheckCircle className="mr-2 h-4 w-4" />
           )}
-          Hacer Check-in Ahora
+          Confirmar Check-in
         </Button>
 
         <Button
@@ -255,3 +199,4 @@ export function StepConfirmacion({
     </div>
   )
 }
+

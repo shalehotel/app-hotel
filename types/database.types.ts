@@ -55,6 +55,27 @@ export type Database = {
           },
         ]
       }
+      cajas: {
+        Row: {
+          created_at: string | null
+          estado: boolean | null
+          id: string
+          nombre: string
+        }
+        Insert: {
+          created_at?: string | null
+          estado?: boolean | null
+          id?: string
+          nombre: string
+        }
+        Update: {
+          created_at?: string | null
+          estado?: boolean | null
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
       categorias: {
         Row: {
           capacidad_max: number

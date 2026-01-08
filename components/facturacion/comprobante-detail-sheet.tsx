@@ -79,17 +79,17 @@ export function ComprobanteDetailSheet({ comprobanteId, open, onOpenChange }: Co
   }
 
   function getEstadoBadge(estado: string) {
-    const variants: Record<string, { color: string; label: string }> = {
-      'PENDIENTE': { color: 'bg-yellow-500 text-white', label: 'Pendiente SUNAT' },
-      'ACEPTADO': { color: 'bg-green-500 text-white', label: 'Aceptado SUNAT' },
-      'RECHAZADO': { color: 'bg-red-500 text-white', label: 'Rechazado SUNAT' },
-      'ANULADO': { color: 'bg-gray-500 text-white', label: 'Anulado' }
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string; label: string }> = {
+      'PENDIENTE': { variant: 'secondary', label: 'Pendiente SUNAT' },
+      'ACEPTADO': { variant: 'secondary', className: 'bg-blue-500 text-white dark:bg-blue-600', label: 'Aceptado SUNAT' },
+      'RECHAZADO': { variant: 'destructive', label: 'Rechazado SUNAT' },
+      'ANULADO': { variant: 'outline', label: 'Anulado' }
     }
 
-    const config = variants[estado] || { color: 'bg-gray-400 text-white', label: estado }
+    const config = variants[estado] || { variant: 'outline' as const, label: estado }
 
     return (
-      <Badge className={`${config.color} text-base`}>
+      <Badge variant={config.variant} className={`${config.className || ''} text-base`}>
         {config.label}
       </Badge>
     )

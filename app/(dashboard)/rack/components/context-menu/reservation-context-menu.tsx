@@ -16,24 +16,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { LogIn, CreditCard, XCircle, Loader2, LogOut } from 'lucide-react'
+import { RegistrarPagoDialog } from '@/components/cajas/registrar-pago-dialog'
 import { realizarCheckin } from '@/lib/actions/checkin'
 import { realizarCheckout, validarCheckout } from '@/lib/actions/checkout'
 import { cancelarReserva } from '@/lib/actions/reservas'
-import { registrarPago } from '@/lib/actions/pagos'
 import { format, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
-import type { RackReserva } from '@/lib/actions/rack'
+import type { RackReserva } from '@/types/rack'
 
 type Props = {
   children: React.ReactNode
@@ -47,11 +38,6 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
   const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false)
   const [procesando, setProcesando] = useState(false)
   
-  // Datos del pago
-  const [montoPago, setMontoPago] = useState('')
-  const [metodoPago, setMetodoPago] = useState('EFECTIVO')
-  const [numeroOperacion, setNumeroOperacion] = useState('')
-
   const fechaEntrada = new Date(reserva.fecha_entrada)
   const puedeHacerCheckin = isToday(fechaEntrada) && reserva.estado === 'RESERVADA'
   const puedeHacerCheckout = reserva.estado === 'CHECKED_IN'
@@ -90,36 +76,6 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
     } catch (error) {
       console.error('Error al cancelar:', error)
       alert('Error al cancelar la reserva')
-    } finally {
-      setProcesando(false)
-    }
-  }
-
-  const handleRegistrarPago = async () => {
-    if (!montoPago || parseFloat(montoPago) <= 0) {
-      alert('Ingresa un monto válido')
-      return
-    }
-
-    setProcesando(true)
-    try {
-      // Usar la nueva función de pagos
-      await registrarPago({
-        reserva_id: reserva.id,
-        caja_turno_id: '', // Se obtendrá automáticamente
-        metodo_pago: metodoPago as any,
-        monto: parseFloat(montoPago),
-        referencia_pago: numeroOperacion || undefined
-      })
-
-      setPagoDialogOpen(false)
-      setMontoPago('')
-      setMetodoPago('EFECTIVO')
-      setNumeroOperacion('')
-      onUpdate()
-    } catch (error) {
-      console.error('Error al registrar pago:', error)
-      alert(error instanceof Error ? error.message : 'Error al registrar el pago')
     } finally {
       setProcesando(false)
     }
@@ -214,73 +170,21 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
         </ContextMenuContent>
       </ContextMenu>
 
-      {/* Dialog de Pago Rápido */}
-      <Dialog open={pagoDialogOpen} onOpenChange={setPagoDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Registrar Pago</DialogTitle>
-            <DialogDescription>
-              {reserva.codigo_reserva} - {reserva.huespedes?.nombres} {reserva.huespedes?.apellidos}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="monto">Monto a cobrar</Label>
-              <Input
-                id="monto"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={montoPago}
-                onChange={(e) => setMontoPago(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="metodo">Método de Pago</Label>
-              <Select value={metodoPago} onValueChange={setMetodoPago}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="EFECTIVO">Efectivo</SelectItem>
-                  <SelectItem value="TARJETA">Tarjeta</SelectItem>
-                  <SelectItem value="TRANSFERENCIA">Transferencia</SelectItem>
-                  <SelectItem value="YAPE">Yape</SelectItem>
-                  <SelectItem value="PLIN">Plin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {metodoPago !== 'EFECTIVO' && (
-              <div className="space-y-2">
-                <Label htmlFor="operacion">Número de Operación</Label>
-                <Input
-                  id="operacion"
-                  placeholder="Opcional"
-                  value={numeroOperacion}
-                  onChange={(e) => setNumeroOperacion(e.target.value)}
-                />
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPagoDialogOpen(false)}
-              disabled={procesando}
-            >
-              Cancelar
-            </Button>
-            <Button onClick={handleRegistrarPago} disabled={procesando}>
-              {procesando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Registrar Pago
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Dialog de Pago Rápido (Nuevo Componente) */}
+      <RegistrarPagoDialog
+        open={pagoDialogOpen}
+        onOpenChange={setPagoDialogOpen}
+        reserva={{
+          id: reserva.id,
+          saldo_pendiente: reserva.saldo_pendiente || 0,
+          titular_nombre: `${reserva.huespedes?.nombres || ''} ${reserva.huespedes?.apellidos || ''}`,
+          titular_tipo_doc: '', // Dato no disponible en RackReserva, usuario deberá ingresarlo si es factura
+          titular_numero_doc: '', // Idem
+          habitacion_numero: '...', // Idem, visual
+          precio_pactado: reserva.precio_pactado || 0
+        }}
+        onSuccess={onUpdate}
+      />
 
       {/* Dialog de Checkout */}
       <Dialog open={checkoutDialogOpen} onOpenChange={setCheckoutDialogOpen}>
@@ -288,7 +192,7 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
           <DialogHeader>
             <DialogTitle>Confirmar Check-out</DialogTitle>
             <DialogDescription>
-              {reserva.codigo_reserva} - Hab. {(reserva as any).habitaciones?.numero}
+              {reserva.codigo_reserva}
             </DialogDescription>
           </DialogHeader>
 

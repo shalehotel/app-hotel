@@ -19,7 +19,7 @@ export default async function DetalleTurnoPage({
   const turno = result.data
 
   return (
-    <div className="flex flex-col h-full">
+    <>
       <DashboardHeader
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
@@ -29,11 +29,11 @@ export default async function DetalleTurnoPage({
         ]}
       />
       
-      <div className="flex-1 p-6 overflow-auto">
+      <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <Suspense fallback={<div>Cargando detalle...</div>}>
           <DetalleTurnoClient turnoId={id} turnoInicial={turno} />
         </Suspense>
       </div>
-    </div>
+    </>
   )
 }

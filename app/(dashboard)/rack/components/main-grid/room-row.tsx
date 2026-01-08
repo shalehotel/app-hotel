@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { GridCell } from './grid-cell'
 import { ReservationBlock } from './reservation-block'
 import { RoomContextMenu } from '../context-menu/room-context-menu'
+import { getRoomVisualState } from '@/lib/utils/room-status'
 import type { RackHabitacion, RackReserva } from '@/lib/actions/rack'
+import { Key } from 'lucide-react'
 
 type Props = {
   habitacion: RackHabitacion
@@ -36,13 +38,8 @@ export function RoomRow({ habitacion, days, reservas, startDate, onReservationCl
     }
   }, [clearSelection])
 
-  const getStatusBadge = (status: string) => {
-    if (status === 'LIMPIA') return <Badge variant="secondary" className="bg-blue-500 text-white dark:bg-blue-600">LIMPIA</Badge>
-    if (status === 'SUCIA') return <Badge variant="destructive">SUCIA</Badge>
-    if (status === 'OCUPADA') return <Badge variant="secondary">OCUPADA</Badge>
-    if (status === 'MANTENIMIENTO') return <Badge variant="outline">MANT.</Badge>
-    return <Badge variant="outline">{status}</Badge>
-  }
+  // Calcular estado visual prioritario
+  const visualState = getRoomVisualState(habitacion)
 
   // Calcular qué celdas están ocupadas por reservas
   const getReservationForCell = (dayIndex: number) => {
@@ -120,11 +117,24 @@ export function RoomRow({ habitacion, days, reservas, startDate, onReservationCl
     return false
   }
 
+  // Calcular reserva activa hoy para el menú contextual
+  const today = startOfDay(new Date())
+  const activeReservation = reservas.find(r => {
+    if (r.estado !== 'CHECKED_IN') return false
+    const start = startOfDay(new Date(r.fecha_entrada))
+    const end = startOfDay(new Date(r.fecha_salida))
+    return today >= start && today <= end
+  })
+
   return (
 <>
       {/* Room info cell (sticky) con menú contextual */}
-      <RoomContextMenu habitacion={habitacion} onUpdate={onUpdate}>
-        <div className="sticky left-0 z-10 border-b border-r bg-background p-2 cursor-context-menu">
+      <RoomContextMenu 
+        habitacion={habitacion} 
+        reservaActiva={activeReservation ? { id: activeReservation.id, huesped_presente: activeReservation.huesped_presente } : null}
+        onUpdate={onUpdate}
+      >
+        <div className="sticky left-0 z-20 border-b border-r bg-background p-2 cursor-context-menu">
           <div className="flex items-center justify-between">
             <div>
               <div className="font-semibold">{habitacion.numero}</div>
@@ -132,8 +142,19 @@ export function RoomRow({ habitacion, days, reservas, startDate, onReservationCl
                 {habitacion.tipos_habitacion.nombre}
               </div>
             </div>
-            <div className="text-xs">
-              {getStatusBadge(habitacion.estado_limpieza)}
+            <div className="flex flex-col items-end gap-1">
+              <Badge 
+                variant="outline" 
+                className={`${visualState.badgeColor} ${visualState.textColor} border-0 text-[10px] px-1.5`}
+              >
+                {visualState.label}
+              </Badge>
+              {activeReservation && !activeReservation.huesped_presente && (
+                <div className="flex items-center text-[10px] text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded border border-orange-200">
+                  <Key className="w-3 h-3 mr-1" />
+                  LLAVE
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -3,52 +3,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { addDays, startOfDay, endOfDay } from 'date-fns'
 import { registrarHuespedesEnReserva, type HuespedConRelacion } from './huespedes'
+import type { RackHabitacion, RackReserva, RackKPIs } from '@/types/rack'
 
-// ========================================
-// TYPES
-// ========================================
-export type RackHabitacion = {
-  id: string
-  numero: string
-  piso: string
-  tipo_id: string
-  categoria_id: string
-  estado_ocupacion: string
-  estado_limpieza: string
-  estado_servicio: string
-  tipos_habitacion: {
-    nombre: string
-    capacidad_personas: number
-  }
-  categorias_habitacion: {
-    nombre: string
-  }
-}
-
-export type RackReserva = {
-  id: string
-  codigo_reserva: string
-  habitacion_id: string
-  fecha_entrada: string
-  fecha_salida: string
-  estado: string
-  precio_pactado: number | null
-  notas: string | null
-  huespedes: {
-    nombres: string
-    apellidos: string
-  } | null
-  canales_venta: {
-    nombre: string
-  } | null
-}
-
-export type RackKPIs = {
-  llegadas: number
-  salidas: number
-  sucias: number
-  ocupadas: number
-}
+export type { RackHabitacion, RackReserva, RackKPIs }
 
 // ========================================
 // OBTENER HABITACIONES PARA EL RACK
@@ -107,6 +64,7 @@ export async function getRackReservas(fechaInicio: Date, fechaFin: Date) {
       fecha_salida,
       estado,
       precio_pactado,
+      huesped_presente,
       reserva_huespedes!inner (
         huespedes (
           nombres,
@@ -115,6 +73,9 @@ export async function getRackReservas(fechaInicio: Date, fechaFin: Date) {
       ),
       canales_venta:canal_venta_id (
         nombre
+      ),
+      pagos (
+        monto
       )
     `)
     .gte('fecha_salida', fechaInicio.toISOString())
@@ -126,18 +87,24 @@ export async function getRackReservas(fechaInicio: Date, fechaFin: Date) {
     throw new Error('Error al obtener reservas')
   }
 
-  // Transformar para manejar relaciones
+  // Transformar para manejar relaciones y calcular saldo
   const reservas = (data || []) as any[]
   return reservas.map(r => {
-    // Extraer el huésped titular de la tabla de unión
+    // Extraer el huésped titular
     const reservaHuespedes = Array.isArray(r.reserva_huespedes) ? r.reserva_huespedes : [r.reserva_huespedes]
     const huesped = reservaHuespedes[0]?.huespedes || null
+    
+    // Calcular Saldo
+    const totalPagado = r.pagos?.reduce((sum: number, p: any) => sum + (p.monto || 0), 0) || 0
+    const saldo = (r.precio_pactado || 0) - totalPagado
     
     return {
       ...r,
       huespedes: huesped,
       canales_venta: Array.isArray(r.canales_venta) ? r.canales_venta[0] : r.canales_venta,
-      reserva_huespedes: undefined // Limpiar campo auxiliar
+      reserva_huespedes: undefined,
+      pagos: undefined, // No enviamos el detalle de pagos al front, solo el saldo
+      saldo_pendiente: saldo > 0.1 ? saldo : 0 // Tolerancia de centavos
     }
   }) as RackReserva[]
 }
@@ -321,24 +288,8 @@ export async function crearReservaDesdeRack(data: {
   // Paso 2: Registrar todos los huéspedes (titular + acompañantes)
   await registrarHuespedesEnReserva(reserva.id, data.huespedes)
 
-  // Paso 3: Registrar pago si existe
-  if (data.pago && data.pago.monto > 0) {
-    const { error: pagoError } = await supabase
-      .from('pagos')
-      .insert({
-        reserva_id: reserva.id,
-        monto: data.pago.monto,
-        metodo_pago: data.pago.metodo_pago,
-        numero_operacion: data.pago.numero_operacion,
-        fecha_pago: new Date().toISOString()
-      })
-
-    if (pagoError) {
-      console.error('Error creating payment:', pagoError)
-      // No lanzar error, solo advertir
-      console.warn('Reserva creada pero pago no registrado')
-    }
-  }
+  // NOTA: El registro de pagos se ha movido al flujo de facturación (cobrarYFacturar).
+  // Ya no se registran pagos directos al crear la reserva para garantizar integridad fiscal.
 
   // Paso 4: Actualizar estado de habitación si es check-in
   if (data.estado === 'CHECKED_IN') {
@@ -348,7 +299,7 @@ export async function crearReservaDesdeRack(data: {
       .eq('id', data.habitacion_id)
   }
 
-  return reserva
+  return { data: reserva }
 }
 
 // ========================================

@@ -68,8 +68,8 @@ async function SesionActivaContent() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{detalle.turno.caja_nombre}</CardTitle>
-                  <Badge variant="outline" className="bg-green-50">
-                    🟢 Activo {calcularTiempoTranscurrido(detalle.turno.fecha_apertura)}
+                  <Badge variant="secondary" className="bg-blue-500 text-white dark:bg-blue-600">
+                    Activo {calcularTiempoTranscurrido(detalle.turno.fecha_apertura)}
                   </Badge>
                 </div>
                 <CardDescription>{detalle.turno.usuario_nombre}</CardDescription>
@@ -143,9 +143,9 @@ async function SesionActivaContent() {
             Abierta hace {calcularTiempoTranscurrido(turnoActivo.turno.fecha_apertura)}
           </p>
         </div>
-        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+        <Badge variant="secondary" className="bg-blue-500 text-white dark:bg-blue-600">
           <Clock className="mr-1 h-3 w-3" />
-          🟢 Turno Abierto
+          Turno Abierto
         </Badge>
       </div>
 

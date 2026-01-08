@@ -24,8 +24,18 @@ import { createSerie, updateSerie } from '@/lib/actions/series'
 import { getCajas } from '@/lib/actions/cajas'
 import type { Database } from '@/types/database.types'
 
-type Serie = Database['public']['Tables']['series_comprobante']['Row']
 type Caja = Database['public']['Tables']['cajas']['Row']
+type TipoComprobante = Database['public']['Enums']['tipo_comprobante']
+
+// Tipo para el objeto que se pasa al editar
+type Serie = {
+  id: string
+  serie: string
+  tipo_comprobante: TipoComprobante
+  caja_id?: string | null
+  correlativo_actual: number | null
+  activo?: boolean | null
+}
 
 interface SerieDialogProps {
   open: boolean
@@ -36,7 +46,7 @@ interface SerieDialogProps {
 
 interface FormData {
   serie: string
-  tipo_comprobante: 'BOLETA' | 'FACTURA' | 'NOTA_CREDITO' | 'TICKET_INTERNO'
+  tipo_comprobante: TipoComprobante
   caja_id?: string
   correlativo_actual: number
 }
@@ -77,7 +87,7 @@ export function SerieDialog({ open, onOpenChange, serie, onSuccess }: SerieDialo
     if (serie) {
       reset({
         serie: serie.serie,
-        tipo_comprobante: serie.tipo_comprobante as FormData['tipo_comprobante'],
+        tipo_comprobante: serie.tipo_comprobante,
         caja_id: serie.caja_id || undefined,
         correlativo_actual: Number(serie.correlativo_actual),
       })
@@ -93,9 +103,15 @@ export function SerieDialog({ open, onOpenChange, serie, onSuccess }: SerieDialo
   const onSubmit = async (data: FormData) => {
     setLoading(true)
     try {
+      // Limpiar caja_id si es undefined o "none"
+      const payload = {
+        ...data,
+        caja_id: data.caja_id === 'none' ? undefined : data.caja_id
+      }
+
       const result = isEdit
-        ? await updateSerie(serie!.id, data)
-        : await createSerie(data)
+        ? await updateSerie(serie!.id, payload)
+        : await createSerie(payload)
 
       if (result.success) {
         onSuccess()
@@ -151,7 +167,7 @@ export function SerieDialog({ open, onOpenChange, serie, onSuccess }: SerieDialo
             <Select
               value={selectedTipo}
               onValueChange={(value) =>
-                setValue('tipo_comprobante', value as FormData['tipo_comprobante'])
+                setValue('tipo_comprobante', value as TipoComprobante)
               }
               disabled={isEdit}
             >
@@ -162,7 +178,7 @@ export function SerieDialog({ open, onOpenChange, serie, onSuccess }: SerieDialo
                 <SelectItem value="BOLETA">Boleta</SelectItem>
                 <SelectItem value="FACTURA">Factura</SelectItem>
                 <SelectItem value="NOTA_CREDITO">Nota de Crédito</SelectItem>
-                <SelectItem value="TICKET_INTERNO">Ticket Interno</SelectItem>
+                <SelectItem value="NOTA_DEBITO">Nota de Débito</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -170,7 +186,7 @@ export function SerieDialog({ open, onOpenChange, serie, onSuccess }: SerieDialo
           <div className="space-y-2">
             <Label htmlFor="caja">Caja Asignada (Opcional)</Label>
             <Select
-              value={watch('caja_id') || 'none'}
+              value={watch('caja_id') ?? 'none'}
               onValueChange={(value) => setValue('caja_id', value === 'none' ? undefined : value)}
             >
               <SelectTrigger>

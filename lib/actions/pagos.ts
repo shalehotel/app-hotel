@@ -20,24 +20,41 @@ export type Pago = {
   fecha_pago: string
 }
 
-export type RegistrarPagoInput = {
+export type CobrarYFacturarInput = {
   reserva_id: string
-  caja_turno_id: string
-  metodo_pago: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'YAPE' | 'PLIN' | 'OTRO'
+  caja_turno_id?: string // Opcional, si no se envía se busca el activo
+  
+  // Datos del Pago
+  metodo_pago: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'YAPE' | 'PLIN'
   monto: number
-  moneda?: 'PEN' | 'USD'
-  tipo_cambio?: number
+  moneda: 'PEN' | 'USD'
+  tipo_cambio?: number // 1.000 por defecto si es PEN
   referencia_pago?: string
   nota?: string
-  comprobante_id?: string
+
+  // Datos de Facturación
+  tipo_comprobante: 'BOLETA' | 'FACTURA'
+  serie: string
+  cliente_tipo_doc: string // DNI, RUC, etc
+  cliente_numero_doc: string
+  cliente_nombre: string
+  cliente_direccion?: string
+  
+  // Detalle del servicio (Items)
+  items: Array<{
+    descripcion: string
+    cantidad: number
+    precio_unitario: number
+    subtotal: number
+    codigo_afectacion_igv?: string
+  }>
 }
 
 // ========================================
-// OBTENER TURNO ACTIVO DE UN USUARIO
+// OBTENER TURNO ACTIVO
 // ========================================
 async function getTurnoActivo(usuario_id: string): Promise<string | null> {
   const supabase = await createClient()
-
   const { data } = await supabase
     .from('caja_turnos')
     .select('id')
@@ -46,172 +63,201 @@ async function getTurnoActivo(usuario_id: string): Promise<string | null> {
     .order('fecha_apertura', { ascending: false })
     .limit(1)
     .single()
-
   return data?.id || null
 }
 
 // ========================================
-// REGISTRAR PAGO
+// FUNCIÓN PRINCIPAL: COBRAR Y FACTURAR
 // ========================================
-export async function registrarPago(input: RegistrarPagoInput) {
+export async function cobrarYFacturar(input: CobrarYFacturarInput) {
   const supabase = await createClient()
+  
+  try {
+    // 1. Validar Usuario y Turno
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Usuario no autenticado')
 
-  // Obtener usuario actual
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    throw new Error('Usuario no autenticado')
-  }
-
-  // Si no viene caja_turno_id, buscar turno activo del usuario
-  let cajaTurnoId = input.caja_turno_id
-  if (!cajaTurnoId) {
-    const turnoActivo = await getTurnoActivo(user.id)
-    if (!turnoActivo) {
-      throw new Error('No hay turno de caja abierto. Debes abrir un turno primero.')
+    let cajaTurnoId = input.caja_turno_id
+    if (!cajaTurnoId) {
+      const turnoActivo = await getTurnoActivo(user.id)
+      if (!turnoActivo) throw new Error('No hay turno de caja abierto. Debes abrir caja para cobrar.')
+      cajaTurnoId = turnoActivo
     }
-    cajaTurnoId = turnoActivo
+
+    // 2. Validar Reserva
+    const { data: reserva, error: reservaError } = await supabase
+      .from('reservas')
+      .select('id')
+      .eq('id', input.reserva_id)
+      .single()
+
+    if (reservaError || !reserva) throw new Error('Reserva no encontrada')
+
+    // 3. Obtener Correlativo (Atómico)
+    const { data: correlativo, error: corrError } = await supabase
+      .rpc('obtener_siguiente_correlativo', { p_serie: input.serie })
+
+    if (corrError || !correlativo) throw new Error('Error al generar número de comprobante')
+
+    // 4. Calcular Totales Fiscales
+    // Nota: Asumimos IGV incluido en el precio unitario para simplificar el modelo mental del usuario
+    // Si es "gravado" (10), el valor venta es precio / 1.18
+    let op_gravadas = 0
+    let op_exoneradas = 0
+    let monto_igv = 0
+    let total_venta = 0
+
+    // Tasa IGV (podría venir de config, hardcodeada a 18% por ahora)
+    const TASA_IGV = 0.18 
+
+    for (const item of input.items) {
+      total_venta += item.subtotal
+      
+      if (item.codigo_afectacion_igv === '10') {
+        // Operación Gravada
+        const base = item.subtotal / (1 + TASA_IGV)
+        op_gravadas += base
+        monto_igv += (item.subtotal - base)
+      } else {
+        // Operación Exonerada (20) o Inafecta (30)
+        op_exoneradas += item.subtotal
+      }
+    }
+
+    // 5. INSERTAR COMPROBANTE (Snapshot)
+    const { data: comprobante, error: compError } = await supabase
+      .from('comprobantes')
+      .insert({
+        turno_caja_id: cajaTurnoId,
+        reserva_id: input.reserva_id,
+        tipo_comprobante: input.tipo_comprobante,
+        serie: input.serie,
+        numero: correlativo,
+        
+        // Snapshot Cliente
+        receptor_tipo_doc: input.cliente_tipo_doc,
+        receptor_nro_doc: input.cliente_numero_doc,
+        receptor_razon_social: input.cliente_nombre,
+        receptor_direccion: input.cliente_direccion || null,
+        
+        // Snapshot Montos
+        moneda: input.moneda,
+        tipo_cambio: input.tipo_cambio || 1.0,
+        op_gravadas,
+        op_exoneradas,
+        op_inafectas: 0,
+        monto_igv,
+        monto_icbper: 0,
+        total_venta,
+        
+        estado_sunat: 'PENDIENTE',
+        fecha_emision: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (compError) throw new Error(`Error creando comprobante: ${compError.message}`)
+
+    // 6. INSERTAR DETALLES
+    const detallesToInsert = input.items.map(item => ({
+      comprobante_id: comprobante.id,
+      descripcion: item.descripcion,
+      cantidad: item.cantidad,
+      precio_unitario: item.precio_unitario,
+      subtotal: item.subtotal,
+      codigo_afectacion_igv: item.codigo_afectacion_igv || '10'
+    }))
+
+    const { error: detError } = await supabase
+      .from('comprobante_detalles')
+      .insert(detallesToInsert)
+
+    if (detError) {
+      // Rollback manual (eliminamos comprobante huerfano)
+      await supabase.from('comprobantes').delete().eq('id', comprobante.id)
+      throw new Error('Error guardando detalles del comprobante')
+    }
+
+    // 7. INSERTAR PAGO (Vinculado)
+    const { error: pagoError } = await supabase
+      .from('pagos')
+      .insert({
+        reserva_id: input.reserva_id,
+        caja_turno_id: cajaTurnoId,
+        comprobante_id: comprobante.id, // ¡Vinculación clave!
+        metodo_pago: input.metodo_pago,
+        moneda_pago: input.moneda,
+        monto: input.monto,
+        tipo_cambio_pago: input.tipo_cambio || 1.0,
+        referencia_pago: input.referencia_pago,
+        nota: input.nota,
+        fecha_pago: new Date().toISOString()
+      })
+
+    if (pagoError) {
+       // Rollback crítico (ya se emitió comprobante pero falló pago)
+       // En producción esto debería ser una transacción real de BD, 
+       // pero con Supabase API lo manejamos así por ahora.
+       console.error('CRITICAL: Comprobante emitido sin pago', comprobante.id)
+       throw new Error('Error registrando el pago. Contacte a soporte.')
+    }
+
+    revalidatePath('/rack')
+    revalidatePath('/reservas')
+    revalidatePath(`/reservas/${input.reserva_id}`)
+    
+    return { success: true, comprobante, message: 'Cobro registrado y comprobante emitido' }
+
+  } catch (error: any) {
+    console.error('Error en cobrarYFacturar:', error)
+    return { 
+      success: false, 
+      error: error.message || 'Error desconocido al procesar el cobro' 
+    }
   }
-
-  // Validar que la reserva existe
-  const { data: reserva, error: reservaError } = await supabase
-    .from('reservas')
-    .select('id, precio_pactado')
-    .eq('id', input.reserva_id)
-    .single()
-
-  if (reservaError || !reserva) {
-    throw new Error('Reserva no encontrada')
-  }
-
-  // Validar que el monto es válido
-  if (input.monto <= 0) {
-    throw new Error('El monto debe ser mayor a 0')
-  }
-
-  // Insertar pago
-  const { data: pago, error: pagoError } = await supabase
-    .from('pagos')
-    .insert({
-      reserva_id: input.reserva_id,
-      caja_turno_id: cajaTurnoId,
-      metodo_pago: input.metodo_pago,
-      monto: input.monto,
-      moneda_pago: input.moneda || 'PEN',
-      tipo_cambio_pago: input.tipo_cambio || 1.0,
-      referencia_pago: input.referencia_pago,
-      nota: input.nota,
-      comprobante_id: input.comprobante_id,
-      fecha_pago: new Date().toISOString()
-    })
-    .select()
-    .single()
-
-  if (pagoError) {
-    console.error('Error al registrar pago:', pagoError)
-    throw new Error('Error al registrar el pago')
-  }
-
-  revalidatePath('/rack')
-  revalidatePath('/reservas')
-
-  return pago
 }
 
 // ========================================
-// OBTENER PAGOS DE UNA RESERVA
+// HELPERS (Lectura)
 // ========================================
-export async function getPagosByReserva(reserva_id: string): Promise<Pago[]> {
-  const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('pagos')
-    .select('*')
-    .eq('reserva_id', reserva_id)
-    .order('fecha_pago', { ascending: false })
-
-  if (error) {
-    console.error('Error al obtener pagos:', error)
-    throw new Error('Error al obtener pagos')
-  }
-
-  return data || []
-}
-
-// ========================================
-// CALCULAR SALDO PENDIENTE DE UNA RESERVA
-// ========================================
 export async function getSaldoPendiente(reserva_id: string): Promise<number> {
   const supabase = await createClient()
 
-  // Obtener precio pactado
-  const { data: reserva, error: reservaError } = await supabase
+  // 1. Obtener precio pactado
+  const { data: reserva } = await supabase
     .from('reservas')
-    .select('precio_pactado')
+    .select('precio_pactado, moneda_pactada')
     .eq('id', reserva_id)
     .single()
 
-  if (reservaError || !reserva?.precio_pactado) {
-    return 0
-  }
+  if (!reserva?.precio_pactado) return 0
 
-  // Obtener suma de pagos
-  const { data: pagos, error: pagosError } = await supabase
+  // 2. Obtener pagos
+  const { data: pagos } = await supabase
     .from('pagos')
     .select('monto, moneda_pago, tipo_cambio_pago')
     .eq('reserva_id', reserva_id)
 
-  if (pagosError) {
-    return reserva.precio_pactado
-  }
-
-  // Calcular total pagado (convirtiendo a PEN si es necesario)
   const totalPagado = pagos?.reduce((sum, p) => {
-    const montoEnPen = p.moneda_pago === 'USD' 
+    // Normalizar a moneda de la reserva (asumimos reserva en PEN por defecto)
+    // Si la reserva fuera en USD, la lógica sería inversa.
+    // Por simplicidad del MVP: Todo se calcula en PEN.
+    const montoNormalizado = p.moneda_pago === 'USD' 
       ? p.monto * p.tipo_cambio_pago 
       : p.monto
-    return sum + montoEnPen
+    return sum + montoNormalizado
   }, 0) || 0
 
   return Math.max(0, reserva.precio_pactado - totalPagado)
 }
 
-// ========================================
-// OBTENER TOTAL PAGADO DE UNA RESERVA
-// ========================================
-export async function getTotalPagado(reserva_id: string): Promise<number> {
+export async function getPagosByReserva(reserva_id: string): Promise<Pago[]> {
   const supabase = await createClient()
-
-  const { data: pagos, error } = await supabase
+  const { data } = await supabase
     .from('pagos')
-    .select('monto, moneda_pago, tipo_cambio_pago')
+    .select('*, comprobantes(serie, numero, tipo_comprobante)')
     .eq('reserva_id', reserva_id)
-
-  if (error) {
-    console.error('Error al obtener pagos:', error)
-    return 0
-  }
-
-  // Calcular total pagado (convirtiendo a PEN si es necesario)
-  const totalPagado = pagos?.reduce((sum, p) => {
-    const montoEnPen = p.moneda_pago === 'USD' 
-      ? p.monto * p.tipo_cambio_pago 
-      : p.monto
-    return sum + montoEnPen
-  }, 0) || 0
-
-  return totalPagado
-}
-
-// ========================================
-// ANULAR PAGO (NOTA DE CRÉDITO O ERROR)
-// ========================================
-export async function anularPago(pago_id: string, motivo: string) {
-  const supabase = await createClient()
-
-  // TODO: Implementar lógica de anulación
-  // - Marcar pago como anulado (agregar campo "anulado" en BD)
-  // - Registrar en auditoría
-  // - Si tiene comprobante, generar nota de crédito
-
-  throw new Error('Funcionalidad pendiente de implementar')
+    .order('fecha_pago', { ascending: false })
+  return data || []
 }

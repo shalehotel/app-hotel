@@ -89,7 +89,7 @@ export function AlertsTab() {
                     </Badge>
                   )}
                   {alerta.severity === 'medium' && (
-                    <Badge variant="secondary" className="gap-1 bg-yellow-500 text-white">
+                    <Badge variant="secondary" className="gap-1">
                       {getIcon(alerta.type)}
                       Media
                     </Badge>

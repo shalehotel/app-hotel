@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 
 // ========================================
 // CANCELAR RESERVA
@@ -97,4 +98,27 @@ function calcularNoches(fecha_entrada: string | Date, fecha_salida: string | Dat
   return Math.max(1, 
     Math.floor((salida.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24))
   )
+}
+
+// ========================================
+// CONTROL DE PRESENCIA (LLAVE)
+// ========================================
+export async function toggleHuespedPresente(reservaId: string, presente: boolean) {
+  const supabase = await createClient()
+
+  try {
+    const { error } = await supabase
+      .from('reservas')
+      .update({ huesped_presente: presente })
+      .eq('id', reservaId)
+
+    if (error) throw error
+
+    revalidatePath('/rack')
+    revalidatePath(`/reservas/${reservaId}`)
+    return { success: true }
+  } catch (error: any) {
+    console.error('Error toggleHuespedPresente:', error)
+    return { error: 'Error al actualizar estado del huésped' }
+  }
 }

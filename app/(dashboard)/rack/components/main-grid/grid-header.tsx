@@ -12,7 +12,7 @@ export function GridHeader({ days }: Props) {
   return (
     <>
       {/* Empty corner cell */}
-      <div className="sticky left-0 z-20 border-b border-r bg-muted/50 p-2">
+      <div className="sticky left-0 top-0 z-30 border-b border-r bg-muted p-2">
         <span className="text-xs font-medium text-muted-foreground">Hab</span>
       </div>
 
@@ -21,8 +21,10 @@ export function GridHeader({ days }: Props) {
         <div
           key={index}
           className={cn(
-            "border-b border-r p-2 text-center",
-            isToday(day) && "bg-blue-50 dark:bg-blue-950/20"
+            "sticky top-0 z-20 border-b border-r p-2 text-center",
+            isToday(day) 
+              ? "bg-blue-100 dark:bg-blue-900" 
+              : "bg-background"
           )}
         >
           <div className="text-xs font-medium">

@@ -154,7 +154,7 @@ export function ModalAperturaTurno({ onSuccess }: Props) {
             Apertura de Turno Requerida
           </DialogTitle>
           <DialogDescription>
-            Debes abrir tu turno de caja antes de comenzar a operar. Este modal no se puede cerrar hasta completar la apertura.
+            Debes abrir tu turno de caja antes de comenzar a operar.
           </DialogDescription>
         </DialogHeader>
 

@@ -11,6 +11,7 @@ import { NewReservationDialog } from './components/dialogs/new-reservation-dialo
 import { ModalAperturaTurno } from '@/components/cajas/modal-apertura-turno'
 import { useRackData } from '@/hooks/use-rack-data'
 import { useCheckTurno } from '@/hooks/use-check-turno'
+import { getRoomVisualState } from '@/lib/utils/room-status'
 import type { RackHabitacion } from '@/lib/actions/rack'
 
 type NewReservationData = {
@@ -110,35 +111,29 @@ export function RackContainer() {
           ) : (
             <div className="p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {habitaciones.map((habitacion) => (
-                  <div key={habitacion.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="font-semibold text-lg">{habitacion.numero}</h3>
-                        <p className="text-sm text-muted-foreground">{habitacion.tipos_habitacion.nombre}</p>
+                {habitaciones.map((habitacion) => {
+                  const visualState = getRoomVisualState(habitacion)
+                  return (
+                    <div key={habitacion.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h3 className="font-semibold text-lg">{habitacion.numero}</h3>
+                          <p className="text-sm text-muted-foreground">{habitacion.tipos_habitacion.nombre}</p>
+                        </div>
+                        <div className="text-xs">
+                          <span className={`${visualState.color} ${visualState.textColor} px-2 py-1 rounded font-medium`}>
+                            {visualState.label}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-xs">
-                        {habitacion.estado_limpieza === 'LIMPIA' && (
-                          <span className="bg-blue-500 text-white px-2 py-1 rounded">LIMPIA</span>
-                        )}
-                        {habitacion.estado_limpieza === 'SUCIA' && (
-                          <span className="bg-red-500 text-white px-2 py-1 rounded">SUCIA</span>
-                        )}
-                        {habitacion.estado_limpieza === 'OCUPADA' && (
-                          <span className="bg-gray-500 text-white px-2 py-1 rounded">OCUPADA</span>
-                        )}
-                        {habitacion.estado_limpieza === 'MANTENIMIENTO' && (
-                          <span className="bg-yellow-500 text-white px-2 py-1 rounded">MANT.</span>
-                        )}
+                      <div className="text-sm space-y-1">
+                        <p><span className="text-muted-foreground">Piso:</span> {habitacion.piso}</p>
+                        <p><span className="text-muted-foreground">Capacidad:</span> {habitacion.tipos_habitacion.capacidad_personas} personas</p>
+                        <p><span className="text-muted-foreground">Categoría:</span> {habitacion.categorias_habitacion.nombre}</p>
                       </div>
                     </div>
-                    <div className="text-sm space-y-1">
-                      <p><span className="text-muted-foreground">Piso:</span> {habitacion.piso}</p>
-                      <p><span className="text-muted-foreground">Capacidad:</span> {habitacion.tipos_habitacion.capacidad_personas} personas</p>
-                      <p><span className="text-muted-foreground">Categoría:</span> {habitacion.categorias_habitacion.nombre}</p>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}

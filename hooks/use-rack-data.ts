@@ -1,5 +1,6 @@
 'use client'
 
+// Hook para gestión de datos del Rack
 import { useEffect, useState } from 'react'
 import { addDays, startOfDay } from 'date-fns'
 import {
@@ -34,10 +35,13 @@ export function useRackData(daysRange = 30) {
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // Calcular rango de fechas (hoy ± daysRange/2)
+  // Calcular rango de fechas: 3 días de contexto pasado, el resto futuro
+  // Esto prioriza la venta futura sobre el historial
   const today = startOfDay(new Date())
-  const startDate = addDays(today, -Math.floor(daysRange / 2))
-  const endDate = addDays(today, Math.floor(daysRange / 2))
+  const PAST_DAYS_CONTEXT = 3
+  
+  const startDate = addDays(today, -PAST_DAYS_CONTEXT)
+  const endDate = addDays(today, daysRange - PAST_DAYS_CONTEXT)
 
   useEffect(() => {
     async function loadData() {
