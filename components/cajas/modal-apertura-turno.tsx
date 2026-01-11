@@ -239,14 +239,14 @@ export function ModalAperturaTurno({ onSuccess }: Props) {
                 </div>
 
                 {/* Desglose de billetes/monedas PEN */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Desglose (Opcional)</CardTitle>
-                    <CardDescription className="text-xs">
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">Desglose (Opcional)</p>
+                    <p className="text-xs text-muted-foreground">
                       Cuenta tus billetes y monedas. Total: S/ {totalDesglosePEN.toFixed(2)}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-3">
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     {DENOMINACIONES_PEN.map((denom) => (
                       <div key={denom} className="flex items-center gap-2">
                         <Label className="w-16 text-xs">S/ {denom}</Label>
@@ -267,8 +267,8 @@ export function ModalAperturaTurno({ onSuccess }: Props) {
                         </span>
                       </div>
                     ))}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </TabsContent>
 
               {/* Tab Dólares */}
@@ -302,14 +302,14 @@ export function ModalAperturaTurno({ onSuccess }: Props) {
                 </div>
 
                 {/* Desglose de billetes USD */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Desglose (Opcional)</CardTitle>
-                    <CardDescription className="text-xs">
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">Desglose (Opcional)</p>
+                    <p className="text-xs text-muted-foreground">
                       Cuenta tus billetes en dólares. Total: $ {totalDesgloseUSD.toFixed(2)}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-3">
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     {DENOMINACIONES_USD.map((denom) => (
                       <div key={denom} className="flex items-center gap-2">
                         <Label className="w-16 text-xs">$ {denom}</Label>
@@ -330,26 +330,24 @@ export function ModalAperturaTurno({ onSuccess }: Props) {
                         </span>
                       </div>
                     ))}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
 
             {/* Resumen */}
-            <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200">
-              <CardContent className="pt-4">
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Apertura Soles:</span>
-                    <span className="font-semibold">S/ {montoPEN.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Apertura Dólares:</span>
-                    <span className="font-semibold">$ {montoUSD.toFixed(2)}</span>
-                  </div>
+            <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 border-blue-200 p-4">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Apertura Soles:</span>
+                  <span className="font-semibold">S/ {montoPEN.toFixed(2)}</span>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex justify-between">
+                  <span>Apertura Dólares:</span>
+                  <span className="font-semibold">$ {montoUSD.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
 
             {/* Botón Submit */}
             <Button type="submit" disabled={loading} className="w-full" size="lg">

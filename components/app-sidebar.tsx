@@ -52,6 +52,11 @@ const navItems = [
     icon: Users,
   },
   {
+    title: 'Reservas',
+    url: '/reservas',
+    icon: Calendar,
+  },
+  {
     title: 'Huéspedes',
     url: '/huespedes',
     icon: UserCircle,

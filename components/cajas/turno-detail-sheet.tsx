@@ -8,17 +8,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Separator } from '@/components/ui/separator'
 import { getDetalleTurnoCerrado, type DetalleTurno } from '@/lib/actions/cajas'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -58,7 +50,7 @@ export function TurnoDetailSheet({ turnoId, open, onClose }: Props) {
     const dif = detalle.estadisticas.diferencia_pen
 
     if (Math.abs(dif) < 0.01) {
-      return <Badge variant="secondary" className="bg-blue-500 text-white dark:bg-blue-600">CUADRADA</Badge>
+      return <Badge variant="secondary" className="bg-blue-500 hover:bg-blue-600 text-white border-0">CUADRADA</Badge>
     } else if (dif < 0) {
       return <Badge variant="destructive">FALTANTE</Badge>
     } else {
@@ -68,189 +60,140 @@ export function TurnoDetailSheet({ turnoId, open, onClose }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <SheetContent className="sm:max-w-[600px] overflow-y-auto">
+      <SheetContent className="sm:max-w-[600px] flex flex-col p-0 gap-0">
         {loading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-4 w-64" />
-            <div className="grid gap-4 md:grid-cols-2">
-              {[1, 2, 3, 4].map((i) => (
-                <Card key={i}>
-                  <CardHeader>
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-8 w-20" />
-                  </CardHeader>
-                </Card>
-              ))}
-            </div>
-          </div>
+           <div className="p-6 space-y-6">
+             <div className="space-y-2">
+               <Skeleton className="h-8 w-48" />
+               <Skeleton className="h-4 w-64" />
+             </div>
+             <Skeleton className="h-32 w-full" />
+             <Skeleton className="h-64 w-full" />
+           </div>
         ) : detalle ? (
           <>
-            <SheetHeader>
+            <SheetHeader className="p-6 pb-2">
               <div className="flex items-center justify-between">
-                <SheetTitle>{detalle.turno.caja_nombre}</SheetTitle>
+                <SheetTitle className="text-xl">{detalle.turno.caja_nombre}</SheetTitle>
                 {getDiferenciaBadge()}
               </div>
               <SheetDescription>
-                {detalle.turno.usuario_nombre} • Cerrado el {' '}
-                {format(new Date(detalle.turno.fecha_cierre!), 'dd/MM/yyyy HH:mm', { locale: es })}
+                Cerrado por {detalle.turno.usuario_nombre}
               </SheetDescription>
             </SheetHeader>
 
-            <div className="mt-6 space-y-6">
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+              
+              {/* Información General */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                 <div>
+                    <p className="text-muted-foreground">Apertura</p>
+                    <p className="font-medium">
+                      {format(new Date(detalle.turno.fecha_apertura), 'dd/MM/yyyy HH:mm', { locale: es })}
+                    </p>
+                 </div>
+                 <div>
+                    <p className="text-muted-foreground">Cierre</p>
+                    <p className="font-medium">
+                      {format(new Date(detalle.turno.fecha_cierre!), 'dd/MM/yyyy HH:mm', { locale: es })}
+                    </p>
+                 </div>
+              </div>
+
+              <Separator />
+
               {/* Resumen Financiero */}
-              <div className="space-y-3">
-                <h3 className="font-semibold">Resumen Financiero</h3>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm text-muted-foreground">Saldo Inicial</CardTitle>
-                      <p className="text-2xl font-bold">S/ {detalle.turno.monto_apertura.toFixed(2)}</p>
-                    </CardHeader>
-                  </Card>
+              <div>
+                <h3 className="font-semibold text-lg mb-3">Resumen Financiero</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 bg-muted/20 rounded-lg border">
+                    <p className="text-xs text-muted-foreground mb-1">Saldo Inicial</p>
+                    <p className="text-xl font-semibold">S/ {detalle.turno.monto_apertura.toFixed(2)}</p>
+                  </div>
+                  
+                  <div className="p-3 bg-muted/20 rounded-lg border">
+                    <p className="text-xs text-muted-foreground mb-1">Flujo Neto</p>
+                    <div className="flex items-baseline gap-2">
+                       <p className={`text-xl font-semibold ${detalle.estadisticas.flujo_neto_pen >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                         {detalle.estadisticas.flujo_neto_pen >= 0 ? '+' : ''}S/ {detalle.estadisticas.flujo_neto_pen.toFixed(2)}
+                       </p>
+                    </div>
+                  </div>
 
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm text-muted-foreground">Flujo Neto</CardTitle>
-                      <p className={`text-2xl font-bold ${detalle.estadisticas.flujo_neto_pen >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {detalle.estadisticas.flujo_neto_pen >= 0 ? '+' : ''}S/ {detalle.estadisticas.flujo_neto_pen.toFixed(2)}
-                      </p>
-                    </CardHeader>
-                    <CardContent className="text-xs text-muted-foreground space-y-1">
-                      <div className="flex items-center gap-1 text-green-600">
-                        <TrendingUp className="h-3 w-3" />
-                        Ingresos: S/ {detalle.estadisticas.total_ingresos_pen.toFixed(2)}
-                      </div>
-                      <div className="flex items-center gap-1 text-red-600">
-                        <TrendingDown className="h-3 w-3" />
-                        Egresos: S/ {detalle.estadisticas.total_egresos_pen.toFixed(2)}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <div className="p-3 bg-green-50/50 dark:bg-green-950/20 rounded-lg border border-green-100 dark:border-green-900">
+                    <p className="text-xs text-muted-foreground mb-1">Total Esperado</p>
+                    <p className="text-xl font-semibold text-green-700 dark:text-green-400">
+                      S/ {detalle.estadisticas.total_esperado_pen.toFixed(2)}
+                    </p>
+                  </div>
 
-                  <Card className="border-green-200 bg-green-50/50">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm text-muted-foreground">Total Esperado</CardTitle>
-                      <p className="text-2xl font-bold text-green-700">
-                        S/ {detalle.estadisticas.total_esperado_pen.toFixed(2)}
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-xs text-muted-foreground">Lo que debería haber</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card className={
-                    Math.abs(detalle.estadisticas.diferencia_pen || 0) < 0.01 
-                      ? 'border-green-200 bg-green-50/50' 
-                      : (detalle.estadisticas.diferencia_pen || 0) < 0 
-                        ? 'border-red-200 bg-red-50/50' 
-                        : 'border-blue-200 bg-blue-50/50'
-                  }>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm text-muted-foreground">Diferencia</CardTitle>
-                      <p className={`text-2xl font-bold ${
+                  <div className={`p-3 rounded-lg border ${
+                      Math.abs(detalle.estadisticas.diferencia_pen || 0) < 0.01 
+                        ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900'
+                        : (detalle.estadisticas.diferencia_pen || 0) < 0
+                          ? 'bg-red-50/50 dark:bg-red-950/20 border-red-100 dark:border-red-900'
+                          : 'bg-yellow-50/50 dark:bg-yellow-950/20 border-yellow-100 dark:border-yellow-900'
+                  }`}>
+                    <p className="text-xs text-muted-foreground mb-1">Diferencia (vs Real)</p>
+                    <p className={`text-xl font-semibold ${
                         Math.abs(detalle.estadisticas.diferencia_pen || 0) < 0.01 
-                          ? 'text-green-700' 
+                          ? 'text-blue-700 dark:text-blue-400' 
                           : (detalle.estadisticas.diferencia_pen || 0) < 0 
-                            ? 'text-red-700' 
-                            : 'text-blue-700'
-                      }`}>
-                        {(detalle.estadisticas.diferencia_pen || 0) >= 0 ? '+' : ''}S/ {(detalle.estadisticas.diferencia_pen || 0).toFixed(2)}
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-xs">
-                        Real: S/ {(detalle.turno.monto_cierre_declarado || 0).toFixed(2)}
-                      </p>
-                    </CardContent>
-                  </Card>
+                            ? 'text-red-700 dark:text-red-400' 
+                            : 'text-yellow-700 dark:text-yellow-400'
+                    }`}>
+                      {(detalle.estadisticas.diferencia_pen || 0) >= 0 ? '+' : ''}S/ {(detalle.estadisticas.diferencia_pen || 0).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                   <div className="flex items-center gap-2 text-sm text-green-600">
+                      <TrendingUp className="h-4 w-4" />
+                      <span>Ingresos: S/ {detalle.estadisticas.total_ingresos_pen.toFixed(2)}</span>
+                   </div>
+                   <div className="flex items-center gap-2 text-sm text-red-600">
+                      <TrendingDown className="h-4 w-4" />
+                      <span>Egresos: S/ {detalle.estadisticas.total_egresos_pen.toFixed(2)}</span>
+                   </div>
                 </div>
               </div>
 
-              {/* Lista de Movimientos */}
-              <div className="space-y-3">
-                <h3 className="font-semibold">Movimientos ({detalle.movimientos.length})</h3>
+              <Separator />
+
+              {/* Movimientos */}
+              <div>
+                <h3 className="font-semibold text-lg mb-3">Movimientos ({detalle.movimientos.length})</h3>
                 {detalle.movimientos.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-8 text-center text-muted-foreground">
-                      <Receipt className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p>No hay movimientos registrados</p>
-                    </CardContent>
-                  </Card>
+                   <p className="text-sm text-muted-foreground italic">No hay movimientos registrados</p>
                 ) : (
-                  <div className="border rounded-lg">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Hora</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead>Motivo</TableHead>
-                          <TableHead className="text-right">Monto</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {detalle.movimientos.map((mov) => (
-                          <TableRow key={mov.id}>
-                            <TableCell className="text-xs text-muted-foreground">
+                  <div className="space-y-3">
+                    {detalle.movimientos.map((mov) => (
+                      <div key={mov.id} className="flex justify-between items-start p-3 border rounded-lg hover:bg-muted/30 transition-colors">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={mov.tipo === 'INGRESO' ? 'default' : 'destructive'} className="text-[10px] h-5">
+                               {mov.tipo}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
                               {format(new Date(mov.created_at), 'HH:mm', { locale: es })}
-                            </TableCell>
-                            <TableCell>
-                              <Badge 
-                                variant={mov.tipo === 'INGRESO' ? 'default' : 'destructive'}
-                                className={mov.tipo === 'INGRESO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}
-                              >
-                                {mov.tipo}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="text-sm">{mov.motivo}</p>
-                                {mov.categoria && (
-                                  <p className="text-xs text-muted-foreground">{mov.categoria}</p>
-                                )}
-                                {mov.comprobante_referencia && (
-                                  <p className="text-xs text-blue-600">Ref: {mov.comprobante_referencia}</p>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className={`text-right font-medium ${
-                              mov.tipo === 'INGRESO' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {mov.tipo === 'INGRESO' ? '+' : '-'}{mov.moneda === 'PEN' ? 'S/' : '$'} {mov.monto.toFixed(2)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                            </span>
+                          </div>
+                          <p className="font-medium text-sm">{mov.motivo}</p>
+                          {mov.comprobante_referencia && (
+                            <p className="text-xs text-blue-600">Ref: {mov.comprobante_referencia}</p>
+                          )}
+                        </div>
+                        <div className={`font-semibold text-sm ${
+                           mov.tipo === 'INGRESO' ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                           {mov.tipo === 'INGRESO' ? '+' : '-'}{mov.moneda === 'PEN' ? 'S/' : '$'} {mov.monto.toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
-
-              {/* Info de apertura */}
-              <Card className="bg-muted/50">
-                <CardHeader>
-                  <CardTitle className="text-sm">Información del Turno</CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Apertura:</span>
-                    <span className="font-medium">
-                      {format(new Date(detalle.turno.fecha_apertura), 'dd/MM/yyyy HH:mm', { locale: es })}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Cierre:</span>
-                    <span className="font-medium">
-                      {format(new Date(detalle.turno.fecha_cierre!), 'dd/MM/yyyy HH:mm', { locale: es })}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Responsable:</span>
-                    <span className="font-medium">{detalle.turno.usuario_nombre}</span>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           </>
         ) : (

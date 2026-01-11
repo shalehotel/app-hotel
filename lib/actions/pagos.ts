@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getHotelConfig } from '@/lib/actions/configuracion'
 
 // ========================================
 // TYPES
@@ -87,7 +88,7 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
     // 2. Validar Reserva
     const { data: reserva, error: reservaError } = await supabase
       .from('reservas')
-      .select('id')
+      .select('id, codigo_reserva')
       .eq('id', input.reserva_id)
       .single()
 
@@ -100,20 +101,23 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
     if (corrError || !correlativo) throw new Error('Error al generar número de comprobante')
 
     // 4. Calcular Totales Fiscales
-    // Nota: Asumimos IGV incluido en el precio unitario para simplificar el modelo mental del usuario
-    // Si es "gravado" (10), el valor venta es precio / 1.18
+    // Obtener configuración dinámica del hotel
+    const config = await getHotelConfig()
+    const TASA_IGV = (config.tasa_igv || 18.00) / 100
+    const ES_EXONERADO = config.es_exonerado_igv
+
     let op_gravadas = 0
     let op_exoneradas = 0
     let monto_igv = 0
     let total_venta = 0
 
-    // Tasa IGV (podría venir de config, hardcodeada a 18% por ahora)
-    const TASA_IGV = 0.18 
-
     for (const item of input.items) {
       total_venta += item.subtotal
       
-      if (item.codigo_afectacion_igv === '10') {
+      // Si el hotel es exonerado, forzamos código 20
+      const codigoAfectacion = ES_EXONERADO ? '20' : (item.codigo_afectacion_igv || '10')
+
+      if (codigoAfectacion === '10') {
         // Operación Gravada
         const base = item.subtotal / (1 + TASA_IGV)
         op_gravadas += base
@@ -196,14 +200,34 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
 
     if (pagoError) {
        // Rollback crítico (ya se emitió comprobante pero falló pago)
-       // En producción esto debería ser una transacción real de BD, 
-       // pero con Supabase API lo manejamos así por ahora.
        console.error('CRITICAL: Comprobante emitido sin pago', comprobante.id)
        throw new Error('Error registrando el pago. Contacte a soporte.')
     }
 
+    // 8. INSERTAR MOVIMIENTO DE CAJA (CRÍTICO PARA ARQUEO)
+    // Sin esto, el dinero no "aparece" en la caja
+    const { error: movError } = await supabase
+      .from('caja_movimientos')
+      .insert({
+        caja_turno_id: cajaTurnoId,
+        usuario_id: user.id,
+        tipo: 'INGRESO',
+        categoria: 'OTRO', // Usamos OTRO o podríamos definir COBRO_SERVICIO
+        moneda: input.moneda,
+        monto: input.monto,
+        motivo: `Cobro Reserva ${reserva.codigo_reserva} - ${input.metodo_pago}`,
+        comprobante_referencia: `${comprobante.serie}-${comprobante.numero}`
+      })
+
+    if (movError) {
+      console.error('CRITICAL: Pago registrado pero NO impactó caja', movError)
+      // Lanzamos error visible para que el usuario sepa
+      throw new Error(`Error crítico: El pago se registró pero NO se pudo guardar en caja. Detalle: ${movError.message}`)
+    }
+
     revalidatePath('/rack')
     revalidatePath('/reservas')
+    revalidatePath('/ocupaciones')
     revalidatePath(`/reservas/${input.reserva_id}`)
     
     return { success: true, comprobante, message: 'Cobro registrado y comprobante emitido' }

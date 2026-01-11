@@ -32,6 +32,7 @@ export function useRackData(daysRange = 30) {
     checkouts: []
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -46,7 +47,12 @@ export function useRackData(daysRange = 30) {
   useEffect(() => {
     async function loadData() {
       try {
-        setIsLoading(true)
+        // Solo mostrar loading en la primera carga
+        if (habitaciones.length === 0) {
+          setIsLoading(true)
+        } else {
+          setIsRefreshing(true)
+        }
         setError(null)
 
         const [
@@ -70,6 +76,7 @@ export function useRackData(daysRange = 30) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
       } finally {
         setIsLoading(false)
+        setIsRefreshing(false)
       }
     }
 
@@ -84,6 +91,7 @@ export function useRackData(daysRange = 30) {
     startDate,
     endDate,
     isLoading,
+    isRefreshing,
     error,
     refetch: () => {
       setRefreshKey(prev => prev + 1)

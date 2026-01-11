@@ -2,101 +2,106 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import type { Database } from '@/types/database.types'
 
-// ========================================
-// TYPES
-// ========================================
-export type HotelConfiguracion = {
-  id: string
-  ruc: string
-  razon_social: string
-  nombre_comercial: string | null
-  direccion_fiscal: string | null
-  ubigeo_codigo: string | null
-  tasa_igv: number
-  tasa_icbper: number
-  es_exonerado_igv: boolean
-  facturacion_activa: boolean
-  proveedor_sunat_config: any
-  hora_checkin: string
-  hora_checkout: string
-  telefono: string | null
-  email: string | null
-  pagina_web: string | null
-  logo_url: string | null
-  descripcion: string | null
-  updated_at: string
+export type HotelConfig = Database['public']['Tables']['hotel_configuracion']['Row']
+
+// Valores por defecto si no hay configuración
+const DEFAULT_CONFIG: Partial<HotelConfig> = {
+  ruc: '20000000001',
+  razon_social: 'MI HOTEL S.A.C.',
+  nombre_comercial: 'Mi Hotel',
+  direccion_fiscal: 'Av. Principal 123',
+  tasa_igv: 18.00,
+  tasa_icbper: 0.50,
+  moneda_principal: 'PEN',
+  es_exonerado_igv: false,
+  facturacion_activa: false,
+  hora_checkin: '14:00:00',
+  hora_checkout: '12:00:00'
 }
 
-// ========================================
-// OBTENER CONFIGURACIÓN DEL HOTEL
-// ========================================
-export async function getHotelConfiguracion(): Promise<HotelConfiguracion | null> {
+/**
+ * Obtener la configuración actual del hotel
+ * Cacheada por defecto por Next.js
+ */
+export async function getHotelConfig(): Promise<HotelConfig> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('hotel_configuracion')
     .select('*')
-    .single()
+    .maybeSingle()
 
   if (error) {
-    console.error('Error fetching hotel configuration:', error)
-    return null
+    console.error('Error fetching config:', error)
+    return DEFAULT_CONFIG as HotelConfig
+  }
+
+  if (!data) {
+    // Es normal la primera vez
+    return DEFAULT_CONFIG as HotelConfig
   }
 
   return data
 }
 
-// ========================================
-// ACTUALIZAR CONFIGURACIÓN DEL HOTEL
-// ========================================
-export async function updateHotelConfiguracion(updates: {
-  ruc?: string
-  razon_social?: string
-  nombre_comercial?: string
-  direccion_fiscal?: string
-  telefono?: string
-  email?: string
-  pagina_web?: string
-  hora_checkin?: string
-  hora_checkout?: string
-  descripcion?: string
-}) {
+/**
+ * Actualizar configuración
+ * Maneja automáticamente Insert (si está vacía) o Update
+ */
+export async function updateHotelConfig(data: Partial<HotelConfig>) {
   const supabase = await createClient()
 
-  // Primero verificamos si existe algún registro
-  const { data: existing } = await supabase
+  // 1. Verificar si ya existe un registro real en BD
+  const { data: existing, error: searchError } = await supabase
     .from('hotel_configuracion')
     .select('id')
-    .limit(1)
     .maybeSingle()
 
-  let result
+  if (searchError) {
+    return { success: false, error: searchError.message }
+  }
 
-  if (existing) {
-    // Actualizar registro existente
-    result = await supabase
+  let error;
+
+  if (existing?.id) {
+    // 2. ACTUALIZAR existente
+    console.log('Actualizando configuración ID:', existing.id, 'Datos:', data)
+    const result = await supabase
       .from('hotel_configuracion')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
+      .update(data)
       .eq('id', existing.id)
+      .select()
+      .single()
+      
+    if (result.data) {
+        console.log('Configuración actualizada en BD:', result.data)
+    }
+    error = result.error
   } else {
-    // Crear primer registro
-    result = await supabase
+    // 3. INSERTAR nuevo (Primera vez)
+    const payload = {
+      ...DEFAULT_CONFIG,
+      ...data,
+    }
+    const result = await supabase
       .from('hotel_configuracion')
-      .insert({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
+      .insert(payload)
+      .select()
+      .single()
+    error = result.error
   }
 
-  if (result.error) {
-    console.error('Error updating hotel configuration:', result.error)
-    throw new Error('Error al actualizar la configuración')
+  if (error) {
+    console.error('Error updating config:', error)
+    return { success: false, error: error.message }
   }
 
+  // Revalidación agresiva de caché
+  revalidatePath('/', 'layout') 
   revalidatePath('/configuracion')
-  return result.data
+  revalidatePath('/configuracion', 'page')
+  
+  return { success: true }
 }

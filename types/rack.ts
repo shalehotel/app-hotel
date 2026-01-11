@@ -25,7 +25,7 @@ export type RackReserva = {
   estado: string
   precio_pactado: number | null
   saldo_pendiente: number
-  huesped_presente: boolean // Nuevo campo
+  huesped_presente: boolean
   notas: string | null
   huespedes: {
     nombres: string

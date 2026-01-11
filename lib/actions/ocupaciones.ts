@@ -285,3 +285,69 @@ export async function getHuespedesDeReserva(reserva_id: string) {
 // NOTA: getPagosDeReserva ha sido movido a lib/actions/pagos.ts (getPagosByReserva)
 // para evitar duplicación. Importar desde allí si se necesita.
 
+// ========================================
+// HISTORIAL DE RESERVAS (PAGINADO)
+// ========================================
+export async function getReservasHistorial(params: {
+  page: number
+  pageSize: number
+  search?: string
+  dateStart?: Date
+  dateEnd?: Date
+  estado?: string
+}) {
+  const supabase = await createClient()
+  const { page, pageSize, search, dateStart, dateEnd, estado } = params
+  
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  let query = supabase
+    .from('vw_reservas_con_datos_basicos')
+    .select('*', { count: 'exact' })
+    .order('fecha_entrada', { ascending: false })
+    .range(from, to)
+
+  if (estado && estado !== 'TODAS') {
+    query = query.eq('estado', estado)
+  }
+
+  if (dateStart) {
+    query = query.gte('fecha_entrada', dateStart.toISOString())
+  }
+  
+  if (dateEnd) {
+    query = query.lte('fecha_entrada', dateEnd.toISOString())
+  }
+
+  if (search) {
+    query = query.or(`codigo_reserva.ilike.%${search}%,titular_nombre.ilike.%${search}%,titular_numero_doc.ilike.%${search}%`)
+  }
+
+  const { data, count, error } = await query
+
+  if (error) {
+    console.error('Error al obtener historial:', error)
+    throw new Error('Error al cargar el historial de reservas')
+  }
+
+  // Nota: Para el historial masivo, no calculamos totales financieros uno por uno
+  // para mantener el rendimiento. Si se necesita, se hace en el detalle individual.
+  
+  // Transformación básica para cumplir con el tipo OcupacionReserva
+  // (Asumiendo que los campos calculados pueden ser 0 o null en esta vista)
+  const dataTransformada = (data || []).map((r: any) => ({
+    ...r,
+    total_estimado: 0,
+    total_pagado: 0,
+    saldo_pendiente: 0,
+    total_noches: 0
+  }))
+
+  return {
+    data: dataTransformada as OcupacionReserva[],
+    total: count || 0,
+    totalPages: Math.ceil((count || 0) / pageSize)
+  }
+}
+

@@ -4,33 +4,27 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, CheckCircle, Clock, CreditCard } from 'lucide-react'
+import { Loader2, CheckCircle, Clock } from 'lucide-react'
 import { crearReservaDesdeRack } from '@/lib/actions/rack'
 import type { RackHabitacion } from '@/lib/actions/rack'
 
 type Props = {
   habitacion: RackHabitacion
   formData: any
-  updateFormData: (updates: any) => void
   totalNoches: number
   totalEstimado: number
-  onSuccess: () => void
+  onSuccess: (reservaId: string, codigo: string, esCheckin: boolean) => void
   onClose: () => void
-  onPaymentRequest: (reservaId: string) => void
 }
 
 export function StepConfirmacion({
   habitacion,
   formData,
-  updateFormData,
   totalNoches,
   totalEstimado,
   onSuccess,
-  onClose,
-  onPaymentRequest
+  onClose
 }: Props) {
   const [guardando, setGuardando] = useState(false)
   const [tipoAccion, setTipoAccion] = useState<'reserva' | 'checkin' | null>(null)
@@ -47,24 +41,17 @@ export function StepConfirmacion({
         fecha_salida: formData.fecha_salida,
         precio_pactado: formData.precio_pactado,
         estado: accion === 'checkin' ? 'CHECKED_IN' : 'RESERVADA',
-        // Ya no enviamos pago aquí, se maneja aparte
-        pago: null
+        pago: null // Ya no gestionamos pagos aquí
       })
 
-      if (result.error) {
-        alert(result.error)
+      if (result.error || !result.data) {
+        alert(result.error || 'Error desconocido')
         return
       }
 
-      onSuccess() // Refrescar Rack
-
-      if (formData.registrar_pago && result.data?.id) {
-        // Si marcó pagar, abrimos el flujo de pago con el ID creado
-        onPaymentRequest(result.data.id)
-      } else {
-        onClose() // Si no, cerramos todo
-      }
-
+      // Éxito: Pasar datos al padre para mostrar StepExito
+      onSuccess(result.data.id, result.data.codigo_reserva, accion === 'checkin')
+      
     } catch (error) {
       console.error('Error creating reservation:', error)
       alert('Error al crear la reserva')
@@ -133,26 +120,6 @@ export function StepConfirmacion({
             <span className="font-semibold">Total a Pagar:</span>
             <span className="text-xl font-bold">S/ {totalEstimado.toFixed(2)}</span>
           </div>
-        </div>
-      </div>
-
-      {/* Opción de Pago Diferido */}
-      <div className="flex items-start space-x-2 p-4 border border-blue-200 bg-blue-50 rounded-lg">
-        <Checkbox 
-          id="pagar_ahora" 
-          checked={formData.registrar_pago}
-          onCheckedChange={(checked) => updateFormData({ registrar_pago: checked === true })}
-        />
-        <div className="grid gap-1.5 leading-none">
-          <Label 
-            htmlFor="pagar_ahora" 
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-          >
-            Proceder al cobro inmediatamente
-          </Label>
-          <p className="text-xs text-muted-foreground">
-            Al finalizar, se abrirá la ventana para emitir el comprobante de pago.
-          </p>
         </div>
       </div>
 

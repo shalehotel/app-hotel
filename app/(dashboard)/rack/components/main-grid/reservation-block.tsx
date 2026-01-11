@@ -12,12 +12,12 @@ import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { differenceInDays, format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { 
-  DollarSign, 
-  AlertCircle, 
-  CalendarDays, 
-  Moon, 
-  CreditCard, 
+import {
+  DollarSign,
+  AlertCircle,
+  CalendarDays,
+  Moon,
+  CreditCard,
   MessageSquare,
   User
 } from 'lucide-react'
@@ -40,7 +40,7 @@ export function ReservationBlock({ reserva, nights, onClick, onUpdate }: Props) 
     return 'bg-gray-500 border-gray-600 hover:bg-gray-600'
   }
 
-  const huesped = reserva.huespedes 
+  const huesped = reserva.huespedes
     ? `${reserva.huespedes.apellidos}` // Solo apellido para ahorrar espacio
     : 'Sin huésped'
 
@@ -93,9 +93,9 @@ export function ReservationBlock({ reserva, nights, onClick, onUpdate }: Props) 
             <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">
               {reserva.codigo_reserva}
             </span>
-            <Badge 
-              variant={tieneDeuda ? "destructive" : "secondary"} 
-              className={cn("text-[10px] h-4 px-1.5 font-medium rounded-sm shadow-none", !tieneDeuda && "bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400")}
+            <Badge
+              variant={tieneDeuda ? "destructive" : "secondary"}
+              className={cn("text-[10px] h-4 px-1.5 font-medium rounded-sm shadow-none", !tieneDeuda && "bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600")}
             >
               {tieneDeuda ? "Pendiente" : "Pagado"}
             </Badge>
@@ -114,7 +114,7 @@ export function ReservationBlock({ reserva, nights, onClick, onUpdate }: Props) 
           </div>
           <p className="text-xs font-medium pl-4.5">{format(new Date(reserva.fecha_entrada), 'EEE d MMM', { locale: es })}</p>
         </div>
-        
+
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
             <CalendarDays className="w-3 h-3" />
@@ -151,7 +151,7 @@ export function ReservationBlock({ reserva, nights, onClick, onUpdate }: Props) 
                 <span className="font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded">S/ {saldo.toFixed(2)}</span>
               </div>
             )}
-            
+
             {reserva.notas && (
               <div className="flex items-start gap-2 text-xs text-muted-foreground bg-background p-2 rounded border shadow-sm">
                 <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 text-primary/60" />
@@ -225,9 +225,9 @@ export function ReservationBlock({ reserva, nights, onClick, onUpdate }: Props) 
             </div>
           </TooltipTrigger>
         </ReservationContextMenu>
-        <TooltipContent 
-          side="top" 
-          className="bg-popover text-popover-foreground p-0 overflow-hidden shadow-xl border border-border/60" 
+        <TooltipContent
+          side="top"
+          className="bg-popover text-popover-foreground p-0 overflow-hidden shadow-xl border border-border/60"
           sideOffset={5}
         >
           {tooltipContent}

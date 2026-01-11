@@ -73,6 +73,7 @@ CREATE TABLE public.hotel_configuracion (
     pagina_web text,
     logo_url text,
     descripcion text,
+    moneda_principal text DEFAULT 'PEN',
     updated_at timestamptz DEFAULT now()
 );
 CREATE UNIQUE INDEX only_one_config_row ON public.hotel_configuracion ((true));

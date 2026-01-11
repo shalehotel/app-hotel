@@ -58,122 +58,80 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
 
   return (
     <>
-      <div className="mx-2 mb-2 rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800/50 p-3 space-y-2">
+      <div className="mx-2 mb-2 rounded-lg border bg-card p-3 shadow-sm">
         {/* Header - Turno Activo */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-            <span className="text-xs font-semibold">Turno Activo</span>
+            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-xs font-semibold">Caja Abierta</span>
           </div>
-          <Badge variant="secondary" className="bg-blue-500 text-white dark:bg-blue-600 text-[10px] px-1.5 py-0">
-            <Lock className="h-2.5 w-2.5" />
+          <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 font-normal">
+            {turno.caja.nombre}
           </Badge>
         </div>
 
-        {/* Caja y tiempo */}
-        <div className="space-y-1">
-          <p className="text-[11px] text-muted-foreground font-medium">
-            {turno.caja.nombre}
-          </p>
-          <p className="text-[10px] text-muted-foreground">
-            {tiempoActivo}
-          </p>
-        </div>
-
-        <Separator className="my-2" />
-
         {/* Montos principales */}
         {loadingMovimientos ? (
-          <div className="text-center text-[10px] text-muted-foreground py-2">
-            Calculando...
+          <div className="text-center text-[10px] text-muted-foreground py-4">
+            <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-1" />
+            Actualizando...
           </div>
         ) : movimientos && (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <DollarSign className="h-3 w-3" />
-                Efectivo
-              </span>
-              <span className="text-xs font-semibold text-green-700 dark:text-green-400">
-                S/ {movimientos.totalEfectivoPEN.toFixed(2)}
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-muted-foreground">Total</span>
-              <span className="text-sm font-bold">
+          <div className="space-y-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Total en Caja</span>
+              <span className="text-xl font-bold tracking-tight">
                 S/ {movimientos.totalGeneral.toFixed(2)}
               </span>
             </div>
             
-            <p className="text-[10px] text-muted-foreground text-center pt-0.5">
-              {movimientos.pagos.length} transacción(es)
-            </p>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="bg-muted/50 rounded p-2">
+                <span className="text-[10px] text-muted-foreground block">Efectivo</span>
+                <span className="text-sm font-semibold block">S/ {movimientos.totalEfectivoPEN.toFixed(2)}</span>
+              </div>
+              <div className="bg-muted/50 rounded p-2">
+                <span className="text-[10px] text-muted-foreground block">Transacciones</span>
+                <span className="text-sm font-semibold block">{movimientos.pagos.length}</span>
+              </div>
+            </div>
+            
+            <div className="text-[10px] text-muted-foreground text-right">
+              Abierto hace {tiempoActivo}
+            </div>
           </div>
         )}
 
+        <Separator className="my-3" />
+
         {/* Botones de acción */}
-        <div className="pt-2 space-y-1.5">
-          <div className="grid grid-cols-3 gap-1.5">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="h-7 px-2 border-green-200 hover:bg-green-50 text-green-700"
-                    onClick={() => setModalIngresoOpen(true)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>Registrar Ingreso</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="h-8 text-xs justify-start px-2"
+              onClick={() => setModalIngresoOpen(true)}
+            >
+              <Plus className="h-3 w-3 mr-1.5" />
+              Ingreso
+            </Button>
             
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="h-7 px-2 border-red-200 hover:bg-red-50 text-red-700"
-                    onClick={() => setModalEgresoOpen(true)}
-                  >
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>Registrar Egreso</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="h-7 px-2"
-                    onClick={() => cargarMovimientos()}
-                  >
-                    <RefreshCw className={`h-3 w-3 ${loadingMovimientos ? 'animate-spin' : ''}`} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>Actualizar</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="h-8 text-xs justify-start px-2"
+              onClick={() => setModalEgresoOpen(true)}
+            >
+              <Minus className="h-3 w-3 mr-1.5" />
+              Egreso
+            </Button>
           </div>
           
           <Button 
-            variant="destructive" 
+            variant="default" 
             size="sm" 
-            className="w-full h-7 text-xs"
+            className="w-full h-8 text-xs"
             onClick={() => setModalCierreOpen(true)}
           >
             <Lock className="h-3 w-3 mr-1.5" />

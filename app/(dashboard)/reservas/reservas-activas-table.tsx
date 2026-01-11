@@ -8,7 +8,7 @@ import { ReservationDetailSheet } from "@/components/reservas/reservation-detail
 import { RegistrarPagoDialog } from "@/components/cajas/registrar-pago-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 
-export function OcupacionesTable() {
+export function ReservasActivasTable() {
   const [ocupaciones, setOcupaciones] = useState<OcupacionReserva[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedReservaId, setSelectedReservaId] = useState<string | null>(null)

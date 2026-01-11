@@ -7,13 +7,11 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  SheetFooter,
 } from '@/components/ui/sheet'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { 
   getDetalleReserva, 
   getHuespedesDeReserva,
@@ -25,18 +23,14 @@ import {
   realizarCheckout,
   validarCheckout
 } from '@/lib/actions/checkout'
-import { getSaldoPendiente } from '@/lib/actions/pagos'
 import { 
   DoorOpen, 
   DoorClosed, 
   CreditCard, 
-  Receipt, 
-  Calendar,
-  User,
-  Hotel,
-  AlertCircle,
+  Loader2,
   CheckCircle,
-  Loader2
+  AlertCircle,
+  Printer
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -51,23 +45,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
 import { RegistrarPagoDialog } from '@/components/cajas/registrar-pago-dialog'
 
@@ -75,9 +52,11 @@ type ReservationDetailSheetProps = {
   reservaId: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  onUpdate?: () => void
+  readonly?: boolean // Modo solo lectura / auditoría
 }
 
-export function ReservationDetailSheet({ reservaId, open, onOpenChange }: ReservationDetailSheetProps) {
+export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate, readonly = false }: ReservationDetailSheetProps) {
   const [reserva, setReserva] = useState<OcupacionReserva | null>(null)
   const [huespedes, setHuespedes] = useState<any[]>([])
   const [pagos, setPagos] = useState<any[]>([])
@@ -124,6 +103,7 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange }: Reserv
       await realizarCheckin(reserva.id)
       toast.success('Check-in realizado exitosamente')
       await cargarDatos()
+      onUpdate?.() // Actualizar Rack
       setCheckinDialogOpen(false)
     } catch (error: any) {
       toast.error(error.message || 'Error al realizar check-in')
@@ -155,6 +135,7 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange }: Reserv
       })
       toast.success('Check-out realizado exitosamente')
       await cargarDatos()
+      onUpdate?.() // Actualizar Rack (Barra desaparece, Habitación sucia)
       setCheckoutDialogOpen(false)
       setForceCheckout(false)
     } catch (error: any) {
@@ -186,293 +167,227 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange }: Reserv
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="sm:max-w-3xl flex flex-col">
-          <SheetHeader>
-            <SheetTitle className="text-2xl">Detalle de Reserva</SheetTitle>
+        <SheetContent className="sm:max-w-2xl flex flex-col p-0 gap-0">
+          <SheetHeader className="p-6 pb-2">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-xl">Reserva {reserva.codigo_reserva}</SheetTitle>
+              <Badge variant={esCheckedIn ? 'default' : esReservada ? 'outline' : 'secondary'} className="capitalize">
+                {reserva.estado.replace('_', ' ').toLowerCase()}
+              </Badge>
+            </div>
             <SheetDescription>
-              {reserva.codigo_reserva} • Habitación {reserva.habitacion_numero}
+              Habitación {reserva.habitacion_numero} • {reserva.tipo_habitacion}
             </SheetDescription>
           </SheetHeader>
 
-          <Tabs defaultValue="general" className="flex-1 flex flex-col">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="cuenta">Estado de Cuenta</TabsTrigger>
-              <TabsTrigger value="historial">Historial</TabsTrigger>
-            </TabsList>
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+            {/* General Info */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Fecha Entrada</p>
+                <p className="font-medium">
+                  {format(new Date(reserva.fecha_entrada), 'dd MMM yyyy', { locale: es })}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Fecha Salida</p>
+                <p className="font-medium">
+                  {format(new Date(reserva.fecha_salida), 'dd MMM yyyy', { locale: es })}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Estancia</p>
+                <p className="font-medium">
+                  {reserva.total_noches} {reserva.total_noches === 1 ? 'noche' : 'noches'}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Piso</p>
+                <p className="font-medium">{reserva.habitacion_piso}</p>
+              </div>
+            </div>
 
-            <ScrollArea className="flex-1 -mx-6 px-6">
-              {/* TAB: GENERAL */}
-              <TabsContent value="general" className="space-y-4 mt-4">
-                {/* Estado actual */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">Estado Actual</CardTitle>
-                      <Badge variant={esCheckedIn ? 'default' : esReservada ? 'outline' : 'secondary'}>
-                        {reserva.estado.replace('_', ' ')}
-                      </Badge>
+            <Separator />
+
+            {/* Huespedes (FICHA COMPLETA) */}
+            <div>
+              <h3 className="font-semibold text-lg mb-3">Registro de Huéspedes</h3>
+              <div className="space-y-4">
+                {huespedes.map((h, idx) => {
+                  const datos = h.huespedes
+                  const esTitular = h.es_titular
+                  
+                  return (
+                    <div key={idx} className={`flex flex-col p-4 rounded-lg border ${esTitular ? 'bg-muted/40 border-primary/20' : 'bg-background'}`}>
+                       <div className="flex justify-between items-start mb-2">
+                         <div>
+                           <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${esTitular ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                             {esTitular ? 'Titular' : 'Acompañante'}
+                           </span>
+                           <p className="font-semibold text-base mt-1">
+                             {datos.nombres} {datos.apellidos}
+                           </p>
+                         </div>
+                         <div className="text-right">
+                           <p className="font-mono text-sm font-medium">{datos.numero_documento}</p>
+                           <p className="text-xs text-muted-foreground">{datos.tipo_documento}</p>
+                         </div>
+                       </div>
+                       
+                       <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm mt-2">
+                         <div>
+                           <p className="text-xs text-muted-foreground">Nacionalidad</p>
+                           <p>{datos.nacionalidad || 'No registrada'}</p>
+                         </div>
+                         <div>
+                           <p className="text-xs text-muted-foreground">Fecha Nacimiento</p>
+                           <p>{datos.fecha_nacimiento ? format(new Date(datos.fecha_nacimiento), 'dd/MM/yyyy') : '-'}</p>
+                         </div>
+                         {(datos.telefono || datos.correo) && (
+                           <div className="col-span-2">
+                             <p className="text-xs text-muted-foreground">Contacto</p>
+                             <p className="truncate">{[datos.telefono, datos.correo].filter(Boolean).join(' • ')}</p>
+                           </div>
+                         )}
+                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Información de habitación */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-start gap-3">
-                        <Hotel className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium">Habitación</p>
-                          <p className="text-lg font-bold">{reserva.habitacion_numero}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Piso {reserva.habitacion_piso} • {reserva.tipo_habitacion}
-                          </p>
-                        </div>
-                      </div>
+                  )
+                })}
+              </div>
+            </div>
 
-                      <div className="flex items-start gap-3">
-                        <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium">Fechas</p>
-                          <p className="text-sm">
-                            {format(new Date(reserva.fecha_entrada), 'dd MMM yyyy', { locale: es })}
+            <Separator />
+
+            {/* Finanzas */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                 <h3 className="font-semibold text-lg">Estado de Cuenta</h3>
+                 {esCheckedIn && !readonly && (
+                    <Button variant="outline" size="sm" onClick={() => setPagoDialogOpen(true)}>
+                      <CreditCard className="h-3 w-3 mr-2" />
+                      Registrar Pago
+                    </Button>
+                 )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                 <div className="p-3 bg-muted/20 rounded-lg border text-center">
+                    <span className="block text-xs text-muted-foreground mb-1">Total</span>
+                    <span className="block font-semibold">S/ {reserva.total_estimado.toFixed(2)}</span>
+                 </div>
+                 <div className="p-3 bg-green-50/50 dark:bg-green-950/20 rounded-lg border border-green-100 dark:border-green-900 text-center">
+                    <span className="block text-xs text-muted-foreground mb-1">Pagado</span>
+                    <span className="block font-semibold text-green-600">S/ {reserva.total_pagado.toFixed(2)}</span>
+                 </div>
+                 <div className="p-3 bg-red-50/50 dark:bg-red-950/20 rounded-lg border border-red-100 dark:border-red-900 text-center">
+                    <span className="block text-xs text-muted-foreground mb-1">Pendiente</span>
+                    <span className="block font-semibold text-red-600">S/ {reserva.saldo_pendiente.toFixed(2)}</span>
+                 </div>
+              </div>
+
+              {pagos.length > 0 ? (
+                <div className="space-y-2">
+                  {pagos.map((pago) => (
+                    <div key={pago.id} className="flex justify-between items-center p-2 text-sm border-b last:border-0">
+                       <div>
+                          <p className="font-medium">S/ {pago.monto.toFixed(2)}</p>
+                          <p className="text-xs text-muted-foreground">{pago.metodo_pago}</p>
+                       </div>
+                       <div className="text-right">
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(pago.fecha_pago), 'dd MMM', { locale: es })}
                           </p>
-                          <p className="text-sm">
-                            {format(new Date(reserva.fecha_salida), 'dd MMM yyyy', { locale: es })}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {reserva.total_noches} {reserva.total_noches === 1 ? 'noche' : 'noches'}
-                          </p>
-                        </div>
-                      </div>
+                          {pago.comprobantes && (
+                            <Badge variant="outline" className="text-[10px] h-5">
+                              {pago.comprobantes.tipo_comprobante.substring(0, 1)}{(pago.comprobantes.numero_completo || '').split('-')[1] || '000'}
+                            </Badge>
+                          )}
+                       </div>
                     </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4 italic">No hay pagos registrados</p>
+              )}
+            </div>
+            
+            <Separator />
+            
+             {/* Estado check-out info */}
+             {esCheckedOut && (
+                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <div>
+                    <p className="font-medium text-sm">Check-out Completado</p>
+                    <p className="text-xs text-muted-foreground">
+                      {reserva.check_out_real && format(new Date(reserva.check_out_real), "dd MMM yyyy HH:mm", { locale: es })}
+                    </p>
+                  </div>
+                </div>
+              )}
 
-                    {/* Huésped titular */}
-                    {titular && (
-                      <div>
-                        <Separator className="my-4" />
-                        <div className="flex items-start gap-3">
-                          <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium">Huésped Titular</p>
-                            <p className="font-semibold">{reserva.titular_nombre}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {reserva.titular_tipo_doc} {reserva.titular_numero_doc}
-                            </p>
-                            {reserva.titular_correo && (
-                              <p className="text-sm text-muted-foreground">{reserva.titular_correo}</p>
-                            )}
-                            {reserva.titular_telefono && (
-                              <p className="text-sm text-muted-foreground">{reserva.titular_telefono}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+          </div>
 
-                    {/* Acompañantes */}
-                    {huespedes.length > 1 && (
-                      <div>
-                        <Separator className="my-4" />
-                        <p className="text-sm font-medium mb-2">Acompañantes ({huespedes.length - 1})</p>
-                        <div className="space-y-2">
-                          {huespedes
-                            .filter(h => !h.es_titular)
-                            .map((h, idx) => (
-                              <div key={idx} className="text-sm flex items-center gap-2 p-2 bg-muted/50 rounded">
-                                <User className="h-4 w-4 text-muted-foreground" />
-                                <span>
-                                  {h.huespedes.nombres} {h.huespedes.apellidos} • {h.huespedes.tipo_documento} {h.huespedes.numero_documento}
-                                </span>
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+          <SheetFooter className="p-6 pt-2 border-t mt-auto">
+             {!readonly ? (
+               /* MODO OPERATIVO */
+               <>
+                 {esReservada && (
+                    <Button 
+                      className="w-full" 
+                      size="lg"
+                      onClick={() => setCheckinDialogOpen(true)}
+                      disabled={actionLoading}
+                    >
+                      <DoorOpen className="h-4 w-4 mr-2" />
+                      Hacer Check-in
+                    </Button>
+                  )}
 
-                {/* Acciones según estado */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Acciones Disponibles</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {esReservada && (
-                      <Button 
-                        className="w-full" 
-                        size="lg"
-                        onClick={() => setCheckinDialogOpen(true)}
-                        disabled={actionLoading}
-                      >
-                        <DoorOpen className="h-5 w-5 mr-2" />
-                        Hacer Check-in
-                      </Button>
-                    )}
-
-                    {esCheckedIn && (
-                      <>
-                        {tieneDeuda && (
-                          <Button 
-                            className="w-full" 
-                            size="lg"
-                            variant="default"
-                            onClick={() => setPagoDialogOpen(true)}
-                            disabled={actionLoading}
-                          >
-                            <CreditCard className="h-5 w-5 mr-2" />
-                            Cobrar y Facturar (S/ {reserva.saldo_pendiente.toFixed(2)})
-                          </Button>
-                        )}
-                        
+                  {esCheckedIn && (
+                    <div className="flex gap-2 w-full">
+                       {tieneDeuda && (
                         <Button 
-                          className="w-full" 
-                          size="lg"
-                          variant={tieneDeuda ? 'outline' : 'default'}
-                          onClick={() => setCheckoutDialogOpen(true)}
+                          className="flex-1" 
+                          variant="default"
+                          onClick={() => setPagoDialogOpen(true)}
                           disabled={actionLoading}
                         >
-                          <DoorClosed className="h-5 w-5 mr-2" />
-                          Hacer Check-out
-                          {tieneDeuda && ' (con deuda)'}
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Cobrar
                         </Button>
-                      </>
-                    )}
-
-                    {esCheckedOut && (
-                      <div className="flex items-center gap-2 p-4 bg-muted rounded-lg">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                        <div>
-                          <p className="font-medium">Check-out Completado</p>
-                          <p className="text-sm text-muted-foreground">
-                            {reserva.check_out_real && format(new Date(reserva.check_out_real), "dd MMM yyyy 'a las' HH:mm", { locale: es })}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* TAB: ESTADO DE CUENTA */}
-              <TabsContent value="cuenta" className="space-y-4 mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Resumen Financiero</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-muted/50 rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total Estimado</p>
-                        <p className="text-2xl font-bold">S/ {reserva.total_estimado.toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">
-                          S/ {reserva.precio_pactado.toFixed(2)} × {reserva.total_noches} {reserva.total_noches === 1 ? 'noche' : 'noches'}
-                        </p>
-                      </div>
-
-                      <div className="p-4 bg-muted/50 rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total Pagado</p>
-                        <p className="text-2xl font-bold text-green-600">S/ {reserva.total_pagado.toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {pagos.length} {pagos.length === 1 ? 'pago' : 'pagos'} registrado{pagos.length !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    <div className="p-4 bg-primary/5 border-2 border-primary rounded-lg">
-                      <p className="text-sm font-medium">SALDO PENDIENTE</p>
-                      <p className={`text-3xl font-bold ${tieneDeuda ? 'text-destructive' : 'text-green-600'}`}>
-                        S/ {reserva.saldo_pendiente.toFixed(2)}
-                      </p>
-                      {tieneDeuda && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <AlertCircle className="h-4 w-4 text-destructive" />
-                          <p className="text-sm text-destructive">Pendiente de pago</p>
-                        </div>
-                      )}
-                      {!tieneDeuda && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <p className="text-sm text-green-600">Completamente pagado</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg">Historial de Pagos</CardTitle>
-                      <CardDescription>{pagos.length} pagos registrados</CardDescription>
-                    </div>
-                    {esCheckedIn && (
-                      <Button onClick={() => setPagoDialogOpen(true)} size="sm">
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Cobrar y Facturar
+                       )}
+                       
+                       <Button 
+                        className="flex-1"
+                        variant={tieneDeuda ? 'outline' : 'default'}
+                        onClick={() => setCheckoutDialogOpen(true)}
+                        disabled={actionLoading}
+                      >
+                        <DoorClosed className="h-4 w-4 mr-2" />
+                        Check-out
                       </Button>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    {pagos.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Receipt className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p>No hay pagos registrados</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {pagos.map((pago) => (
-                          <div key={pago.id} className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <CreditCard className="h-5 w-5 text-muted-foreground" />
-                              <div>
-                                <p className="font-medium">S/ {pago.monto.toFixed(2)}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {pago.metodo_pago} 
-                                  {pago.referencia_pago && ` • ${pago.referencia_pago}`}
-                                </p>
-                                {pago.nota && (
-                                  <p className="text-xs text-muted-foreground italic">{pago.nota}</p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm">
-                                {format(new Date(pago.fecha_pago), 'dd MMM yyyy', { locale: es })}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {format(new Date(pago.fecha_pago), 'HH:mm', { locale: es })}
-                              </p>
-                              {pago.comprobantes && (
-                                <Badge variant="outline" className="mt-1">
-                                  {pago.comprobantes.tipo_comprobante} {pago.comprobantes.numero_completo}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* TAB: HISTORIAL */}
-              <TabsContent value="historial" className="space-y-4 mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Auditoría de Cambios</CardTitle>
-                    <CardDescription>Próximamente: registro de todas las modificaciones</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-8 text-muted-foreground">
-                      <p>Esta funcionalidad estará disponible pronto</p>
                     </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </ScrollArea>
-          </Tabs>
+                  )}
+                  
+                  {esCheckedOut && (
+                    <Button variant="outline" className="w-full" disabled>
+                       Reserva Finalizada
+                    </Button>
+                  )}
+               </>
+             ) : (
+               /* MODO AUDITORÍA (SOLO LECTURA) */
+               <Button 
+                 variant="outline" 
+                 className="w-full" 
+                 onClick={() => window.print()}
+               >
+                 <Printer className="mr-2 h-4 w-4" />
+                 Imprimir Ficha de Registro
+               </Button>
+             )}
+          </SheetFooter>
         </SheetContent>
       </Sheet>
 
@@ -502,17 +417,34 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange }: Reserv
             <AlertDialogTitle>
               {tieneDeuda && !forceCheckout ? '⚠️ Check-out con Deuda' : 'Confirmar Check-out'}
             </AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription asChild>
               {tieneDeuda && !forceCheckout ? (
-                <>
-                  El huésped tiene un saldo pendiente de <strong className="text-destructive">S/ {reserva.saldo_pendiente.toFixed(2)}</strong>.
-                  <br /><br />
-                  ¿Desea forzar el check-out de todas formas?
-                </>
+                <div className="space-y-4">
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    El huésped tiene un saldo pendiente de <strong>S/ {reserva.saldo_pendiente.toFixed(2)}</strong>.
+                  </div>
+                  <div className="grid gap-2">
+                    <Button 
+                      variant="default" 
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setCheckoutDialogOpen(false)
+                        setPagoDialogOpen(true)
+                      }}
+                      className="w-full"
+                    >
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Pagar Deuda Ahora
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground">
+                      Si pagas ahora, podrás realizar el check-out inmediatamente después.
+                    </p>
+                  </div>
+                </div>
               ) : (
-                <>
+                <span>
                   ¿Desea realizar el check-out de <strong>{reserva.titular_nombre}</strong> de la habitación <strong>{reserva.habitacion_numero}</strong>?
-                </>
+                </span>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -520,13 +452,13 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange }: Reserv
             <AlertDialogCancel onClick={() => setForceCheckout(false)}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleCheckout} disabled={actionLoading}>
               {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {tieneDeuda && !forceCheckout ? 'Forzar Check-out' : 'Confirmar Check-out'}
+              {tieneDeuda && !forceCheckout ? 'Forzar Check-out (Dejar Deuda)' : 'Confirmar Check-out'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog: Registrar Pago (Nuevo Componente) */}
+      {/* Dialog: Registrar Pago */}
       <RegistrarPagoDialog 
         open={pagoDialogOpen} 
         onOpenChange={setPagoDialogOpen}

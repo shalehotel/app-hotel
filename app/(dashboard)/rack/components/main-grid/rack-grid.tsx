@@ -17,11 +17,11 @@ type Props = {
   clearSelection?: boolean
 }
 
-export function RackGrid({ 
-  habitaciones, 
-  reservas, 
-  startDate, 
-  endDate, 
+export function RackGrid({
+  habitaciones,
+  reservas,
+  startDate,
+  endDate,
   onReservationClick,
   onNewReservation,
   onUpdate,
@@ -38,11 +38,11 @@ export function RackGrid({
   return (
     <div className="relative h-full">
       {/* Grid Container */}
-      <div className="overflow-auto h-full">
+      <div className="overflow-auto h-full no-scrollbar">
         <div
           className="grid"
           style={{
-            gridTemplateColumns: `100px repeat(${days.length}, 80px)`,
+            gridTemplateColumns: `160px repeat(${days.length}, 80px)`,
             minWidth: 'max-content'
           }}
         >

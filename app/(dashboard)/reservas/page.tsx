@@ -8,12 +8,9 @@ import {
 } from '@/components/ui/breadcrumb'
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
-import { ConfiguracionGeneralForm } from './configuracion-general-form'
-import { getHotelConfig } from '@/lib/actions/configuracion'
+import { ReservasHistorialTable } from './reservas-historial-table'
 
-export default async function ConfiguracionPage() {
-  const config = await getHotelConfig()
-
+export default function ReservasPage() {
   return (
     <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -26,7 +23,7 @@ export default async function ConfiguracionPage() {
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage>Configuración General</BreadcrumbPage>
+              <BreadcrumbPage>Historial de Reservas</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
@@ -34,15 +31,15 @@ export default async function ConfiguracionPage() {
 
       <div className="flex flex-1 flex-col gap-4 p-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Configuración General</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Explorador de Reservas</h1>
           <p className="text-muted-foreground">
-            Configura los datos generales del hotel y horarios
+            Búsqueda avanzada y auditoría de todas las reservas históricas y futuras.
           </p>
         </div>
 
-        <Separator />
-
-        <ConfiguracionGeneralForm initialData={config} />
+        <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+          <ReservasHistorialTable />
+        </div>
       </div>
     </>
   )

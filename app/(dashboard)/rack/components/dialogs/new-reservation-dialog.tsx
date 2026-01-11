@@ -16,6 +16,7 @@ import type { RackHabitacion } from '@/lib/actions/rack'
 import { StepTarifa } from './steps/step-tarifa'
 import { StepHuesped } from './steps/step-huesped'
 import { StepConfirmacion } from './steps/step-confirmacion'
+import { StepExito } from './steps/step-exito'
 import { RegistrarPagoDialog } from '@/components/cajas/registrar-pago-dialog'
 
 type Props = {
@@ -63,16 +64,23 @@ type PaymentData = {
   precio_pactado: number
 }
 
-export function NewReservationDialog({
-  open,
-  onOpenChange,
-  habitacion,
+type SuccessData = {
+  id: string
+  codigo: string
+  esCheckin: boolean
+}
+
+export function NewReservationDialog({ 
+  open, 
+  onOpenChange, 
+  habitacion, 
   fechaInicial,
   fechaFinal,
-  onSuccess
+  onSuccess 
 }: Props) {
   const [currentStep, setCurrentStep] = useState(1)
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null)
+  const [successData, setSuccessData] = useState<SuccessData | null>(null)
   
   // Calcular fecha_salida: si hay fechaFinal, usar día siguiente; sino +1 día desde fechaInicial
   const calcularFechaSalida = () => {
@@ -113,6 +121,7 @@ export function NewReservationDialog({
 
   const handleClose = () => {
     setCurrentStep(1)
+    setSuccessData(null)
     onOpenChange(false)
   }
 
@@ -130,7 +139,8 @@ export function NewReservationDialog({
       precio_pactado: formData.precio_pactado
     })
     
-    onOpenChange(false) // Cerrar Sheet de reserva
+    // NO cerramos el sheet aquí para que el diálogo de pago pueda renderizarse encima
+    // Si cerramos el sheet, este componente se desmonta y paymentData se pierde.
   }
 
   const canGoNext = () => {
@@ -147,87 +157,106 @@ export function NewReservationDialog({
     <>
       <Sheet open={open} onOpenChange={handleClose}>
         <SheetContent className="w-full sm:max-w-2xl flex flex-col">
-          <SheetHeader>
-            <SheetTitle>
-              {currentStep === 1 && 'Seleccionar Tarifa'}
-              {currentStep === 2 && 'Datos del Huésped'}
-              {currentStep === 3 && 'Confirmación y Pago'}
-            </SheetTitle>
-            <SheetDescription>
-              Hab. {habitacion.numero} - {habitacion.tipos_habitacion.nombre}
-            </SheetDescription>
-          </SheetHeader>
+          
+          {/* MODO ÉXITO */}
+          {successData ? (
+            <StepExito 
+              reservaId={successData.id}
+              codigoReserva={successData.codigo}
+              esCheckIn={successData.esCheckin}
+              totalPagar={totalEstimado}
+              onCobrar={() => handlePaymentRequest(successData.id)}
+              onCerrar={handleClose}
+            />
+          ) : (
+            /* MODO WIZARD NORMAL */
+            <>
+              <SheetHeader>
+                <SheetTitle>
+                  {currentStep === 1 && 'Seleccionar Tarifa'}
+                  {currentStep === 2 && 'Datos del Huésped'}
+                  {currentStep === 3 && 'Confirmación'}
+                </SheetTitle>
+                <SheetDescription>
+                  Hab. {habitacion.numero} - {habitacion.tipos_habitacion.nombre}
+                </SheetDescription>
+              </SheetHeader>
 
-          {/* Progress */}
-          <div className="flex items-center gap-2 my-6">
-            {[1, 2, 3].map((step) => (
-              <div
-                key={step}
-                className={`flex-1 h-2 rounded ${
-                  step <= currentStep ? 'bg-primary' : 'bg-muted'
-                }`}
-              />
-            ))}
-          </div>
+              {/* Progress */}
+              <div className="flex items-center gap-2 my-6">
+                {[1, 2, 3].map((step) => (
+                  <div
+                    key={step}
+                    className={`flex-1 h-2 rounded ${
+                      step <= currentStep ? 'bg-primary' : 'bg-muted'
+                    }`}
+                  />
+                ))}
+              </div>
 
-          {/* Steps */}
-          <div className="flex-1 overflow-y-auto space-y-6">
-            {currentStep === 1 && (
-              <StepTarifa
-                habitacion={habitacion}
-                formData={formData}
-                updateFormData={updateFormData}
-                totalNoches={totalNoches}
-                totalEstimado={totalEstimado}
-              />
-            )}
+              {/* Steps */}
+              <div className="flex-1 overflow-y-auto space-y-6">
+                {currentStep === 1 && (
+                  <StepTarifa
+                    habitacion={habitacion}
+                    formData={formData}
+                    updateFormData={updateFormData}
+                    totalNoches={totalNoches}
+                    totalEstimado={totalEstimado}
+                  />
+                )}
 
-            {currentStep === 2 && (
-              <StepHuesped
-                formData={formData}
-                updateFormData={updateFormData}
-              />
-            )}
+                {currentStep === 2 && (
+                  <StepHuesped
+                    formData={formData}
+                    updateFormData={updateFormData}
+                  />
+                )}
 
-            {currentStep === 3 && (
-              <StepConfirmacion
-                habitacion={habitacion}
-                formData={formData}
-                updateFormData={updateFormData}
-                totalNoches={totalNoches}
-                totalEstimado={totalEstimado}
-                onSuccess={onSuccess}
-                onClose={handleClose}
-                onPaymentRequest={handlePaymentRequest}
-              />
-            )}
-          </div>
+                {currentStep === 3 && (
+                  <StepConfirmacion
+                    habitacion={habitacion}
+                    formData={formData}
+                    updateFormData={updateFormData}
+                    totalNoches={totalNoches}
+                    totalEstimado={totalEstimado}
+                    onSuccess={(reservaId, codigo, esCheckin) => {
+                      onSuccess() // Refrescar Rack inmediatamente
+                      setSuccessData({ id: reservaId, codigo, esCheckin })
+                    }}
+                    onClose={handleClose}
+                    onPaymentRequest={() => {}} // Ya no se usa desde aquí directamente
+                  />
+                )}
+              </div>
 
-          {/* Navigation (solo para step 1 y 2) */}
-          {currentStep < 3 && (
-            <div className="flex items-center justify-between mt-6 pt-6 border-t">
-              {currentStep > 1 ? (
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentStep(prev => prev - 1)}
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Atrás
-                </Button>
-              ) : (
-                <Button variant="ghost" onClick={handleClose}>
-                  Cancelar
-                </Button>
+              {/* Navigation (solo para step 1 y 2) */}
+              {currentStep < 3 && (
+                <div className="flex items-center justify-between mt-6 pt-6 border-t">
+                  {currentStep > 1 ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => setCurrentStep(prev => prev - 1)}
+                    >
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Atrás
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" onClick={handleClose}>
+                      Cancelar
+                    </Button>
+                  )}
+
+                  <Button
+                    onClick={() => setCurrentStep(prev => prev + 1)}
+                    disabled={!canGoNext()}
+                  >
+                    Siguiente
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
               )}
-
-              <Button
-                onClick={() => setCurrentStep(prev => prev + 1)}
-                disabled={!canGoNext()}
-              >
-                Siguiente
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
+            </>
           )}
         </SheetContent>
       </Sheet>
@@ -240,7 +269,8 @@ export function NewReservationDialog({
           reserva={paymentData}
           onSuccess={() => {
             setPaymentData(null)
-            onSuccess() // Refrescar Rack nuevamente
+            handleClose() // Cerrar todo el flujo al terminar pago
+            onSuccess() // Refrescar Rack nuevamente tras pagar
           }}
         />
       )}

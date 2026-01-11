@@ -105,7 +105,7 @@ export async function realizarCheckout(input: CheckoutInput): Promise<CheckoutRe
     .update({
       estado: 'CHECKED_OUT',
       huesped_presente: false,
-      fecha_checkout_real: new Date().toISOString()
+      check_out_real: new Date().toISOString()
     })
     .eq('id', input.reserva_id)
 

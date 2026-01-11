@@ -38,6 +38,10 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
   const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false)
   const [procesando, setProcesando] = useState(false)
   
+  // Estados para checkout con deuda
+  const [forceCheckoutNeeded, setForceCheckoutNeeded] = useState(false)
+  const [deudaPendiente, setDeudaPendiente] = useState(0)
+  
   const fechaEntrada = new Date(reserva.fecha_entrada)
   const puedeHacerCheckin = isToday(fechaEntrada) && reserva.estado === 'RESERVADA'
   const puedeHacerCheckout = reserva.estado === 'CHECKED_IN'
@@ -81,37 +85,40 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
     }
   }
 
-  const handleCheckout = async () => {
+  const iniciarCheckout = async () => {
     setProcesando(true)
     try {
-      // Primero validar
-      const validacion = await validarCheckout(reserva.id)
-      
-      if (!validacion.puede_checkout) {
-        const mensaje = validacion.saldo_pendiente 
-          ? `${validacion.motivo}. Saldo pendiente: S/ ${validacion.saldo_pendiente.toFixed(2)}`
-          : validacion.motivo
-        
-        if (!confirm(`${mensaje}\n\n¿Desea realizar checkout de todos modos? (Forzar checkout)`)) {
-          setProcesando(false)
-          return
+        const validacion = await validarCheckout(reserva.id)
+        if (!validacion.puede_checkout) {
+            setDeudaPendiente(validacion.saldo_pendiente || 0)
+            setForceCheckoutNeeded(true)
+            setCheckoutDialogOpen(true) // Asegurar que esté abierto
+        } else {
+            // Si no hay deuda, ejecutar directo o abrir confirmación simple
+            // Aquí abrimos el dialog para confirmar visualmente
+            setForceCheckoutNeeded(false)
+            setCheckoutDialogOpen(true)
         }
-        
-        // Check-out forzado
-        await realizarCheckout({
-          reserva_id: reserva.id,
-          forzar_checkout: true
-        })
-      } else {
-        // Check-out normal
-        await realizarCheckout({
-          reserva_id: reserva.id
-        })
-      }
+    } catch (error) {
+        console.error('Error validando checkout:', error)
+        alert('Error al validar checkout')
+    } finally {
+        setProcesando(false)
+    }
+  }
 
+  const confirmarCheckout = async (forzar = false) => {
+    setProcesando(true)
+    try {
+      await realizarCheckout({
+        reserva_id: reserva.id,
+        forzar_checkout: forzar
+      })
       setCheckoutDialogOpen(false)
+      setForceCheckoutNeeded(false)
       onUpdate()
-      alert('Check-out realizado exitosamente')
+      // Idealmente usar toast, pero alert por simplicidad en este componente
+      // alert('Check-out realizado exitosamente') 
     } catch (error) {
       console.error('Error en checkout:', error)
       alert(error instanceof Error ? error.message : 'Error al hacer check-out')
@@ -143,7 +150,7 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
           {puedeHacerCheckout && (
             <>
               <ContextMenuItem
-                onClick={() => setCheckoutDialogOpen(true)}
+                onClick={iniciarCheckout}
                 disabled={procesando}
               >
                 <LogOut className="mr-2 h-4 w-4" />
@@ -170,7 +177,7 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
         </ContextMenuContent>
       </ContextMenu>
 
-      {/* Dialog de Pago Rápido (Nuevo Componente) */}
+      {/* Dialog de Pago Rápido */}
       <RegistrarPagoDialog
         open={pagoDialogOpen}
         onOpenChange={setPagoDialogOpen}
@@ -178,9 +185,9 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
           id: reserva.id,
           saldo_pendiente: reserva.saldo_pendiente || 0,
           titular_nombre: `${reserva.huespedes?.nombres || ''} ${reserva.huespedes?.apellidos || ''}`,
-          titular_tipo_doc: '', // Dato no disponible en RackReserva, usuario deberá ingresarlo si es factura
-          titular_numero_doc: '', // Idem
-          habitacion_numero: '...', // Idem, visual
+          titular_tipo_doc: '',
+          titular_numero_doc: '',
+          habitacion_numero: '...',
           precio_pactado: reserva.precio_pactado || 0
         }}
         onSuccess={onUpdate}
@@ -190,32 +197,59 @@ export function ReservationContextMenu({ children, reserva, onUpdate }: Props) {
       <Dialog open={checkoutDialogOpen} onOpenChange={setCheckoutDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirmar Check-out</DialogTitle>
+            <DialogTitle>
+                {forceCheckoutNeeded ? '⚠️ Deuda Pendiente' : 'Confirmar Check-out'}
+            </DialogTitle>
             <DialogDescription>
               {reserva.codigo_reserva}
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4">
-            <p className="text-sm">
-              ¿Confirmar check-out para {reserva.huespedes?.nombres} {reserva.huespedes?.apellidos}?
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Se validará el saldo pendiente antes de realizar el check-out.
-            </p>
+            {forceCheckoutNeeded ? (
+                <div className="space-y-4">
+                    <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
+                        El huésped tiene un saldo pendiente de <strong>S/ {deudaPendiente.toFixed(2)}</strong>.
+                    </div>
+                    <Button 
+                        className="w-full" 
+                        onClick={() => {
+                            setCheckoutDialogOpen(false)
+                            setPagoDialogOpen(true)
+                        }}
+                    >
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Pagar Deuda Ahora
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground">
+                        O puedes forzar la salida dejando la deuda:
+                    </p>
+                </div>
+            ) : (
+                <p className="text-sm">
+                ¿Confirmar check-out para {reserva.huespedes?.nombres} {reserva.huespedes?.apellidos}?
+                </p>
+            )}
           </div>
 
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setCheckoutDialogOpen(false)}
+              onClick={() => {
+                  setCheckoutDialogOpen(false)
+                  setForceCheckoutNeeded(false)
+              }}
               disabled={procesando}
             >
               Cancelar
             </Button>
-            <Button onClick={handleCheckout} disabled={procesando}>
+            <Button 
+                onClick={() => confirmarCheckout(forceCheckoutNeeded)} 
+                disabled={procesando}
+                variant={forceCheckoutNeeded ? "destructive" : "default"}
+            >
               {procesando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirmar Check-out
+              {forceCheckoutNeeded ? 'Forzar Check-out' : 'Confirmar Salida'}
             </Button>
           </DialogFooter>
         </DialogContent>

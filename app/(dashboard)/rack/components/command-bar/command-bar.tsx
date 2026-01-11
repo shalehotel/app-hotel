@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Search, Plus, PanelRight, LayoutGrid, LayoutList, User, DoorOpen, Hotel } from 'lucide-react'
+import { Search, Plus, LayoutGrid, LayoutList, User, DoorOpen, Hotel } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { KpiChips } from './kpi-chips'
@@ -11,13 +11,12 @@ import { cn } from '@/lib/utils'
 import type { RackKPIs } from '@/lib/actions/rack'
 
 type Props = {
-  onToggleSidebar: () => void
   kpis: RackKPIs
   viewMode: 'rack' | 'cards'
   onViewModeChange: (mode: 'rack' | 'cards') => void
 }
 
-export function CommandBar({ onToggleSidebar, kpis, viewMode, onViewModeChange }: Props) {
+export function CommandBar({ kpis, viewMode, onViewModeChange }: Props) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [showResults, setShowResults] = useState(false)
@@ -146,9 +145,6 @@ export function CommandBar({ onToggleSidebar, kpis, viewMode, onViewModeChange }
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onToggleSidebar}>
-              <PanelRight className="h-4 w-4" />
-            </Button>
             <Button>
               <Plus className="h-4 w-4" />
               Nueva Reserva

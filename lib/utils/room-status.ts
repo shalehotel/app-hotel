@@ -1,9 +1,7 @@
-import { type Database } from '@/types/database.types'
-
 type Habitacion = {
-  estado_ocupacion: Database['public']['Enums']['estado_ocupacion_enum']
-  estado_limpieza: Database['public']['Enums']['estado_limpieza_enum']
-  estado_servicio: Database['public']['Enums']['estado_servicio_enum']
+  estado_ocupacion: string
+  estado_limpieza: string
+  estado_servicio: string
   // Permitir otros campos
   [key: string]: any
 }
@@ -27,58 +25,56 @@ export function getRoomVisualState(habitacion: Habitacion): RoomVisualState {
   // 1. PRIORIDAD CRÍTICA: Estado de Servicio
   if (habitacion.estado_servicio === 'FUERA_SERVICIO') {
     return {
-      color: 'bg-zinc-900', // Negro/Gris muy oscuro
-      textColor: 'text-zinc-50',
-      badgeColor: 'bg-zinc-800',
-      label: 'FUERA DE SERVICIO'
+      color: 'bg-[#374151]',
+      textColor: 'text-white',
+      badgeColor: 'bg-[#374151]',
+      label: 'FUERA SERVICIO'
     }
   }
 
   if (habitacion.estado_servicio === 'MANTENIMIENTO') {
     return {
-      color: 'bg-amber-900', // Marrón/Naranja oscuro
-      textColor: 'text-amber-50',
-      badgeColor: 'bg-amber-800',
+      color: 'bg-[#374151]',
+      textColor: 'text-white',
+      badgeColor: 'bg-[#374151]',
       label: 'MANTENIMIENTO'
     }
   }
 
   // 2. PRIORIDAD ALTA: Ocupación
   if (habitacion.estado_ocupacion === 'OCUPADA') {
-    // Aquí podríamos refinar si tuviéramos huesped_presente
-    // Pero la base es ROJO
     return {
-      color: 'bg-red-500',
+      color: 'bg-[#f44250]',
       textColor: 'text-white',
-      badgeColor: 'bg-red-700',
+      badgeColor: 'bg-[#f44250]',
       label: 'OCUPADA'
     }
   }
 
-  // 3. PRIORIDAD MEDIA: Estado de Limpieza (Solo relevante si no está ocupada ni en mantenimiento)
+  // 3. PRIORIDAD MEDIA: Estado de Limpieza
   if (habitacion.estado_limpieza === 'SUCIA') {
     return {
-      color: 'bg-amber-400', // Amarillo
-      textColor: 'text-amber-950',
-      badgeColor: 'bg-amber-500',
-      label: 'SUCIA'
+      color: 'bg-[#fecc1b]',
+      textColor: 'text-white',
+      badgeColor: 'bg-[#fecc1b]',
+      label: 'ESPERA LIMPIEZA'
     }
   }
 
   if (habitacion.estado_limpieza === 'EN_LIMPIEZA') {
     return {
-      color: 'bg-blue-400', // Azul claro
-      textColor: 'text-blue-950',
-      badgeColor: 'bg-blue-500',
-      label: 'LIMPIANDO'
+      color: 'bg-[#2B7FFF]',
+      textColor: 'text-white',
+      badgeColor: 'bg-[#2B7FFF]',
+      label: 'EN LIMPIEZA'
     }
   }
 
-  // 4. ESTADO IDEAL: Disponible
+  // 4. ESTADO IDEAL: Lista para vender
   return {
-    color: 'bg-emerald-500', // Verde
+    color: 'bg-[#6BD968]',
     textColor: 'text-white',
-    badgeColor: 'bg-emerald-700',
-    label: 'DISPONIBLE'
+    badgeColor: 'bg-[#6BD968]',
+    label: 'LISTA'
   }
 }
