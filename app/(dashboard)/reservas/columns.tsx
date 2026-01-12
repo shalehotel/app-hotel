@@ -13,12 +13,16 @@ const estadoBadgeVariant = {
   RESERVADA: "secondary" as const,
   CHECKED_IN: "default" as const,
   CHECKED_OUT: "outline" as const,
+  CANCELADA: "destructive" as const,
+  NO_SHOW: "destructive" as const,
 }
 
 const estadoLabel = {
   RESERVADA: "Reservada",
   CHECKED_IN: "Check-in",
   CHECKED_OUT: "Check-out",
+  CANCELADA: "Cancelada",
+  NO_SHOW: "No Show",
 }
 
 export const columns: ColumnDef<OcupacionReserva>[] = [
@@ -112,9 +116,8 @@ export const columns: ColumnDef<OcupacionReserva>[] = [
       const isDebt = amount > 0
       return (
         <div
-          className={`text-right font-semibold ${
-            isDebt ? "text-destructive" : "text-muted-foreground"
-          }`}
+          className={`text-right font-semibold ${isDebt ? "text-destructive" : "text-muted-foreground"
+            }`}
         >
           {formatted}
         </div>

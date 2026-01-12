@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { SerieDialog } from '@/components/series/serie-dialog'
 import { getSeries, type SerieWithCaja } from '@/lib/actions/series'
 
+
 export function SeriesClient() {
   const [series, setSeries] = useState<SerieWithCaja[]>([])
   const [loading, setLoading] = useState(true)

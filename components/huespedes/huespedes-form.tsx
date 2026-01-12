@@ -16,6 +16,8 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, Trash2, User, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import type { HuespedConRelacion } from '@/lib/actions/huespedes'
+import { NacionalidadCombobox } from '@/components/custom/nacionalidad-combobox'
+import { DepartamentoCombobox } from '@/components/custom/departamento-combobox'
 
 interface HuespedFormData {
   id: string // ID temporal para el formulario
@@ -24,6 +26,7 @@ interface HuespedFormData {
   tipo_documento: 'DNI' | 'PASAPORTE' | 'CE' | 'OTRO'
   numero_documento: string
   nacionalidad: string
+  procedencia_departamento: string
   correo: string
   telefono: string
   fecha_nacimiento: string
@@ -60,6 +63,35 @@ const NACIONALIDADES = [
   'Otra',
 ]
 
+const DEPARTAMENTOS_PERU = [
+  'Amazonas',
+  'Áncash',
+  'Apurímac',
+  'Arequipa',
+  'Ayacucho',
+  'Cajamarca',
+  'Callao',
+  'Cusco',
+  'Huancavelica',
+  'Huánuco',
+  'Ica',
+  'Junín',
+  'La Libertad',
+  'Lambayeque',
+  'Lima',
+  'Loreto',
+  'Madre de Dios',
+  'Moquegua',
+  'Pasco',
+  'Piura',
+  'Puno',
+  'San Martín',
+  'Tacna',
+  'Tumbes',
+  'Ucayali',
+  'Extranjero',
+]
+
 export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guardar Huéspedes', showSubmitButton = true, onChange }: Props) {
   const [huespedes, setHuespedes] = useState<HuespedFormData[]>(
     initialData || [
@@ -70,6 +102,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         tipo_documento: 'DNI',
         numero_documento: '',
         nacionalidad: 'Peruana',
+        procedencia_departamento: '',
         correo: '',
         telefono: '',
         fecha_nacimiento: '',
@@ -90,6 +123,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         tipo_documento: 'DNI',
         numero_documento: '',
         nacionalidad: 'Peruana',
+        procedencia_departamento: '',
         correo: '',
         telefono: '',
         fecha_nacimiento: '',
@@ -116,7 +150,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
   const actualizarHuesped = (id: string, field: keyof HuespedFormData, value: any) => {
     const updatedHuespedes = huespedes.map((h) => (h.id === id ? { ...h, [field]: value } : h))
     setHuespedes(updatedHuespedes)
-    
+
     // Notificar cambios al padre si está en modo onChange
     if (onChange) {
       const huespedConRelacion = updatedHuespedes.map(h => ({
@@ -168,6 +202,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         tipo_documento: h.tipo_documento,
         numero_documento: h.numero_documento,
         nacionalidad: h.nacionalidad,
+        procedencia_departamento: h.procedencia_departamento || null,
         correo: h.correo || null,
         telefono: h.telefono || null,
         fecha_nacimiento: h.fecha_nacimiento || null,
@@ -265,23 +300,22 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
 
               <div>
                 <Label htmlFor="nacionalidad-titular">Nacionalidad</Label>
-                <Select
+                <NacionalidadCombobox
                   value={titular.nacionalidad}
                   onValueChange={(value) =>
                     actualizarHuesped(titular.id, 'nacionalidad', value)
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {NACIONALIDADES.map((nac) => (
-                      <SelectItem key={nac} value={nac}>
-                        {nac}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="procedencia-titular">Procedencia (Dpto)</Label>
+                <DepartamentoCombobox
+                  value={titular.procedencia_departamento}
+                  onValueChange={(value) =>
+                    actualizarHuesped(titular.id, 'procedencia_departamento', value)
+                  }
+                />
               </div>
 
               <div>
@@ -424,23 +458,22 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
 
                   <div>
                     <Label>Nacionalidad</Label>
-                    <Select
+                    <NacionalidadCombobox
                       value={acomp.nacionalidad}
                       onValueChange={(value) =>
                         actualizarHuesped(acomp.id, 'nacionalidad', value)
                       }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {NACIONALIDADES.map((nac) => (
-                          <SelectItem key={nac} value={nac}>
-                            {nac}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Procedencia (Dpto)</Label>
+                    <DepartamentoCombobox
+                      value={acomp.procedencia_departamento}
+                      onValueChange={(value) =>
+                        actualizarHuesped(acomp.id, 'procedencia_departamento', value)
+                      }
+                    />
                   </div>
 
                   <div>

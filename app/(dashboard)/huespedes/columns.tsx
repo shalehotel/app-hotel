@@ -56,6 +56,15 @@ export const columns: ColumnDef<DirectorioHuesped>[] = [
     },
   },
   {
+    accessorKey: "procedencia_departamento",
+    header: "Procedencia",
+    cell: ({ row }) => {
+      return row.original.procedencia_departamento || (
+        <span className="text-muted-foreground">-</span>
+      )
+    },
+  },
+  {
     accessorKey: "telefono",
     header: "Contacto",
     cell: ({ row }) => {
@@ -104,7 +113,7 @@ export const columns: ColumnDef<DirectorioHuesped>[] = [
     cell: ({ row }) => {
       const fecha = row.original.ultima_visita
       if (!fecha) return <span className="text-muted-foreground">Nunca</span>
-      
+
       return (
         <div className="text-sm">
           {format(new Date(fecha), "dd MMM yyyy", { locale: es })}

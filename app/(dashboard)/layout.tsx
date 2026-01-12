@@ -1,5 +1,6 @@
 import { AppSidebar } from '@/components/app-sidebar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { TurnoProvider } from '@/components/providers/turno-provider'
 import { getUser } from '@/lib/actions/auth'
 import { redirect } from 'next/navigation'
 
@@ -22,11 +23,13 @@ export default async function DashboardLayout({
     }
 
     return (
-        <SidebarProvider>
-            <AppSidebar user={userData} />
-            <SidebarInset>
-                {children}
-            </SidebarInset>
-        </SidebarProvider>
+        <TurnoProvider>
+            <SidebarProvider>
+                <AppSidebar user={userData} />
+                <SidebarInset>
+                    {children}
+                </SidebarInset>
+            </SidebarProvider>
+        </TurnoProvider>
     )
 }

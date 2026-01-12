@@ -1,13 +1,13 @@
 import { Suspense } from 'react'
 import { DashboardHeader } from '@/components/dashboard-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { HabitacionesTab } from './habitaciones-tab'
-import { TiposTab } from './tipos-tab'
-import { CategoriasTab } from './categorias-tab'
-import { 
-  getHabitaciones, 
-  getTiposHabitacion, 
-  getCategoriasHabitacion 
+import { HabitacionesTabNew as HabitacionesTab } from './habitaciones-tab'
+import { TiposTabNew as TiposTab } from './tipos-tab'
+import { CategoriasTabNew as CategoriasTab } from './categorias-tab'
+import {
+  getHabitaciones,
+  getTiposHabitacion,
+  getCategoriasHabitacion
 } from '@/lib/actions/configuracion-habitaciones'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -20,16 +20,16 @@ export default async function ConfiguracionHabitacionesPage() {
 
   return (
     <>
-      <DashboardHeader 
+      <DashboardHeader
         breadcrumbs={[
           { label: 'Configuración', href: '/configuracion' },
           { label: 'Habitaciones' }
-        ]} 
+        ]}
       />
-      
+
       <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Configuración de Habitaciones</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Habitaciones</h1>
           <p className="text-muted-foreground">
             Gestiona habitaciones, tipos y categorías del hotel
           </p>
@@ -44,8 +44,8 @@ export default async function ConfiguracionHabitacionesPage() {
 
           <TabsContent value="habitaciones" className="space-y-4">
             <Suspense fallback={<Skeleton className="h-[400px]" />}>
-              <HabitacionesTab 
-                habitaciones={habitaciones} 
+              <HabitacionesTab
+                habitaciones={habitaciones}
                 tipos={tipos}
                 categorias={categorias}
               />

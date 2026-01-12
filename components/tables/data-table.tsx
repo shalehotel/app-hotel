@@ -41,6 +41,13 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
   meta?: any
   toolbar?: React.ReactNode
+
+  // SSR Pagination Extension
+  manualPagination?: boolean
+  pageCount?: number
+  rowCount?: number
+  onPaginationChange?: any
+  state?: any
 }
 
 export function DataTable<TData, TValue>({
@@ -51,29 +58,42 @@ export function DataTable<TData, TValue>({
   onRowClick,
   meta,
   toolbar,
+
+  // SSR props
+  manualPagination = false,
+  pageCount,
+  rowCount,
+  onPaginationChange,
+  state: controlledState,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
+  const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 })
 
   const table = useReactTable({
     data,
     columns,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
+    pageCount: pageCount ?? -1,
     state: {
       sorting,
       columnFilters,
       columnVisibility,
       rowSelection,
+      pagination: controlledState?.pagination || pagination, // Use controlled state if available
+      ...controlledState
     },
+    manualPagination: manualPagination,
+    onPaginationChange: onPaginationChange || setPagination,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(), // Still needed for internal logic?
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
     meta,
   })
 
@@ -94,7 +114,7 @@ export function DataTable<TData, TValue>({
           )}
           {toolbar}
         </div>
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8">
@@ -136,9 +156,9 @@ export function DataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     </TableHead>
                   )
                 })}

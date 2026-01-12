@@ -3,6 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getSaldoPendiente } from './pagos'
+import { logger } from '@/lib/logger'
+import { getErrorMessage } from '@/lib/errors'
 
 // ========================================
 // TYPES
@@ -110,7 +112,11 @@ export async function realizarCheckout(input: CheckoutInput): Promise<CheckoutRe
     .eq('id', input.reserva_id)
 
   if (updateReservaError) {
-    console.error('Error al actualizar reserva:', updateReservaError)
+    logger.error('Error al actualizar reserva en checkout', {
+      action: 'realizarCheckout',
+      reservaId: input.reserva_id,
+      originalError: getErrorMessage(updateReservaError),
+    })
     return {
       success: false,
       message: 'Error al actualizar estado de la reserva'
@@ -127,9 +133,12 @@ export async function realizarCheckout(input: CheckoutInput): Promise<CheckoutRe
     .eq('id', reserva.habitacion_id)
 
   if (updateHabitacionError) {
-    console.error('Error al actualizar habitación:', updateHabitacionError)
-    // No fallamos el checkout por esto, solo advertimos
-    console.warn('Checkout exitoso pero no se pudo actualizar estado de habitación')
+    logger.warn('Checkout exitoso pero falló actualización de habitación', {
+      action: 'realizarCheckout',
+      reservaId: input.reserva_id,
+      habitacionId: reserva.habitacion_id,
+      originalError: getErrorMessage(updateHabitacionError),
+    })
   }
 
   // 5. Revalidar páginas
@@ -139,7 +148,7 @@ export async function realizarCheckout(input: CheckoutInput): Promise<CheckoutRe
 
   return {
     success: true,
-    message: input.forzar_checkout && validacion.saldo_pendiente 
+    message: input.forzar_checkout && validacion.saldo_pendiente
       ? `Checkout forzado completado. Saldo pendiente: S/ ${validacion.saldo_pendiente?.toFixed(2)}`
       : 'Checkout realizado exitosamente',
     reserva_id: input.reserva_id
@@ -191,7 +200,7 @@ export async function getReservasParaCheckout() {
     .order('fecha_salida', { ascending: true })
 
   if (error) {
-    console.error('Error al obtener reservas para checkout:', error)
+    logger.error('Error al obtener reservas para checkout', { action: 'getReservasParaCheckout', originalError: getErrorMessage(error) })
     return []
   }
 
@@ -236,7 +245,7 @@ export async function getCheckoutsDelDia() {
     .order('fecha_salida', { ascending: true })
 
   if (error) {
-    console.error('Error al obtener checkouts del día:', error)
+    logger.error('Error al obtener checkouts del día', { action: 'getCheckoutsDelDia', originalError: getErrorMessage(error) })
     return []
   }
 
@@ -277,7 +286,7 @@ export async function getCheckoutsAtrasados() {
     .order('fecha_salida', { ascending: true })
 
   if (error) {
-    console.error('Error al obtener checkouts atrasados:', error)
+    logger.error('Error al obtener checkouts atrasados', { action: 'getCheckoutsAtrasados', originalError: getErrorMessage(error) })
     return []
   }
 

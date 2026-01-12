@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { getReservasHistorial, type OcupacionReserva } from '@/lib/actions/ocupaciones'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,39 +12,59 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Search, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Search } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 import { ReservationDetailSheet } from '@/components/reservas/reservation-detail-sheet'
+import { RegistrarPagoDialog } from '@/components/cajas/registrar-pago-dialog'
+import { DataTable } from '@/components/tables/data-table'
+import { columns } from './columns'
+import { OnChangeFn, PaginationState } from '@tanstack/react-table'
+
+// Hook simple para debounce
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+  return debouncedValue
+}
 
 export function ReservasHistorialTable() {
+  const searchParams = useSearchParams()
+  const initialQuery = searchParams.get('search') || searchParams.get('q') || ''
+
   const [reservas, setReservas] = useState<OcupacionReserva[]>([])
   const [loading, setLoading] = useState(true)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
-  
+
   // Filtros
   const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialQuery)
   const [estado, setEstado] = useState('TODAS')
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin] = useState('')
-  
+
+  // Búsqueda automática con debounce
+  const debouncedSearch = useDebounce(search, 500)
+
   // Sheet
   const [selectedReservaId, setSelectedReservaId] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
 
+  // Pagos
+  const [pagoReservaData, setPagoReservaData] = useState<any | null>(null)
+
+  // Efecto principal de carga
   useEffect(() => {
     cargarDatos()
-  }, [page, estado, fechaInicio, fechaFin]) // Search se maneja con debounce o manual
+  }, [page, estado, fechaInicio, fechaFin, debouncedSearch])
 
   async function cargarDatos() {
     try {
@@ -53,12 +72,12 @@ export function ReservasHistorialTable() {
       const result = await getReservasHistorial({
         page,
         pageSize: 10,
-        search: search || undefined,
+        search: debouncedSearch || undefined, // Usar el valor o undefined
         estado,
         dateStart: fechaInicio ? new Date(fechaInicio) : undefined,
         dateEnd: fechaFin ? new Date(fechaFin) : undefined
       })
-      
+
       setReservas(result.data)
       setTotal(result.total)
       setTotalPages(result.totalPages)
@@ -69,186 +88,103 @@ export function ReservasHistorialTable() {
     }
   }
 
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    setPage(1) // Reset page on search
-    cargarDatos()
-  }
-
+  // DataTable handlers via meta
   function handleVerDetalle(reservaId: string) {
     setSelectedReservaId(reservaId)
     setSheetOpen(true)
   }
 
-  function getEstadoBadge(estado: string) {
-    const variants = {
-      'RESERVADA': 'outline',
-      'CHECKED_IN': 'default',
-      'CHECKED_OUT': 'secondary',
-      'CANCELADA': 'destructive',
-      'NO_SHOW': 'destructive'
-    } as const
-
-    return (
-      <Badge variant={variants[estado as keyof typeof variants] || 'outline'}>
-        {estado.replace('_', ' ')}
-      </Badge>
-    )
+  function handleCobrar(reserva: OcupacionReserva) {
+    setPagoReservaData({
+      id: reserva.id,
+      saldo_pendiente: reserva.saldo_pendiente,
+      titular_nombre: reserva.titular_nombre,
+      titular_tipo_doc: reserva.titular_tipo_doc,
+      titular_numero_doc: reserva.titular_numero_doc,
+      habitacion_numero: reserva.habitacion_numero,
+      precio_pactado: reserva.precio_pactado
+    })
   }
 
+  function handlePagoSuccess() {
+    cargarDatos() // Recargar para ver el nuevo saldo
+  }
+
+  const handlePaginationChange: OnChangeFn<PaginationState> = (updaterOrValue) => {
+    if (typeof updaterOrValue === 'function') {
+      const newState = updaterOrValue({
+        pageIndex: page - 1,
+        pageSize: 10
+      })
+      setPage(newState.pageIndex + 1)
+    } else {
+      setPage(updaterOrValue.pageIndex + 1)
+    }
+  }
+
+  // Reset page when filters change (except pagination itself)
+  useEffect(() => {
+    setPage(1)
+  }, [estado, fechaInicio, fechaFin, debouncedSearch])
+
+
   return (
-    <div className="space-y-4">
-      {/* Filtros */}
-      <form onSubmit={handleSearch} className="grid gap-4 md:grid-cols-5 items-end">
-        <div className="md:col-span-2">
-          <Label>Búsqueda</Label>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Código, Nombre o DNI..."
-              className="pl-8"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+    <div className="space-y-6">
+      {/* DataTable Server Side con Toolbar integrado */}
+      <DataTable
+        columns={columns}
+        data={reservas}
+        manualPagination={true}
+        pageCount={totalPages}
+        state={{
+          pagination: { pageIndex: page - 1, pageSize: 10 }
+        }}
+        onPaginationChange={handlePaginationChange}
+        meta={{
+          onVerDetalle: handleVerDetalle,
+          onCobrar: handleCobrar
+        }}
+        toolbar={
+          <div className="flex flex-wrap items-center gap-2 w-full">
+            {/* Tabs integrados como filtro principal */}
+            <Tabs value={estado} onValueChange={setEstado}>
+              <TabsList className="h-8 bg-muted/60 p-0.5">
+                <TabsTrigger value="TODAS" className="h-7 text-sm px-3">Todas</TabsTrigger>
+                <TabsTrigger value="CHECKED_IN" className="h-7 text-sm px-3">En Casa</TabsTrigger>
+                <TabsTrigger value="CHECKED_OUT" className="h-7 text-sm px-3">Salidas</TabsTrigger>
+                <TabsTrigger value="RESERVADA" className="h-7 text-sm px-3">Futuras</TabsTrigger>
+                <TabsTrigger value="CANCELADA" className="h-7 text-sm px-3">Cancel</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <div className="relative w-[350px]">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar huésped o código..."
+                className="pl-8 h-8"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-1 ml-auto md:ml-0">
+              <Input
+                type="date"
+                className="h-8 w-auto min-w-[110px]"
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+              />
+              <span className="text-muted-foreground">-</span>
+              <Input
+                type="date"
+                className="h-8 w-auto min-w-[110px]"
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
-
-        <div>
-          <Label>Estado</Label>
-          <Select value={estado} onValueChange={setEstado}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todas" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="TODAS">Todas</SelectItem>
-              <SelectItem value="RESERVADA">Reservadas</SelectItem>
-              <SelectItem value="CHECKED_IN">Check-in</SelectItem>
-              <SelectItem value="CHECKED_OUT">Check-out</SelectItem>
-              <SelectItem value="CANCELADA">Canceladas</SelectItem>
-              <SelectItem value="NO_SHOW">No Show</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>Desde</Label>
-          <Input 
-            type="date" 
-            value={fechaInicio} 
-            onChange={(e) => setFechaInicio(e.target.value)} 
-          />
-        </div>
-
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <Label>Hasta</Label>
-            <Input 
-              type="date" 
-              value={fechaFin} 
-              onChange={(e) => setFechaFin(e.target.value)} 
-            />
-          </div>
-          <Button type="submit" className="mb-0.5">
-            <Search className="h-4 w-4" />
-          </Button>
-        </div>
-      </form>
-
-      {/* Tabla */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Código</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead>Huésped</TableHead>
-              <TableHead>Habitación</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead className="text-center">Acción</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  Cargando...
-                </TableCell>
-              </TableRow>
-            ) : reservas.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  No se encontraron resultados
-                </TableCell>
-              </TableRow>
-            ) : (
-              reservas.map((reserva) => (
-                <TableRow key={reserva.id}>
-                  <TableCell className="font-mono text-sm">{reserva.codigo_reserva}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col text-sm">
-                      <span>{format(new Date(reserva.fecha_entrada), 'dd/MM/yyyy')}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(reserva.fecha_entrada), 'HH:mm')}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{reserva.titular_nombre}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {reserva.titular_tipo_doc} {reserva.titular_numero_doc}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {reserva.habitacion_numero} <span className="text-muted-foreground text-xs">({reserva.tipo_habitacion})</span>
-                  </TableCell>
-                  <TableCell>{getEstadoBadge(reserva.estado)}</TableCell>
-                  <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleVerDetalle(reserva.id)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Paginación */}
-      <div className="flex items-center justify-between px-2">
-        <div className="text-sm text-muted-foreground">
-          Total: {total} reservas
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page === 1 || loading}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Anterior
-          </Button>
-          <div className="text-sm font-medium">
-            Página {page} de {totalPages || 1}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages || loading}
-          >
-            Siguiente
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Sheet de detalle */}
       {selectedReservaId && (
@@ -262,6 +198,18 @@ export function ReservasHistorialTable() {
             }
           }}
           readonly={true}
+        />
+      )}
+
+      {/* Modal de Cobro */}
+      {pagoReservaData && (
+        <RegistrarPagoDialog
+          reserva={pagoReservaData}
+          open={!!pagoReservaData}
+          onOpenChange={(open) => {
+            if (!open) setPagoReservaData(null)
+          }}
+          onSuccess={handlePagoSuccess}
         />
       )}
     </div>

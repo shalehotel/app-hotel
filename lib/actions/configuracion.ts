@@ -3,6 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { Database } from '@/types/database.types'
+import { logger } from '@/lib/logger'
+import { getErrorMessage } from '@/lib/errors'
 
 export type HotelConfig = Database['public']['Tables']['hotel_configuracion']['Row']
 
@@ -34,7 +36,7 @@ export async function getHotelConfig(): Promise<HotelConfig> {
     .maybeSingle()
 
   if (error) {
-    console.error('Error fetching config:', error)
+    logger.error('Error al obtener configuración', { action: 'getHotelConfig', originalError: getErrorMessage(error) })
     return DEFAULT_CONFIG as HotelConfig
   }
 
@@ -67,16 +69,16 @@ export async function updateHotelConfig(data: Partial<HotelConfig>) {
 
   if (existing?.id) {
     // 2. ACTUALIZAR existente
-    console.log('Actualizando configuración ID:', existing.id, 'Datos:', data)
+    logger.debug('Actualizando configuración', { action: 'updateHotelConfig', configId: existing.id })
     const result = await supabase
       .from('hotel_configuracion')
       .update(data)
       .eq('id', existing.id)
       .select()
       .single()
-      
+
     if (result.data) {
-        console.log('Configuración actualizada en BD:', result.data)
+      logger.debug('Configuración actualizada en BD', { action: 'updateHotelConfig' })
     }
     error = result.error
   } else {
@@ -94,14 +96,14 @@ export async function updateHotelConfig(data: Partial<HotelConfig>) {
   }
 
   if (error) {
-    console.error('Error updating config:', error)
+    logger.error('Error al actualizar configuración', { action: 'updateHotelConfig', originalError: getErrorMessage(error) })
     return { success: false, error: error.message }
   }
 
   // Revalidación agresiva de caché
-  revalidatePath('/', 'layout') 
+  revalidatePath('/', 'layout')
   revalidatePath('/configuracion')
   revalidatePath('/configuracion', 'page')
-  
+
   return { success: true }
 }

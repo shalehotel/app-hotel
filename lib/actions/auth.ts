@@ -3,6 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import { logger } from '@/lib/logger'
+import { getErrorMessage } from '@/lib/errors'
 
 // Schema de validación
 const loginSchema = z.object({
@@ -48,10 +50,10 @@ export async function login(prevState: LoginState | null, formData: FormData): P
             .single()
 
         if (usuarioError || !usuario) {
-            console.error(' Login Error Debug:', {
-                uid: data.user.id,
-                usuarioError,
-                usuario
+            logger.warn('Intento de login sin usuario en tabla usuarios', {
+                action: 'login',
+                userId: data.user.id,
+                originalError: usuarioError ? getErrorMessage(usuarioError) : 'Usuario no encontrado en BD',
             })
             // Usuario autenticado pero no existe en la tabla usuarios
             await supabase.auth.signOut()
@@ -94,7 +96,11 @@ export async function getUser() {
         .single()
 
     if (error) {
-        console.error('[getUser] Error fetching user from DB:', error)
+        logger.error('Error al obtener usuario de BD', {
+            action: 'getUser',
+            userId: user.id,
+            originalError: getErrorMessage(error),
+        })
         return null
     }
 

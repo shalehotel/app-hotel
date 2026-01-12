@@ -31,7 +31,7 @@ import {
 import { logout } from '@/lib/actions/auth'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useCheckTurno } from '@/hooks/use-check-turno'
+import { useTurnoContext } from '@/components/providers/turno-provider'
 import { WidgetTurnoSidebar } from '@/components/cajas/widget-turno-sidebar'
 
 // Datos de navegación
@@ -46,11 +46,7 @@ const navItems = [
     url: '/rack',
     icon: Bed,
   },
-  {
-    title: 'Ocupaciones',
-    url: '/ocupaciones',
-    icon: Users,
-  },
+
   {
     title: 'Reservas',
     url: '/reservas',
@@ -60,6 +56,16 @@ const navItems = [
     title: 'Huéspedes',
     url: '/huespedes',
     icon: UserCircle,
+    items: [
+      {
+        title: 'Directorio',
+        url: '/huespedes',
+      },
+      {
+        title: 'Libro de Registro',
+        url: '/huespedes/registro-legal',
+      },
+    ],
   },
   {
     title: 'Facturación',
@@ -67,15 +73,9 @@ const navItems = [
     icon: Receipt,
   },
   {
-    title: 'Cajas',
+    title: 'Gestión de Cajas',
     url: '/cajas',
     icon: Wallet,
-    items: [
-      {
-        title: 'Historial de Turnos',
-        url: '/cajas/historial',
-      },
-    ],
   },
   {
     title: 'Configuración',
@@ -121,7 +121,25 @@ export function AppSidebar({
   }
 }) {
   const pathname = usePathname()
-  const { loading, hasActiveTurno, turno, refetch } = useCheckTurno()
+  const { loading, hasActiveTurno, turno, refetchTurno } = useTurnoContext()
+
+  // Filtrar items según rol
+  const filteredNavItems = React.useMemo(() => {
+    // Si es ADMIN, mostrar todo
+    if (user?.rol === 'ADMIN') {
+      return navItems
+    }
+
+    // Si NO es admin, filtrar items sensibles (Configuración)
+    return navItems.filter(item => {
+      // Ocultar completamente el grupo Configuración
+      if (item.title === 'Configuración') return false
+
+      // Aquí se podrían agregar más reglas (ej: ocultar Gestión de Cajas para Housekeeping)
+
+      return true
+    })
+  }, [user?.rol])
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -143,12 +161,12 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navItems} />
-        
+        <NavMain items={filteredNavItems} />
+
         {/* Widget de Turno Activo */}
         {!loading && hasActiveTurno && turno && (
           <div className="mt-auto pt-4">
-            <WidgetTurnoSidebar turno={turno} onTurnoCerrado={refetch} />
+            <WidgetTurnoSidebar turno={turno} onTurnoCerrado={refetchTurno} />
           </div>
         )}
       </SidebarContent>

@@ -47,7 +47,7 @@ type Props = {
   usuarios: Usuario[]
 }
 
-export function UsuariosClientNew({ usuarios }: Props) {
+export function UsuariosClient({ usuarios }: Props) {
   const [open, setOpen] = useState(false)
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -228,7 +228,7 @@ export function UsuariosClientNew({ usuarios }: Props) {
                     defaultValue={
                       editingId
                         ? usuarios.find((u) => u.id === editingId)?.apellidos ||
-                          ''
+                        ''
                         : ''
                     }
                   />

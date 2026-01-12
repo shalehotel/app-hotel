@@ -4,37 +4,41 @@ import { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
-import { getMovimientosTurno, type TurnoActivo } from '@/lib/actions/turnos'
-import { ModalCierreTurno } from './modal-cierre-turno'
+import { getReporteMetodosPago, type DetalleTurno } from '@/lib/actions/cajas'
+import { getResumenMovimientos } from '@/lib/actions/movimientos'
+import { CerrarCajaDialog } from '@/components/cajas/cerrar-caja-dialog'
 import { ModalMovimiento } from './modal-movimiento'
-import { DollarSign, Lock, Plus, Minus, RefreshCw } from 'lucide-react'
+import { Lock, Plus, Minus, RefreshCw } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 type Props = {
-  turno: TurnoActivo
+  turno: DetalleTurno
   onTurnoCerrado: () => void
 }
 
 export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
-  const [modalCierreOpen, setModalCierreOpen] = useState(false)
   const [modalIngresoOpen, setModalIngresoOpen] = useState(false)
   const [modalEgresoOpen, setModalEgresoOpen] = useState(false)
-  const [movimientos, setMovimientos] = useState<any>(null)
+  const [reportePagos, setReportePagos] = useState<any>(null)
+  const [resumenMovimientos, setResumenMovimientos] = useState<any>(null)
   const [loadingMovimientos, setLoadingMovimientos] = useState(false)
+
+  const t = turno.turno
+  const stats = turno.estadisticas
 
   const cargarMovimientos = async () => {
     setLoadingMovimientos(true)
-    const result = await getMovimientosTurno(turno.id)
-    
-    if (result.success) {
-      setMovimientos(result.data)
+    const [resultPagos, resultResumen] = await Promise.all([
+      getReporteMetodosPago(t.id),
+      getResumenMovimientos(t.id)
+    ])
+
+    if (resultPagos.success) {
+      setReportePagos(resultPagos.data)
+    }
+    if (resultResumen.success) {
+      setResumenMovimientos(resultResumen.data)
     }
     setLoadingMovimientos(false)
   }
@@ -45,16 +49,30 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
 
   useEffect(() => {
     cargarMovimientos()
-    
-    // Actualizar cada 30 segundos
-    const interval = setInterval(cargarMovimientos, 30000)
-    return () => clearInterval(interval)
-  }, [turno.id])
 
-  const tiempoActivo = formatDistanceToNow(new Date(turno.fecha_apertura), { 
+    // Actualizar cada 60 segundos
+    const interval = setInterval(cargarMovimientos, 60000)
+    return () => clearInterval(interval)
+  }, [t.id])
+
+  const tiempoActivo = formatDistanceToNow(new Date(t.fecha_apertura), {
     locale: es,
-    addSuffix: false 
+    addSuffix: false
   })
+
+  // Calcular Saldo Real en Caja (Efectivo)
+  // Saldo Apertura + Ingresos Totales Efectivo (Pagos + Manuales) - Egresos Totales Efectivo
+  // El reportePagos.totalEfectivoPEN ya incluye los ingresos manuales si aplicamos la lógica de getReporteMetodosPago
+  // Faltaría restar los egresos en efectivo.
+
+  // Asumimos que todos los egresos manuales son en efectivo (neto_pen no sirve porque mezcla ingresos)
+  // Necesitamos "Total Egresos PEN" del resumenMovimientos
+  const totalEgresosPEN = resumenMovimientos?.total_egresos_pen || 0
+
+  const saldoEfectivoReal =
+    t.monto_apertura +
+    (reportePagos?.totalEfectivoPEN || 0) -
+    totalEgresosPEN
 
   return (
     <>
@@ -66,36 +84,38 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
             <span className="text-xs font-semibold">Caja Abierta</span>
           </div>
           <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 font-normal">
-            {turno.caja.nombre}
+            {t.caja_nombre}
           </Badge>
         </div>
 
         {/* Montos principales */}
-        {loadingMovimientos ? (
+        {loadingMovimientos && !reportePagos ? (
           <div className="text-center text-[10px] text-muted-foreground py-4">
             <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-1" />
             Actualizando...
           </div>
-        ) : movimientos && (
+        ) : reportePagos && (
           <div className="space-y-3">
             <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Total en Caja</span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Efectivo en Caja</span>
               <span className="text-xl font-bold tracking-tight">
-                S/ {movimientos.totalGeneral.toFixed(2)}
+                S/ {saldoEfectivoReal.toFixed(2)}
               </span>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-2 pt-1">
               <div className="bg-muted/50 rounded p-2">
-                <span className="text-[10px] text-muted-foreground block">Efectivo</span>
-                <span className="text-sm font-semibold block">S/ {movimientos.totalEfectivoPEN.toFixed(2)}</span>
+                <span className="text-[10px] text-muted-foreground block">Ventas Hoy</span>
+                <span className="text-sm font-semibold block text-blue-600">
+                  S/ {reportePagos.totalGeneral.toFixed(2)}
+                </span>
               </div>
               <div className="bg-muted/50 rounded p-2">
                 <span className="text-[10px] text-muted-foreground block">Transacciones</span>
-                <span className="text-sm font-semibold block">{movimientos.pagos.length}</span>
+                <span className="text-sm font-semibold block">{reportePagos.pagos.length}</span>
               </div>
             </div>
-            
+
             <div className="text-[10px] text-muted-foreground text-right">
               Abierto hace {tiempoActivo}
             </div>
@@ -107,8 +127,8 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
         {/* Botones de acción */}
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               className="h-8 text-xs justify-start px-2"
               onClick={() => setModalIngresoOpen(true)}
@@ -116,9 +136,9 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
               <Plus className="h-3 w-3 mr-1.5" />
               Ingreso
             </Button>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               size="sm"
               className="h-8 text-xs justify-start px-2"
               onClick={() => setModalEgresoOpen(true)}
@@ -127,33 +147,30 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
               Egreso
             </Button>
           </div>
-          
-          <Button 
-            variant="default" 
-            size="sm" 
-            className="w-full h-8 text-xs"
-            onClick={() => setModalCierreOpen(true)}
-          >
-            <Lock className="h-3 w-3 mr-1.5" />
-            Cerrar Turno
-          </Button>
+
+          <CerrarCajaDialog
+            turnoId={t.id}
+            totalEsperadoPen={saldoEfectivoReal}
+            totalEsperadoUsd={t.monto_apertura_usd || 0}
+            customTrigger={
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full h-8 text-xs"
+              >
+                <Lock className="h-3 w-3 mr-1.5" />
+                Cerrar Turno
+              </Button>
+            }
+          />
         </div>
       </div>
-
-      {/* Modal de cierre */}
-      <ModalCierreTurno
-        open={modalCierreOpen}
-        onOpenChange={setModalCierreOpen}
-        turno={turno}
-        movimientos={movimientos}
-        onSuccess={onTurnoCerrado}
-      />
 
       {/* Modales de movimientos */}
       <ModalMovimiento
         open={modalIngresoOpen}
         onOpenChange={setModalIngresoOpen}
-        turnoId={turno.id}
+        turnoId={t.id}
         tipo="INGRESO"
         onSuccess={handleMovimientoRegistrado}
       />
@@ -161,7 +178,7 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
       <ModalMovimiento
         open={modalEgresoOpen}
         onOpenChange={setModalEgresoOpen}
-        turnoId={turno.id}
+        turnoId={t.id}
         tipo="EGRESO"
         onSuccess={handleMovimientoRegistrado}
       />

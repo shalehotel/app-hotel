@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
   Table,
@@ -13,391 +13,382 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getDetalleTurno, getMovimientosTurno, type TurnoDetalle } from '@/lib/actions/turnos'
-import { getMovimientosByTurno, type MovimientoConUsuario } from '@/lib/actions/movimientos'
-import { format, differenceInMinutes } from 'date-fns'
+import { getDetalleTurnoCerrado, getReporteMetodosPago, type DetalleTurno } from '@/lib/actions/cajas'
+import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { 
-  Clock, User, DollarSign, CheckCircle2, AlertTriangle, XCircle, 
-  TrendingUp, TrendingDown, FileText, Receipt, Printer 
+import {
+  ArrowLeft,
+  Flag,
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  Calculator,
+  CheckCircle,
+  Banknote,
+  CreditCard,
+  Smartphone,
+  Building2,
+  Receipt,
+  DollarSign,
+  RotateCcw,
+  ExternalLink
 } from 'lucide-react'
+import Link from 'next/link'
 
 type Props = {
   turnoId: string
-  turnoInicial: TurnoDetalle
+  turnoInicial: DetalleTurno
+}
+
+function RenderMotivo({ motivo }: { motivo: string }) {
+  const regex = /Reserva\s+([A-Z0-9-]+)/i
+  const match = motivo.match(regex)
+
+  if (match && match[1]) {
+    const codigo = match[1]
+    const partes = motivo.split(codigo)
+
+    return (
+      <span className="flex items-center gap-1">
+        {partes[0]}
+        <Link
+          href={`/reservas?search=${codigo}`}
+          className="font-medium text-blue-600 hover:underline inline-flex items-center gap-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {codigo}
+          <ExternalLink className="h-3 w-3" />
+        </Link>
+        {partes[1]}
+      </span>
+    )
+  }
+
+  return <span>{motivo}</span>
 }
 
 export function DetalleTurnoClient({ turnoId, turnoInicial }: Props) {
-  const [turno, setTurno] = useState<TurnoDetalle>(turnoInicial)
-  const [movimientosPagos, setMovimientosPagos] = useState<any>(null)
-  const [movimientosCaja, setMovimientosCaja] = useState<MovimientoConUsuario[]>([])
-  const [loading, setLoading] = useState(false)
+  const [turno, setTurno] = useState<DetalleTurno>(turnoInicial)
+  const [desglosePagos, setDesglosePagos] = useState<any>(null)
 
   useEffect(() => {
-    cargarDatos()
+    cargarDatosAdicionales()
   }, [turnoId])
 
-  const cargarDatos = async () => {
-    setLoading(true)
-    const [resultTurno, resultPagos, resultMovimientos] = await Promise.all([
-      getDetalleTurno(turnoId),
-      getMovimientosTurno(turnoId),
-      getMovimientosByTurno(turnoId)
-    ])
+  const cargarDatosAdicionales = async () => {
+    try {
+      // Recargar detalle turno por si acaso
+      const detalleActualizado = await getDetalleTurnoCerrado(turnoId).catch(() => null)
+      if (detalleActualizado) setTurno(detalleActualizado)
 
-    if (resultTurno.success) setTurno(resultTurno.data)
-    if (resultPagos.success) setMovimientosPagos(resultPagos.data)
-    if (resultMovimientos.success) setMovimientosCaja(resultMovimientos.data)
-    
-    setLoading(false)
-  }
-
-  const calcularDuracion = () => {
-    if (!turno.fecha_cierre) return '-'
-    const minutos = differenceInMinutes(
-      new Date(turno.fecha_cierre),
-      new Date(turno.fecha_apertura)
-    )
-    const horas = Math.floor(minutos / 60)
-    const mins = minutos % 60
-    return `${horas}h ${mins}min`
-  }
-
-  const calcularDiferencia = () => {
-    if (!turno.monto_cierre_declarado || !turno.monto_cierre_sistema) return 0
-    return turno.monto_cierre_declarado - turno.monto_cierre_sistema
-  }
-
-  const getEstadoCuadre = () => {
-    const diferencia = calcularDiferencia()
-    const tolerancia = 0.50
-
-    if (Math.abs(diferencia) <= tolerancia) {
-      return {
-        label: 'Cuadre Exacto',
-        variant: 'secondary' as const,
-        icon: <CheckCircle2 className="h-5 w-5" />,
-        color: 'bg-green-50 dark:bg-green-950 border-green-200 text-green-700'
+      // Cargar desglose de pagos real
+      const reportePagos = await getReporteMetodosPago(turnoId)
+      if (reportePagos.success) {
+        setDesglosePagos(reportePagos.data)
       }
-    } else if (diferencia > 0) {
-      return {
-        label: 'Sobrante Detectado',
-        variant: 'default' as const,
-        icon: <AlertTriangle className="h-5 w-5" />,
-        color: 'bg-yellow-50 dark:bg-yellow-950 border-yellow-200 text-yellow-700'
-      }
-    } else {
-      return {
-        label: 'Faltante Detectado',
-        variant: 'destructive' as const,
-        icon: <XCircle className="h-5 w-5" />,
-        color: 'bg-red-50 dark:bg-red-950 border-red-200 text-red-700'
-      }
+    } catch (error) {
+      console.error("Error cargando datos adicionales", error)
     }
   }
 
-  const estadoCuadre = getEstadoCuadre()
+  const t = turno.turno
+  const stats = turno.estadisticas
+  const esCerrada = t.estado === 'CERRADA'
+
+  const diferencia = (t.monto_cierre_declarado || 0) - (t.monto_cierre_sistema || stats.total_esperado_pen)
+
+  // Usar datos del reporte de pagos si existen, sino 0 (evitar undefined)
+  const porMetodo = desglosePagos || {
+    totalEfectivoPEN: 0,
+    totalTarjeta: 0,
+    totalYape: 0,
+    totalPlin: 0,
+    totalTransferencia: 0,
+    totalGeneral: 0
+  }
+
+  // Combinar Yape y Plin para visualización
+  const totalBilleteras = porMetodo.totalYape + porMetodo.totalPlin
+
+  const cantidadVentas = turno.movimientos.filter(m => m.tipo === 'INGRESO').length
+  const ticketPromedio = cantidadVentas > 0 ? stats.total_ingresos_pen / cantidadVentas : 0
 
   return (
     <div className="space-y-6">
-      {/* Header con información principal */}
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-start gap-4">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/cajas">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+        </Button>
         <div>
-          <h1 className="text-3xl font-bold">Detalle de Turno</h1>
-          <p className="text-muted-foreground">
-            {turno.caja.nombre} - {turno.usuario.nombres} {turno.usuario.apellidos}
+          <h1 className="text-2xl font-bold">
+            {t.caja_nombre} - Detalle de Sesión
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Cajero: {t.usuario_nombre}
           </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-2" />
-            Imprimir
-          </Button>
         </div>
       </div>
 
-      {/* Estado del Cuadre */}
-      <Card className={estadoCuadre.color}>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            {estadoCuadre.icon}
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg">{estadoCuadre.label}</h3>
-              <p className="text-sm opacity-80">
-                Diferencia: {calcularDiferencia() > 0 ? '+' : ''}S/ {calcularDiferencia().toFixed(2)}
-              </p>
-            </div>
-            <Badge variant={estadoCuadre.variant} className="text-base px-4 py-2">
-              {turno.estado}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Fecha de cierre */}
+      {esCerrada && t.fecha_cierre && (
+        <div className="bg-muted/50 border rounded-lg px-4 py-3 text-sm text-muted-foreground">
+          Esta sesión fue cerrada el {format(new Date(t.fecha_cierre), "d 'de' MMMM, yyyy, h:mm a", { locale: es })}
+        </div>
+      )}
 
-      {/* Grid de información */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* KPIs Fila 1 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Saldo Inicial */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Duración del Turno
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{calcularDuracion()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {format(new Date(turno.fecha_apertura), 'HH:mm', { locale: es })} - {' '}
-              {turno.fecha_cierre ? format(new Date(turno.fecha_cierre), 'HH:mm', { locale: es }) : 'Abierto'}
+          <CardContent className="pt-4">
+            <div className="flex items-start justify-between">
+              <p className="text-sm text-muted-foreground">Saldo Inicial</p>
+              <Flag className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-2xl font-bold mt-2">
+              S/ {t.monto_apertura.toFixed(2)}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Monto Apertura</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">S/ {turno.monto_apertura.toFixed(2)}</div>
-            {turno.monto_apertura_usd && turno.monto_apertura_usd > 0 && (
-              <p className="text-sm text-muted-foreground">$ {turno.monto_apertura_usd.toFixed(2)}</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Sistema Esperaba</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              S/ {(turno.monto_cierre_sistema || 0).toFixed(2)}
+        {/* Total Ingresos */}
+        <Card className="border-green-200">
+          <CardContent className="pt-4">
+            <div className="flex items-start justify-between">
+              <p className="text-sm text-green-600 font-medium">Total Ingresos</p>
+              <TrendingUp className="h-4 w-4 text-green-600" />
             </div>
+            <p className="text-2xl font-bold text-green-600 mt-2">
+              S/ {stats.total_ingresos_pen.toFixed(2)}
+            </p>
           </CardContent>
         </Card>
 
+        {/* Total Egresos */}
+        <Card className="border-red-200">
+          <CardContent className="pt-4">
+            <div className="flex items-start justify-between">
+              <p className="text-sm text-red-600 font-medium">Total Egresos</p>
+              <TrendingDown className="h-4 w-4 text-red-600" />
+            </div>
+            <p className="text-2xl font-bold text-red-600 mt-2">
+              S/ {stats.total_egresos_pen.toFixed(2)}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Saldo en Caja (Teórico) */}
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardContent className="pt-4">
+            <div className="flex items-start justify-between">
+              <p className="text-sm text-blue-600 font-medium">Saldo en Caja (Teórico)</p>
+              <Wallet className="h-4 w-4 text-blue-600" />
+            </div>
+            <p className="text-2xl font-bold text-blue-600 mt-2">
+              S/ {(t.monto_cierre_sistema || stats.total_esperado_pen).toFixed(2)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* KPIs Fila 2 - Solo cajas cerradas */}
+      {esCerrada && (
+        <div className="grid grid-cols-2 gap-4">
+          {/* Monto Real Contado */}
+          <Card className="border-pink-200 bg-pink-50/50">
+            <CardContent className="pt-4">
+              <div className="flex items-start justify-between">
+                <p className="text-sm text-pink-600 font-medium">Monto Real Contado</p>
+                <Calculator className="h-4 w-4 text-pink-600" />
+              </div>
+              <p className="text-2xl font-bold text-pink-600 mt-2">
+                S/ {(t.monto_cierre_declarado || 0).toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Diferencia */}
+          <Card className={`${Math.abs(diferencia) < 0.5 ? 'border-green-200 bg-green-50/50' : 'border-red-200 bg-red-50/50'}`}>
+            <CardContent className="pt-4">
+              <div className="flex items-start justify-between">
+                <p className={`text-sm font-medium ${Math.abs(diferencia) < 0.5 ? 'text-green-600' : 'text-red-600'}`}>
+                  Diferencia
+                </p>
+                <CheckCircle className={`h-4 w-4 ${Math.abs(diferencia) < 0.5 ? 'text-green-600' : 'text-red-600'}`} />
+              </div>
+              <p className={`text-2xl font-bold mt-2 ${Math.abs(diferencia) < 0.5 ? 'text-green-600' : 'text-red-600'}`}>
+                S/ {diferencia.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Cards inferiores */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Por Método de Pago */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Usuario Declaró</CardDescription>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Por Método de Pago</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
-              S/ {(turno.monto_cierre_declarado || 0).toFixed(2)}
+          <CardContent className="space-y-4">
+            <MetodoPagoItem
+              icon={<Banknote className="h-4 w-4" />}
+              nombre="Efectivo"
+              descripcion="Lo que debe haber en el cajón"
+              monto={porMetodo.totalEfectivoPEN}
+            />
+            <Separator />
+            <MetodoPagoItem
+              icon={<CreditCard className="h-4 w-4" />}
+              nombre="Tarjetas"
+              descripcion="Debe cuadrar con el cierre del POS"
+              monto={porMetodo.totalTarjeta}
+            />
+            <Separator />
+            <MetodoPagoItem
+              icon={<Smartphone className="h-4 w-4" />}
+              nombre="Billeteras (Yape/Plin)"
+              descripcion="Debe cuadrar con el celular"
+              monto={totalBilleteras}
+            />
+            <Separator />
+            <MetodoPagoItem
+              icon={<Building2 className="h-4 w-4" />}
+              nombre="Transferencias"
+              monto={porMetodo.totalTransferencia}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Resumen Operativo */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Resumen Operativo</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Receipt className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground">Cantidad de Ventas</p>
+                <p className="font-semibold">{cantidadVentas} tickets</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <DollarSign className="h-4 w-4 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground">Ticket Promedio</p>
+                <p className="font-semibold">S/ {ticketPromedio.toFixed(2)}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <RotateCcw className="h-4 w-4 text-orange-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground">Cantidad de Devoluciones</p>
+                <p className="font-semibold">
+                  0 <span className="text-muted-foreground font-normal">(S/ 0.00)</span>
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tabs con detalles */}
-      <Tabs defaultValue="flujo" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="flujo">Flujo de Efectivo</TabsTrigger>
-          <TabsTrigger value="movimientos">Movimientos de Caja</TabsTrigger>
-          <TabsTrigger value="pagos">Pagos Recibidos</TabsTrigger>
-        </TabsList>
+      {/* Línea de Tiempo */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Línea de Tiempo</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Todas las transacciones ordenadas cronológicamente
+          </p>
+        </CardHeader>
+        <CardContent>
+          {turno.movimientos.length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground">
+              No hay movimientos registrados
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-20">Hora</TableHead>
+                  <TableHead className="w-28">Tipo</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead>Referencia</TableHead>
+                  <TableHead className="text-right">Monto</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {turno.movimientos.map((mov) => (
+                  <TableRow key={mov.id}>
+                    <TableCell className="text-muted-foreground">
+                      {format(new Date(mov.created_at), 'HH:mm', { locale: es })}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={mov.tipo === 'INGRESO'
+                          ? 'bg-green-100 text-green-700 border-green-200'
+                          : 'bg-red-100 text-red-700 border-red-200'
+                        }
+                      >
+                        {mov.tipo === 'INGRESO' ? '→' : '←'} {mov.tipo}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <RenderMotivo motivo={mov.motivo} />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {mov.comprobante_referencia || 'N/A'}
+                    </TableCell>
+                    <TableCell className={`text-right font-medium ${mov.tipo === 'INGRESO' ? 'text-green-600' : 'text-red-600'}`}>
+                      {mov.tipo === 'INGRESO' ? '+' : '-'} S/ {mov.monto.toFixed(2)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
 
-        {/* Tab: Flujo de Efectivo */}
-        <TabsContent value="flujo" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumen de Flujo de Efectivo</CardTitle>
-              <CardDescription>Cálculo detallado del efectivo en caja</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between items-center text-lg">
-                <span className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-blue-500" />
-                  Apertura
-                </span>
-                <span className="font-semibold">S/ {turno.monto_apertura.toFixed(2)}</span>
-              </div>
-
-              <Separator />
-
-              <div className="flex justify-between items-center text-lg text-green-600">
-                <span className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Ventas (Efectivo)
-                </span>
-                <span className="font-semibold">
-                  +S/ {movimientosPagos ? movimientosPagos.totalEfectivoPEN.toFixed(2) : '0.00'}
-                </span>
-              </div>
-
-              {movimientosCaja.filter(m => m.tipo === 'INGRESO').length > 0 && (
-                <div className="flex justify-between items-center text-green-600">
-                  <span className="flex items-center gap-2 text-sm">
-                    <TrendingUp className="h-4 w-4" />
-                    Ingresos Extras
-                  </span>
-                  <span className="font-semibold">
-                    +S/ {movimientosCaja
-                      .filter(m => m.tipo === 'INGRESO' && m.moneda === 'PEN')
-                      .reduce((sum, m) => sum + m.monto, 0)
-                      .toFixed(2)}
-                  </span>
-                </div>
-              )}
-
-              {movimientosCaja.filter(m => m.tipo === 'EGRESO').length > 0 && (
-                <div className="flex justify-between items-center text-red-600">
-                  <span className="flex items-center gap-2 text-sm">
-                    <TrendingDown className="h-4 w-4" />
-                    Egresos (Gastos)
-                  </span>
-                  <span className="font-semibold">
-                    -S/ {movimientosCaja
-                      .filter(m => m.tipo === 'EGRESO' && m.moneda === 'PEN')
-                      .reduce((sum, m) => sum + m.monto, 0)
-                      .toFixed(2)}
-                  </span>
-                </div>
-              )}
-
-              <Separator className="my-4" />
-
-              <div className="flex justify-between items-center text-xl font-bold">
-                <span>= TEÓRICO (Sistema)</span>
-                <span className="text-blue-600">S/ {(turno.monto_cierre_sistema || 0).toFixed(2)}</span>
-              </div>
-
-              <div className="flex justify-between items-center text-xl font-bold">
-                <span>Usuario Declaró</span>
-                <span className="text-purple-600">S/ {(turno.monto_cierre_declarado || 0).toFixed(2)}</span>
-              </div>
-
-              <Separator className="my-4 border-2" />
-
-              <div className={`flex justify-between items-center text-2xl font-bold ${
-                Math.abs(calcularDiferencia()) <= 0.50 ? 'text-green-600' : 
-                calcularDiferencia() > 0 ? 'text-yellow-600' : 'text-red-600'
-              }`}>
-                <span>Diferencia</span>
-                <span>{calcularDiferencia() > 0 ? '+' : ''}S/ {calcularDiferencia().toFixed(2)}</span>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Tab: Movimientos de Caja */}
-        <TabsContent value="movimientos">
-          <Card>
-            <CardHeader>
-              <CardTitle>Movimientos de Caja</CardTitle>
-              <CardDescription>Ingresos y egresos registrados durante el turno</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {movimientosCaja.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No se registraron movimientos de caja
-                </div>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fecha/Hora</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Motivo</TableHead>
-                        <TableHead className="text-right">Monto</TableHead>
-                        <TableHead>Usuario</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {movimientosCaja.map((mov) => (
-                        <TableRow key={mov.id}>
-                          <TableCell className="text-sm">
-                            {format(new Date(mov.created_at), 'dd/MM HH:mm', { locale: es })}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={mov.tipo === 'INGRESO' ? 'default' : 'destructive'}>
-                              {mov.tipo === 'INGRESO' ? (
-                                <TrendingUp className="h-3 w-3 mr-1" />
-                              ) : (
-                                <TrendingDown className="h-3 w-3 mr-1" />
-                              )}
-                              {mov.tipo}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="max-w-xs truncate">{mov.motivo}</TableCell>
-                          <TableCell className={`text-right font-semibold ${
-                            mov.tipo === 'INGRESO' ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {mov.tipo === 'INGRESO' ? '+' : '-'}
-                            {mov.moneda === 'PEN' ? 'S/' : '$'} {mov.monto.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {mov.usuario.nombres} {mov.usuario.apellidos}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Tab: Pagos Recibidos */}
-        <TabsContent value="pagos">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pagos Recibidos</CardTitle>
-              <CardDescription>Resumen por método de pago</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!movimientosPagos ? (
-                <div className="text-center py-8 text-muted-foreground">Cargando...</div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card>
-                      <CardContent className="pt-4">
-                        <div className="text-sm text-muted-foreground">Efectivo</div>
-                        <div className="text-xl font-bold text-green-600">
-                          S/ {movimientosPagos.totalEfectivoPEN.toFixed(2)}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardContent className="pt-4">
-                        <div className="text-sm text-muted-foreground">Tarjeta</div>
-                        <div className="text-xl font-bold">
-                          S/ {movimientosPagos.totalTarjeta.toFixed(2)}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardContent className="pt-4">
-                        <div className="text-sm text-muted-foreground">Yape</div>
-                        <div className="text-xl font-bold">
-                          S/ {movimientosPagos.totalYape.toFixed(2)}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardContent className="pt-4">
-                        <div className="text-sm text-muted-foreground">Total</div>
-                        <div className="text-xl font-bold text-blue-600">
-                          S/ {movimientosPagos.totalGeneral.toFixed(2)}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    {movimientosPagos.pagos.length} transacciones registradas
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+function MetodoPagoItem({
+  icon,
+  nombre,
+  descripcion,
+  monto
+}: {
+  icon: React.ReactNode
+  nombre: string
+  descripcion?: string
+  monto: number
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="text-muted-foreground">{icon}</div>
+        <div>
+          <p className="font-medium text-sm">{nombre}</p>
+          {descripcion && (
+            <p className="text-xs text-muted-foreground">{descripcion}</p>
+          )}
+        </div>
+      </div>
+      <p className="font-semibold">S/ {monto.toFixed(2)}</p>
     </div>
   )
 }

@@ -4,6 +4,12 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { ROLES_DISPONIBLES } from '@/lib/constants/roles'
+import { logger } from '@/lib/logger'
+import { getErrorMessage } from '@/lib/errors'
+import type { Database } from '@/types/database.types'
+
+// Tipo de rol de usuario desde la BD
+type RolUsuario = Database['public']['Enums']['rol_usuario_enum']
 
 // ========================================
 // VERIFICAR PERMISOS
@@ -11,7 +17,7 @@ import { ROLES_DISPONIBLES } from '@/lib/constants/roles'
 
 export async function verificarEsAdmin() {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     redirect('/login')
@@ -44,24 +50,24 @@ export async function getRolesDisponibles() {
 
 export async function getUsuarios() {
   await verificarEsAdmin()
-  
+
   const supabase = await createClient()
-  const supabaseAdmin = createAdminClient()
-  
+  const supabaseAdmin = await createAdminClient()
+
   // 1. Obtener usuarios de la tabla public.usuarios
   const { data: usuarios, error } = await supabase
     .from('usuarios')
     .select('*')
     .order('created_at', { ascending: false })
-  
+
   if (error) throw error
   if (!usuarios) return []
 
   // 2. Obtener emails desde auth.users
   const { data: { users: authUsers }, error: authError } = await supabaseAdmin.auth.admin.listUsers()
-  
+
   if (authError) {
-    console.error('Error al obtener usuarios de auth:', authError)
+    logger.error('Error al obtener usuarios de auth', { action: 'getUsuarios', originalError: getErrorMessage(authError) })
     return usuarios // Retornar sin emails si falla
   }
 
@@ -79,7 +85,7 @@ export async function getUsuarios() {
 
 export async function getUsuarioActual() {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
@@ -90,7 +96,7 @@ export async function getUsuarioActual() {
     .single()
 
   if (error) {
-    console.error('Error al obtener usuario:', error)
+    logger.error('Error al obtener usuario actual', { action: 'getUsuarioActual', originalError: getErrorMessage(error) })
     return null
   }
 
@@ -99,10 +105,10 @@ export async function getUsuarioActual() {
 
 export async function createUsuario(formData: FormData) {
   await verificarEsAdmin()
-  
+
   const supabase = await createClient()
-  const supabaseAdmin = createAdminClient() // Cliente admin para operaciones auth
-  
+  const supabaseAdmin = await createAdminClient() // Cliente admin para operaciones auth
+
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const nombres = formData.get('nombres') as string
@@ -117,7 +123,7 @@ export async function createUsuario(formData: FormData) {
   })
 
   if (authError) {
-    console.error('Error al crear usuario en auth:', authError)
+    logger.error('Error al crear usuario en auth', { action: 'createUsuario', originalError: getErrorMessage(authError) })
     throw new Error(authError.message)
   }
 
@@ -139,7 +145,7 @@ export async function createUsuario(formData: FormData) {
   if (dbError) {
     // Si falla la inserción en DB, intentar eliminar el usuario de Auth
     await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
-    console.error('Error al crear usuario en DB:', dbError)
+    logger.error('Error al crear usuario en DB', { action: 'createUsuario', userId: authData.user.id, originalError: getErrorMessage(dbError) })
     throw new Error(dbError.message)
   }
 
@@ -149,9 +155,9 @@ export async function createUsuario(formData: FormData) {
 
 export async function updateUsuario(id: string, formData: FormData) {
   await verificarEsAdmin()
-  
+
   const supabase = await createClient()
-  
+
   const nombres = formData.get('nombres') as string
   const apellidos = formData.get('apellidos') as string
   const rol = formData.get('rol') as RolUsuario
@@ -175,9 +181,9 @@ export async function updateUsuario(id: string, formData: FormData) {
 
 export async function deleteUsuario(id: string) {
   await verificarEsAdmin()
-  
+
   const supabase = await createClient()
-  const supabaseAdmin = createAdminClient() // Cliente admin
+  const supabaseAdmin = await createAdminClient() // Cliente admin
 
   // Verificar que no sea el usuario actual
   const { data: { user } } = await supabase.auth.getUser()
@@ -187,9 +193,9 @@ export async function deleteUsuario(id: string) {
 
   // 1. Eliminar de auth (cascade eliminará de usuarios)
   const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id)
-  
+
   if (authError) {
-    console.error('Error al eliminar usuario:', authError)
+    logger.error('Error al eliminar usuario', { action: 'deleteUsuario', userId: id, originalError: getErrorMessage(authError) })
     throw new Error(authError.message)
   }
 
@@ -199,15 +205,15 @@ export async function deleteUsuario(id: string) {
 
 export async function resetPasswordUsuario(id: string, nuevaPassword: string) {
   await verificarEsAdmin()
-  
-  const supabaseAdmin = createAdminClient() // Cliente admin
+
+  const supabaseAdmin = await createAdminClient() // Cliente admin
 
   const { error } = await supabaseAdmin.auth.admin.updateUserById(id, {
     password: nuevaPassword
   })
 
   if (error) {
-    console.error('Error al resetear contraseña:', error)
+    logger.error('Error al resetear contraseña', { action: 'resetPasswordUsuario', userId: id, originalError: getErrorMessage(error) })
     throw new Error(error.message)
   }
 
@@ -216,7 +222,7 @@ export async function resetPasswordUsuario(id: string, nuevaPassword: string) {
 
 export async function toggleEstadoUsuario(id: string, nuevoEstado: boolean) {
   await verificarEsAdmin()
-  
+
   const supabase = await createClient()
 
   // Verificar que no sea el usuario actual

@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logger } from '@/lib/logger'
+import { getErrorMessage } from '@/lib/errors'
 
 // ========================================
 // TIPOS
@@ -13,6 +15,7 @@ export type HuespedData = {
   tipo_documento: 'DNI' | 'PASAPORTE' | 'CE' | 'OTRO'
   numero_documento: string
   nacionalidad: string
+  procedencia_departamento?: string | null
   correo?: string | null
   telefono?: string | null
   fecha_nacimiento?: string | null
@@ -41,7 +44,7 @@ export async function upsertHuesped(data: HuespedData) {
     .maybeSingle()
 
   if (searchError) {
-    console.error('Error al buscar huésped:', searchError)
+    logger.error('Error al buscar huésped', { action: 'upsertHuesped', originalError: getErrorMessage(searchError) })
     return { success: false, error: searchError.message }
   }
 
@@ -53,6 +56,7 @@ export async function upsertHuesped(data: HuespedData) {
         nombres: data.nombres,
         apellidos: data.apellidos,
         nacionalidad: data.nacionalidad,
+        procedencia_departamento: data.procedencia_departamento,
         correo: data.correo,
         telefono: data.telefono,
         fecha_nacimiento: data.fecha_nacimiento,
@@ -146,6 +150,7 @@ export async function registrarHuespedesEnReserva(
         tipo_documento: huesped.tipo_documento,
         numero_documento: huesped.numero_documento,
         nacionalidad: huesped.nacionalidad,
+        procedencia_departamento: huesped.procedencia_departamento,
         correo: huesped.correo,
         telefono: huesped.telefono,
         fecha_nacimiento: huesped.fecha_nacimiento,
@@ -197,9 +202,9 @@ export async function registrarHuespedesEnReserva(
 
     revalidatePath('/rack')
     return { success: true, huespedesIds }
-  } catch (error: any) {
-    console.error('Error en registrarHuespedesEnReserva:', error)
-    return { success: false, error: error.message }
+  } catch (error: unknown) {
+    logger.error('Error en registrarHuespedesEnReserva', { action: 'registrarHuespedesEnReserva', reservaId, originalError: getErrorMessage(error) })
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -226,6 +231,7 @@ export async function getHuespedesByReserva(reservaId: string) {
         tipo_documento,
         numero_documento,
         nacionalidad,
+        procedencia_departamento,
         correo,
         telefono,
         fecha_nacimiento
@@ -298,6 +304,7 @@ export type DirectorioHuesped = {
   tipo_documento: string
   numero_documento: string
   nacionalidad: string | null
+  procedencia_departamento: string | null
   correo: string | null
   telefono: string | null
   notas_internas: string | null
@@ -331,6 +338,7 @@ export async function getDirectorioHuespedes(filtros?: FiltrosDirectorio) {
       tipo_documento,
       numero_documento,
       nacionalidad,
+      procedencia_departamento,
       correo,
       telefono,
       notas_internas,
@@ -359,7 +367,7 @@ export async function getDirectorioHuespedes(filtros?: FiltrosDirectorio) {
   const { data: huespedes, error } = await query
 
   if (error) {
-    console.error('[getDirectorioHuespedes] Error:', error)
+    logger.error('Error al obtener directorio de huéspedes', { action: 'getDirectorioHuespedes', originalError: getErrorMessage(error) })
     return []
   }
 
@@ -367,7 +375,7 @@ export async function getDirectorioHuespedes(filtros?: FiltrosDirectorio) {
 
   // Obtener estadísticas de visitas en una sola query (eficiente)
   const huespedIds = huespedes.map(h => h.id)
-  
+
   const { data: estadisticas } = await supabase
     .from('reserva_huespedes')
     .select(`
@@ -383,7 +391,7 @@ export async function getDirectorioHuespedes(filtros?: FiltrosDirectorio) {
 
   // Mapear estadísticas a cada huésped
   const estadisticasPorHuesped = new Map<string, any>()
-  
+
   estadisticas?.forEach(({ huesped_id, reservas }) => {
     if (!estadisticasPorHuesped.has(huesped_id)) {
       estadisticasPorHuesped.set(huesped_id, {
@@ -392,19 +400,19 @@ export async function getDirectorioHuespedes(filtros?: FiltrosDirectorio) {
         ultima_habitacion: null
       })
     }
-    
+
     const stats = estadisticasPorHuesped.get(huesped_id)
     stats.total_visitas++
-    
+
     // Guardar solo la última visita (ya viene ordenada DESC)
     if (!stats.ultima_visita && reservas) {
       const reservaArray = Array.isArray(reservas) ? reservas : [reservas]
       const primeraReserva = reservaArray[0]
       stats.ultima_visita = primeraReserva?.fecha_salida || null
-      
+
       if (primeraReserva?.habitaciones) {
-        const hab = Array.isArray(primeraReserva.habitaciones) 
-          ? primeraReserva.habitaciones[0] 
+        const hab = Array.isArray(primeraReserva.habitaciones)
+          ? primeraReserva.habitaciones[0]
           : primeraReserva.habitaciones
         stats.ultima_habitacion = hab?.numero || null
       }
@@ -435,7 +443,7 @@ export async function getDetalleHuesped(huesped_id: string) {
     .single()
 
   if (huespedError || !huesped) {
-    console.error('[getDetalleHuesped] Error:', huespedError)
+    logger.error('Error al obtener detalle de huésped', { action: 'getDetalleHuesped', huespedId: huesped_id, originalError: huespedError ? getErrorMessage(huespedError) : 'Huésped no encontrado' })
     return null
   }
 
@@ -468,11 +476,11 @@ export async function getDetalleHuesped(huesped_id: string) {
   const reservas_canceladas = estadias?.filter(e => e.estado === 'CANCELADA').length || 0
   const no_shows = estadias?.filter(e => e.estado === 'NO_SHOW').length || 0
   const ultima_visita = estadias?.[0]?.fecha_salida || null
-  
+
   let ultima_habitacion = null
   if (estadias && estadias.length > 0 && estadias[0].habitaciones) {
-    const hab = Array.isArray(estadias[0].habitaciones) 
-      ? estadias[0].habitaciones[0] 
+    const hab = Array.isArray(estadias[0].habitaciones)
+      ? estadias[0].habitaciones[0]
       : estadias[0].habitaciones
     ultima_habitacion = (hab as any)?.numero || null
   }
@@ -502,7 +510,7 @@ export async function getDetalleHuesped(huesped_id: string) {
     const reservaArray = Array.isArray(pago.reservas) ? pago.reservas : [pago.reservas]
     const reserva = reservaArray[0]
     const rh = Array.isArray(reserva?.reserva_huespedes) ? reserva.reserva_huespedes[0] : reserva?.reserva_huespedes
-    
+
     return rh?.es_titular ? sum + pago.monto : sum
   }, 0) || 0
 
@@ -532,7 +540,7 @@ export async function actualizarNotasHuesped(huesped_id: string, notas: string) 
     .eq('id', huesped_id)
 
   if (error) {
-    console.error('[actualizarNotasHuesped] Error:', error)
+    logger.error('Error al actualizar notas de huésped', { action: 'actualizarNotasHuesped', huespedId: huesped_id, originalError: getErrorMessage(error) })
     throw new Error('Error al actualizar notas')
   }
 
@@ -552,7 +560,7 @@ export async function toggleClienteFrecuente(huesped_id: string, es_frecuente: b
     .eq('id', huesped_id)
 
   if (error) {
-    console.error('[toggleClienteFrecuente] Error:', error)
+    logger.error('Error al cambiar estado VIP de huésped', { action: 'toggleClienteFrecuente', huespedId: huesped_id, originalError: getErrorMessage(error) })
     throw new Error('Error al actualizar estado VIP')
   }
 
@@ -573,7 +581,7 @@ export async function getEstadisticasDirectorio() {
     .select('id, es_frecuente, notas_internas')
 
   if (error || !huespedes) {
-    console.error('[getEstadisticasDirectorio] Error:', error)
+    logger.error('Error al obtener estadísticas del directorio', { action: 'getEstadisticasDirectorio', originalError: error ? getErrorMessage(error) : 'Sin datos' })
     return {
       total_huespedes: 0,
       clientes_vip: 0,

@@ -12,7 +12,7 @@ import { ReservationDetailSheet } from '@/components/reservas/reservation-detail
 import { NewReservationDialog } from './components/dialogs/new-reservation-dialog'
 import { ModalAperturaTurno } from '@/components/cajas/modal-apertura-turno'
 import { useRackData } from '@/hooks/use-rack-data'
-import { useCheckTurno } from '@/hooks/use-check-turno'
+import { useTurnoContext } from '@/components/providers/turno-provider'
 import { getRoomVisualState } from '@/lib/utils/room-status'
 import { type FilterState, initialFilters } from './components/smart-sidebar/filters-tab'
 import type { RackHabitacion } from '@/lib/actions/rack'
@@ -31,8 +31,10 @@ export function RackContainer() {
   const [viewMode, setViewMode] = useState<'rack' | 'cards'>('rack')
   const [filters, setFilters] = useState<FilterState>(initialFilters)
 
-  // Check de turno activo
-  const { loading: loadingTurno, required: turnoRequired, hasActiveTurno, refetch: refetchTurno } = useCheckTurno()
+  // Check de turno activo (ahora desde contexto global)
+  const { loading: loadingTurno, hasActiveTurno, refetchTurno } = useTurnoContext()
+  // Para recepcionistas, el turno es requerido
+  const turnoRequired = true // TODO: Verificar rol si es necesario
 
   // Cargar datos reales desde Supabase
   const {
@@ -85,9 +87,8 @@ export function RackContainer() {
   if (turnoRequired && !hasActiveTurno) {
     return (
       <div className="h-full w-full">
-        <ModalAperturaTurno 
-          onSuccess={handleTurnoAbierto} 
-          onCancel={() => router.push('/')}
+        <ModalAperturaTurno
+          onSuccess={handleTurnoAbierto}
         />
       </div>
     )
@@ -97,7 +98,7 @@ export function RackContainer() {
     <div className="h-full w-full flex flex-col">
       {/* ZONA A: Command Bar (Fixed Header) */}
       <div className="flex-shrink-0 z-10">
-        <CommandBar 
+        <CommandBar
           kpis={kpis}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
@@ -127,7 +128,7 @@ export function RackContainer() {
               <p className="text-destructive">{error}</p>
             </div>
           ) : viewMode === 'rack' ? (
-            <RackGrid 
+            <RackGrid
               habitaciones={filteredHabitaciones}
               reservas={reservas}
               startDate={startDate}
@@ -168,7 +169,7 @@ export function RackContainer() {
         )}
 
         {/* ZONA B: Smart Sidebar */}
-        <SmartSidebar 
+        <SmartSidebar
           open={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
           onReservationClick={setSelectedReservationId}

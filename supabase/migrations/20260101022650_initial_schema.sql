@@ -192,6 +192,7 @@ CREATE TABLE public.huespedes (
     tipo_documento text NOT NULL,
     numero_documento text NOT NULL,
     nacionalidad text,
+    procedencia_departamento text, -- Departamento de procedencia (Perú) o región
     correo text,
     telefono text,
     fecha_nacimiento date,

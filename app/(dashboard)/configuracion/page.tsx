@@ -1,40 +1,23 @@
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb'
-import { Separator } from '@/components/ui/separator'
-import { SidebarTrigger } from '@/components/ui/sidebar'
+import { DashboardHeader } from '@/components/dashboard-header'
 import { ConfiguracionGeneralForm } from './configuracion-general-form'
 import { getHotelConfig } from '@/lib/actions/configuracion'
+import { Separator } from '@/components/ui/separator'
 
 export default async function ConfiguracionPage() {
   const config = await getHotelConfig()
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/">Inicio</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Configuración General</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-      </header>
+      <DashboardHeader
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Configuración' }
+        ]}
+      />
 
       <div className="flex flex-1 flex-col gap-4 p-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Configuración General</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
           <p className="text-muted-foreground">
             Configura los datos generales del hotel y horarios
           </p>

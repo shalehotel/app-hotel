@@ -5,9 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { getMovimientosTurno, type TurnoActivo } from '@/lib/actions/turnos'
+import { getMovimientosTurno, type TurnoActivo } from '@/lib/actions/cajas'
 import { getResumenMovimientos } from '@/lib/actions/movimientos'
-import { ModalCierreTurno } from './modal-cierre-turno'
+import { CerrarCajaDialog } from '@/components/cajas/cerrar-caja-dialog'
 import { ModalMovimiento } from './modal-movimiento'
 import { DollarSign, Clock, Lock, TrendingUp, TrendingDown, Plus, Minus } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -19,7 +19,6 @@ type Props = {
 }
 
 export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
-  const [modalCierreOpen, setModalCierreOpen] = useState(false)
   const [modalIngresoOpen, setModalIngresoOpen] = useState(false)
   const [modalEgresoOpen, setModalEgresoOpen] = useState(false)
   const [movimientos, setMovimientos] = useState<any>(null)
@@ -32,7 +31,7 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
       getMovimientosTurno(turno.id),
       getResumenMovimientos(turno.id)
     ])
-    
+
     if (resultMovimientos.success) {
       setMovimientos(resultMovimientos.data)
     }
@@ -48,19 +47,15 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
 
   useEffect(() => {
     cargarMovimientos()
-    
+
     // Actualizar cada 30 segundos
     const interval = setInterval(cargarMovimientos, 30000)
     return () => clearInterval(interval)
   }, [turno.id])
 
-  const totalIngresado = movimientos 
-    ? movimientos.totalEfectivoPEN + (movimientos.totalEfectivoUSD * 3.8) // Conversión aprox
-    : 0
-
-  const tiempoActivo = formatDistanceToNow(new Date(turno.fecha_apertura), { 
+  const tiempoActivo = formatDistanceToNow(new Date(turno.fecha_apertura), {
     locale: es,
-    addSuffix: false 
+    addSuffix: false
   })
 
   return (
@@ -81,7 +76,7 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
             {turno.caja.nombre}
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-3">
           {/* Info del turno */}
           <div className="space-y-2 text-xs">
@@ -92,23 +87,23 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
               </span>
               <span className="font-medium">{tiempoActivo}</span>
             </div>
-            
+
             <Separator />
-            
+
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Apertura PEN:</span>
               <span className="font-medium">S/ {turno.monto_apertura.toFixed(2)}</span>
             </div>
-            
+
             {turno.monto_apertura_usd && turno.monto_apertura_usd > 0 && (
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Apertura USD:</span>
                 <span className="font-medium">$ {turno.monto_apertura_usd.toFixed(2)}</span>
               </div>
             )}
-            
+
             <Separator />
-            
+
             {loadingMovimientos ? (
               <div className="text-center text-muted-foreground py-2">
                 Calculando...
@@ -124,7 +119,7 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
                     S/ {movimientos.totalEfectivoPEN.toFixed(2)}
                   </span>
                 </div>
-                
+
                 {movimientos.totalEfectivoUSD > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Efectivo USD:</span>
@@ -133,26 +128,26 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
                     </span>
                   </div>
                 )}
-                
+
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Tarjeta:</span>
                   <span>S/ {movimientos.totalTarjeta.toFixed(2)}</span>
                 </div>
-                
+
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Yape:</span>
                   <span>S/ {movimientos.totalYape.toFixed(2)}</span>
                 </div>
-                
+
                 <Separator />
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Total General:</span>
                   <span className="font-bold text-base">
                     S/ {movimientos.totalGeneral.toFixed(2)}
                   </span>
                 </div>
-                
+
                 <div className="text-xs text-muted-foreground text-center pt-1">
                   {movimientos.pagos.length} transacción(es)
                 </div>
@@ -192,8 +187,8 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
           <div className="pt-2 space-y-2">
             {/* Botones de Ingreso/Egreso */}
             <div className="grid grid-cols-2 gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 className="border-green-200 hover:bg-green-50 text-green-700"
                 onClick={() => setModalIngresoOpen(true)}
@@ -201,8 +196,8 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
                 <Plus className="h-3 w-3 mr-1" />
                 Ingreso
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 className="border-red-200 hover:bg-red-50 text-red-700"
                 onClick={() => setModalEgresoOpen(true)}
@@ -212,36 +207,35 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
               </Button>
             </div>
 
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="w-full"
               onClick={() => cargarMovimientos()}
             >
               Actualizar
             </Button>
-            
-            <Button 
-              variant="destructive" 
-              size="sm" 
-              className="w-full"
-              onClick={() => setModalCierreOpen(true)}
-            >
-              <Lock className="h-3 w-3 mr-2" />
-              Cerrar Turno
-            </Button>
+
+            {/* Diálogo de Cierre Unificado */}
+            <CerrarCajaDialog
+              turnoId={turno.id}
+              totalEsperadoPen={movimientos?.totalEfectivoPEN || 0}
+              totalEsperadoUsd={movimientos?.totalEfectivoUSD || 0}
+              customTrigger={
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="w-full"
+                  disabled={!movimientos}
+                >
+                  <Lock className="h-3 w-3 mr-2" />
+                  Cerrar Turno
+                </Button>
+              }
+            />
           </div>
         </CardContent>
       </Card>
-
-      {/* Modal de cierre */}
-      <ModalCierreTurno
-        open={modalCierreOpen}
-        onOpenChange={setModalCierreOpen}
-        turno={turno}
-        movimientos={movimientos}
-        onSuccess={onTurnoCerrado}
-      />
 
       {/* Modales de movimientos */}
       <ModalMovimiento

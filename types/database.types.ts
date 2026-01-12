@@ -14,41 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
-      audit_logs: {
+      caja_movimientos: {
         Row: {
-          changed_at: string | null
-          changed_by: string | null
+          caja_turno_id: string
+          categoria: string | null
+          comprobante_referencia: string | null
+          created_at: string | null
+          evidencia_url: string | null
           id: string
-          new_data: Json | null
-          old_data: Json | null
-          operation: string
-          record_id: string
-          table_name: string
+          moneda: Database["public"]["Enums"]["moneda_enum"] | null
+          monto: number
+          motivo: string
+          tipo: string
+          usuario_id: string
         }
         Insert: {
-          changed_at?: string | null
-          changed_by?: string | null
+          caja_turno_id: string
+          categoria?: string | null
+          comprobante_referencia?: string | null
+          created_at?: string | null
+          evidencia_url?: string | null
           id?: string
-          new_data?: Json | null
-          old_data?: Json | null
-          operation: string
-          record_id: string
-          table_name: string
+          moneda?: Database["public"]["Enums"]["moneda_enum"] | null
+          monto: number
+          motivo: string
+          tipo: string
+          usuario_id: string
         }
         Update: {
-          changed_at?: string | null
-          changed_by?: string | null
+          caja_turno_id?: string
+          categoria?: string | null
+          comprobante_referencia?: string | null
+          created_at?: string | null
+          evidencia_url?: string | null
           id?: string
-          new_data?: Json | null
-          old_data?: Json | null
-          operation?: string
-          record_id?: string
-          table_name?: string
+          moneda?: Database["public"]["Enums"]["moneda_enum"] | null
+          monto?: number
+          motivo?: string
+          tipo?: string
+          usuario_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "audit_logs_changed_by_fkey"
-            columns: ["changed_by"]
+            foreignKeyName: "caja_movimientos_caja_turno_id_fkey"
+            columns: ["caja_turno_id"]
+            isOneToOne: false
+            referencedRelation: "caja_turnos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caja_movimientos_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      caja_turnos: {
+        Row: {
+          caja_id: string
+          estado: string | null
+          fecha_apertura: string | null
+          fecha_cierre: string | null
+          id: string
+          monto_apertura: number | null
+          monto_apertura_usd: number | null
+          monto_cierre_declarado: number | null
+          monto_cierre_declarado_usd: number | null
+          monto_cierre_sistema: number | null
+          monto_cierre_sistema_usd: number | null
+          usuario_id: string
+        }
+        Insert: {
+          caja_id: string
+          estado?: string | null
+          fecha_apertura?: string | null
+          fecha_cierre?: string | null
+          id?: string
+          monto_apertura?: number | null
+          monto_apertura_usd?: number | null
+          monto_cierre_declarado?: number | null
+          monto_cierre_declarado_usd?: number | null
+          monto_cierre_sistema?: number | null
+          monto_cierre_sistema_usd?: number | null
+          usuario_id: string
+        }
+        Update: {
+          caja_id?: string
+          estado?: string | null
+          fecha_apertura?: string | null
+          fecha_cierre?: string | null
+          id?: string
+          monto_apertura?: number | null
+          monto_apertura_usd?: number | null
+          monto_cierre_declarado?: number | null
+          monto_cierre_declarado_usd?: number | null
+          monto_cierre_sistema?: number | null
+          monto_cierre_sistema_usd?: number | null
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caja_turnos_caja_id_fkey"
+            columns: ["caja_id"]
+            isOneToOne: false
+            referencedRelation: "cajas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caja_turnos_usuario_id_fkey"
+            columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
             referencedColumns: ["id"]
@@ -76,21 +152,42 @@ export type Database = {
         }
         Relationships: []
       }
-      categorias: {
+      canales_venta: {
         Row: {
-          capacidad_max: number
+          activo: boolean | null
+          comision_porcentaje: number | null
+          id: string
+          nombre: string
+        }
+        Insert: {
+          activo?: boolean | null
+          comision_porcentaje?: number | null
+          id?: string
+          nombre: string
+        }
+        Update: {
+          activo?: boolean | null
+          comision_porcentaje?: number | null
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
+      categorias_habitacion: {
+        Row: {
+          created_at: string | null
           descripcion: string | null
           id: string
           nombre: string
         }
         Insert: {
-          capacidad_max: number
+          created_at?: string | null
           descripcion?: string | null
           id?: string
           nombre: string
         }
         Update: {
-          capacidad_max?: number
+          created_at?: string | null
           descripcion?: string | null
           id?: string
           nombre?: string
@@ -99,37 +196,31 @@ export type Database = {
       }
       comprobante_detalles: {
         Row: {
-          cantidad: number | null
+          cantidad: number
           codigo_afectacion_igv: string
           comprobante_id: string | null
           descripcion: string
           id: string
-          igv_linea: number | null
           precio_unitario: number
-          total_linea: number | null
-          valor_unitario: number
+          subtotal: number
         }
         Insert: {
-          cantidad?: number | null
-          codigo_afectacion_igv: string
+          cantidad: number
+          codigo_afectacion_igv?: string
           comprobante_id?: string | null
           descripcion: string
           id?: string
-          igv_linea?: number | null
           precio_unitario: number
-          total_linea?: number | null
-          valor_unitario: number
+          subtotal: number
         }
         Update: {
-          cantidad?: number | null
+          cantidad?: number
           codigo_afectacion_igv?: string
           comprobante_id?: string | null
           descripcion?: string
           id?: string
-          igv_linea?: number | null
           precio_unitario?: number
-          total_linea?: number | null
-          valor_unitario?: number
+          subtotal?: number
         }
         Relationships: [
           {
@@ -139,289 +230,191 @@ export type Database = {
             referencedRelation: "comprobantes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "comprobante_detalles_comprobante_id_fkey"
+            columns: ["comprobante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_historial_comprobantes"
+            referencedColumns: ["id"]
+          },
         ]
       }
       comprobantes: {
         Row: {
-          cliente_direccion: string | null
-          cliente_nombre: string
-          cliente_num_doc: string
-          correlativo: number
-          created_by: string | null
-          documento_ref_id: string | null
-          enlace_pdf: string | null
-          enlace_xml: string | null
-          estadia_id: string | null
+          cdr_url: string | null
+          created_at: string | null
+          estado_sunat: Database["public"]["Enums"]["estado_sunat_enum"] | null
+          external_id: string | null
           fecha_emision: string | null
+          hash_cpe: string | null
           id: string
-          motivo_anulacion: string | null
-          nubefact_error: string | null
+          moneda: Database["public"]["Enums"]["moneda_enum"] | null
+          monto_icbper: number | null
+          monto_igv: number | null
+          nota_credito_ref_id: string | null
+          numero: number
+          op_exoneradas: number | null
+          op_gravadas: number | null
+          op_inafectas: number | null
+          receptor_direccion: string | null
+          receptor_nro_doc: string
+          receptor_razon_social: string
+          receptor_tipo_doc: string
+          reserva_id: string
           serie: string
-          sunat_estado: Database["public"]["Enums"]["estado_sunat"] | null
-          tasa_igv_aplicada: number
-          tasa_rc_aplicada: number | null
-          tipo: Database["public"]["Enums"]["tipo_comprobante"]
-          total_exonerado: number | null
-          total_gravado: number | null
-          total_igv: number | null
-          total_recargo_consumo: number | null
+          tipo_cambio: number | null
+          tipo_comprobante: Database["public"]["Enums"]["tipo_comprobante_enum"]
           total_venta: number
+          turno_caja_id: string
+          xml_url: string | null
         }
         Insert: {
-          cliente_direccion?: string | null
-          cliente_nombre: string
-          cliente_num_doc: string
-          correlativo: number
-          created_by?: string | null
-          documento_ref_id?: string | null
-          enlace_pdf?: string | null
-          enlace_xml?: string | null
-          estadia_id?: string | null
+          cdr_url?: string | null
+          created_at?: string | null
+          estado_sunat?: Database["public"]["Enums"]["estado_sunat_enum"] | null
+          external_id?: string | null
           fecha_emision?: string | null
+          hash_cpe?: string | null
           id?: string
-          motivo_anulacion?: string | null
-          nubefact_error?: string | null
+          moneda?: Database["public"]["Enums"]["moneda_enum"] | null
+          monto_icbper?: number | null
+          monto_igv?: number | null
+          nota_credito_ref_id?: string | null
+          numero: number
+          op_exoneradas?: number | null
+          op_gravadas?: number | null
+          op_inafectas?: number | null
+          receptor_direccion?: string | null
+          receptor_nro_doc: string
+          receptor_razon_social: string
+          receptor_tipo_doc: string
+          reserva_id: string
           serie: string
-          sunat_estado?: Database["public"]["Enums"]["estado_sunat"] | null
-          tasa_igv_aplicada: number
-          tasa_rc_aplicada?: number | null
-          tipo: Database["public"]["Enums"]["tipo_comprobante"]
-          total_exonerado?: number | null
-          total_gravado?: number | null
-          total_igv?: number | null
-          total_recargo_consumo?: number | null
+          tipo_cambio?: number | null
+          tipo_comprobante: Database["public"]["Enums"]["tipo_comprobante_enum"]
           total_venta: number
+          turno_caja_id: string
+          xml_url?: string | null
         }
         Update: {
-          cliente_direccion?: string | null
-          cliente_nombre?: string
-          cliente_num_doc?: string
-          correlativo?: number
-          created_by?: string | null
-          documento_ref_id?: string | null
-          enlace_pdf?: string | null
-          enlace_xml?: string | null
-          estadia_id?: string | null
+          cdr_url?: string | null
+          created_at?: string | null
+          estado_sunat?: Database["public"]["Enums"]["estado_sunat_enum"] | null
+          external_id?: string | null
           fecha_emision?: string | null
+          hash_cpe?: string | null
           id?: string
-          motivo_anulacion?: string | null
-          nubefact_error?: string | null
+          moneda?: Database["public"]["Enums"]["moneda_enum"] | null
+          monto_icbper?: number | null
+          monto_igv?: number | null
+          nota_credito_ref_id?: string | null
+          numero?: number
+          op_exoneradas?: number | null
+          op_gravadas?: number | null
+          op_inafectas?: number | null
+          receptor_direccion?: string | null
+          receptor_nro_doc?: string
+          receptor_razon_social?: string
+          receptor_tipo_doc?: string
+          reserva_id?: string
           serie?: string
-          sunat_estado?: Database["public"]["Enums"]["estado_sunat"] | null
-          tasa_igv_aplicada?: number
-          tasa_rc_aplicada?: number | null
-          tipo?: Database["public"]["Enums"]["tipo_comprobante"]
-          total_exonerado?: number | null
-          total_gravado?: number | null
-          total_igv?: number | null
-          total_recargo_consumo?: number | null
+          tipo_cambio?: number | null
+          tipo_comprobante?: Database["public"]["Enums"]["tipo_comprobante_enum"]
           total_venta?: number
+          turno_caja_id?: string
+          xml_url?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "comprobantes_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "usuarios"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "comprobantes_documento_ref_id_fkey"
-            columns: ["documento_ref_id"]
+            foreignKeyName: "comprobantes_nota_credito_ref_id_fkey"
+            columns: ["nota_credito_ref_id"]
             isOneToOne: false
             referencedRelation: "comprobantes"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "comprobantes_estadia_id_fkey"
-            columns: ["estadia_id"]
+            foreignKeyName: "comprobantes_nota_credito_ref_id_fkey"
+            columns: ["nota_credito_ref_id"]
             isOneToOne: false
-            referencedRelation: "estadias"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      configuracion_sistema: {
-        Row: {
-          direccion_fiscal: string
-          es_regimen_amazonia: boolean | null
-          id: string
-          logo_url: string | null
-          moneda_principal: string | null
-          nombre_comercial: string
-          nubefact_ruta: string | null
-          nubefact_token: string | null
-          razon_social: string
-          ruc: string
-          tasa_igv: number | null
-          tasa_recargo_consumo: number | null
-          ubigeo: string
-          updated_at: string | null
-        }
-        Insert: {
-          direccion_fiscal: string
-          es_regimen_amazonia?: boolean | null
-          id?: string
-          logo_url?: string | null
-          moneda_principal?: string | null
-          nombre_comercial: string
-          nubefact_ruta?: string | null
-          nubefact_token?: string | null
-          razon_social: string
-          ruc: string
-          tasa_igv?: number | null
-          tasa_recargo_consumo?: number | null
-          ubigeo: string
-          updated_at?: string | null
-        }
-        Update: {
-          direccion_fiscal?: string
-          es_regimen_amazonia?: boolean | null
-          id?: string
-          logo_url?: string | null
-          moneda_principal?: string | null
-          nombre_comercial?: string
-          nubefact_ruta?: string | null
-          nubefact_token?: string | null
-          razon_social?: string
-          ruc?: string
-          tasa_igv?: number | null
-          tasa_recargo_consumo?: number | null
-          ubigeo?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      estadia_huespedes: {
-        Row: {
-          es_titular: boolean | null
-          estadia_id: string
-          huesped_id: string
-        }
-        Insert: {
-          es_titular?: boolean | null
-          estadia_id: string
-          huesped_id: string
-        }
-        Update: {
-          es_titular?: boolean | null
-          estadia_id?: string
-          huesped_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "estadia_huespedes_estadia_id_fkey"
-            columns: ["estadia_id"]
-            isOneToOne: false
-            referencedRelation: "estadias"
+            referencedRelation: "vw_historial_comprobantes"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "estadia_huespedes_huesped_id_fkey"
-            columns: ["huesped_id"]
-            isOneToOne: false
-            referencedRelation: "huespedes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      estadias: {
-        Row: {
-          created_at: string | null
-          estado: Database["public"]["Enums"]["estado_estadia"] | null
-          fecha_ingreso: string | null
-          fecha_salida_prevista: string
-          fecha_salida_real: string | null
-          habitacion_id: string | null
-          id: string
-          precio_noche_final: number
-          reserva_id: string | null
-          ubicacion_llave: Database["public"]["Enums"]["ubicacion_llave"] | null
-        }
-        Insert: {
-          created_at?: string | null
-          estado?: Database["public"]["Enums"]["estado_estadia"] | null
-          fecha_ingreso?: string | null
-          fecha_salida_prevista: string
-          fecha_salida_real?: string | null
-          habitacion_id?: string | null
-          id?: string
-          precio_noche_final: number
-          reserva_id?: string | null
-          ubicacion_llave?:
-            | Database["public"]["Enums"]["ubicacion_llave"]
-            | null
-        }
-        Update: {
-          created_at?: string | null
-          estado?: Database["public"]["Enums"]["estado_estadia"] | null
-          fecha_ingreso?: string | null
-          fecha_salida_prevista?: string
-          fecha_salida_real?: string | null
-          habitacion_id?: string | null
-          id?: string
-          precio_noche_final?: number
-          reserva_id?: string | null
-          ubicacion_llave?:
-            | Database["public"]["Enums"]["ubicacion_llave"]
-            | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "estadias_habitacion_id_fkey"
-            columns: ["habitacion_id"]
-            isOneToOne: false
-            referencedRelation: "habitaciones"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "estadias_reserva_id_fkey"
+            foreignKeyName: "comprobantes_reserva_id_fkey"
             columns: ["reserva_id"]
             isOneToOne: false
             referencedRelation: "reservas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comprobantes_reserva_id_fkey"
+            columns: ["reserva_id"]
+            isOneToOne: false
+            referencedRelation: "vw_reservas_con_datos_basicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comprobantes_turno_caja_id_fkey"
+            columns: ["turno_caja_id"]
+            isOneToOne: false
+            referencedRelation: "caja_turnos"
             referencedColumns: ["id"]
           },
         ]
       }
       habitaciones: {
         Row: {
-          categoria_id: string | null
-          estado_limpieza: Database["public"]["Enums"]["estado_limpieza"] | null
+          categoria_id: string
+          created_at: string | null
+          estado_limpieza:
+            | Database["public"]["Enums"]["estado_limpieza_enum"]
+            | null
           estado_ocupacion:
-            | Database["public"]["Enums"]["estado_ocupacion"]
+            | Database["public"]["Enums"]["estado_ocupacion_enum"]
+            | null
+          estado_servicio:
+            | Database["public"]["Enums"]["estado_servicio_enum"]
             | null
           id: string
-          notas_mantenimiento: string | null
           numero: string
-          piso: number
+          piso: string | null
+          tipo_id: string
           updated_at: string | null
         }
         Insert: {
-          categoria_id?: string | null
+          categoria_id: string
+          created_at?: string | null
           estado_limpieza?:
-            | Database["public"]["Enums"]["estado_limpieza"]
+            | Database["public"]["Enums"]["estado_limpieza_enum"]
             | null
           estado_ocupacion?:
-            | Database["public"]["Enums"]["estado_ocupacion"]
+            | Database["public"]["Enums"]["estado_ocupacion_enum"]
+            | null
+          estado_servicio?:
+            | Database["public"]["Enums"]["estado_servicio_enum"]
             | null
           id?: string
-          notas_mantenimiento?: string | null
           numero: string
-          piso: number
+          piso?: string | null
+          tipo_id: string
           updated_at?: string | null
         }
         Update: {
-          categoria_id?: string | null
+          categoria_id?: string
+          created_at?: string | null
           estado_limpieza?:
-            | Database["public"]["Enums"]["estado_limpieza"]
+            | Database["public"]["Enums"]["estado_limpieza_enum"]
             | null
           estado_ocupacion?:
-            | Database["public"]["Enums"]["estado_ocupacion"]
+            | Database["public"]["Enums"]["estado_ocupacion_enum"]
+            | null
+          estado_servicio?:
+            | Database["public"]["Enums"]["estado_servicio_enum"]
             | null
           id?: string
-          notas_mantenimiento?: string | null
           numero?: string
-          piso?: number
+          piso?: string | null
+          tipo_id?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -429,151 +422,329 @@ export type Database = {
             foreignKeyName: "habitaciones_categoria_id_fkey"
             columns: ["categoria_id"]
             isOneToOne: false
-            referencedRelation: "categorias"
+            referencedRelation: "categorias_habitacion"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "habitaciones_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_habitacion"
             referencedColumns: ["id"]
           },
         ]
       }
+      hotel_configuracion: {
+        Row: {
+          descripcion: string | null
+          direccion_fiscal: string | null
+          email: string | null
+          es_exonerado_igv: boolean | null
+          facturacion_activa: boolean | null
+          hora_checkin: string | null
+          hora_checkout: string | null
+          id: string
+          logo_url: string | null
+          moneda_principal: string | null
+          nombre_comercial: string | null
+          pagina_web: string | null
+          proveedor_sunat_config: Json | null
+          razon_social: string
+          ruc: string
+          tasa_icbper: number | null
+          tasa_igv: number | null
+          telefono: string | null
+          ubigeo_codigo: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          descripcion?: string | null
+          direccion_fiscal?: string | null
+          email?: string | null
+          es_exonerado_igv?: boolean | null
+          facturacion_activa?: boolean | null
+          hora_checkin?: string | null
+          hora_checkout?: string | null
+          id?: string
+          logo_url?: string | null
+          moneda_principal?: string | null
+          nombre_comercial?: string | null
+          pagina_web?: string | null
+          proveedor_sunat_config?: Json | null
+          razon_social: string
+          ruc: string
+          tasa_icbper?: number | null
+          tasa_igv?: number | null
+          telefono?: string | null
+          ubigeo_codigo?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          descripcion?: string | null
+          direccion_fiscal?: string | null
+          email?: string | null
+          es_exonerado_igv?: boolean | null
+          facturacion_activa?: boolean | null
+          hora_checkin?: string | null
+          hora_checkout?: string | null
+          id?: string
+          logo_url?: string | null
+          moneda_principal?: string | null
+          nombre_comercial?: string | null
+          pagina_web?: string | null
+          proveedor_sunat_config?: Json | null
+          razon_social?: string
+          ruc?: string
+          tasa_icbper?: number | null
+          tasa_igv?: number | null
+          telefono?: string | null
+          ubigeo_codigo?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       huespedes: {
         Row: {
           apellidos: string
-          ciudad_procedencia: string | null
+          correo: string | null
           created_at: string | null
-          email: string | null
           es_frecuente: boolean | null
+          fecha_nacimiento: string | null
           id: string
           nacionalidad: string | null
           nombres: string
-          num_doc: string
-          razon_social: string | null
+          notas_internas: string | null
+          numero_documento: string
+          procedencia_departamento: string | null
           telefono: string | null
-          tipo_doc: Database["public"]["Enums"]["tipo_doc_identidad"] | null
+          tipo_documento: string
         }
         Insert: {
           apellidos: string
-          ciudad_procedencia?: string | null
+          correo?: string | null
           created_at?: string | null
-          email?: string | null
           es_frecuente?: boolean | null
+          fecha_nacimiento?: string | null
           id?: string
           nacionalidad?: string | null
           nombres: string
-          num_doc: string
-          razon_social?: string | null
+          notas_internas?: string | null
+          numero_documento: string
+          procedencia_departamento?: string | null
           telefono?: string | null
-          tipo_doc?: Database["public"]["Enums"]["tipo_doc_identidad"] | null
+          tipo_documento: string
         }
         Update: {
           apellidos?: string
-          ciudad_procedencia?: string | null
+          correo?: string | null
           created_at?: string | null
-          email?: string | null
           es_frecuente?: boolean | null
+          fecha_nacimiento?: string | null
           id?: string
           nacionalidad?: string | null
           nombres?: string
-          num_doc?: string
-          razon_social?: string | null
+          notas_internas?: string | null
+          numero_documento?: string
+          procedencia_departamento?: string | null
           telefono?: string | null
-          tipo_doc?: Database["public"]["Enums"]["tipo_doc_identidad"] | null
+          tipo_documento?: string
         }
         Relationships: []
       }
       pagos: {
         Row: {
-          estadia_id: string | null
+          caja_turno_id: string
+          comprobante_id: string | null
           fecha_pago: string | null
           id: string
           metodo_pago: string
-          moneda: string | null
+          moneda_pago: Database["public"]["Enums"]["moneda_enum"] | null
           monto: number
-          notas: string | null
-          nro_operacion: string | null
-          tipo_cambio: number | null
-          turno_id: string | null
+          nota: string | null
+          referencia_pago: string | null
+          reserva_id: string
+          tipo_cambio_pago: number | null
         }
         Insert: {
-          estadia_id?: string | null
+          caja_turno_id: string
+          comprobante_id?: string | null
           fecha_pago?: string | null
           id?: string
           metodo_pago: string
-          moneda?: string | null
+          moneda_pago?: Database["public"]["Enums"]["moneda_enum"] | null
           monto: number
-          notas?: string | null
-          nro_operacion?: string | null
-          tipo_cambio?: number | null
-          turno_id?: string | null
+          nota?: string | null
+          referencia_pago?: string | null
+          reserva_id: string
+          tipo_cambio_pago?: number | null
         }
         Update: {
-          estadia_id?: string | null
+          caja_turno_id?: string
+          comprobante_id?: string | null
           fecha_pago?: string | null
           id?: string
           metodo_pago?: string
-          moneda?: string | null
+          moneda_pago?: Database["public"]["Enums"]["moneda_enum"] | null
           monto?: number
-          notas?: string | null
-          nro_operacion?: string | null
-          tipo_cambio?: number | null
-          turno_id?: string | null
+          nota?: string | null
+          referencia_pago?: string | null
+          reserva_id?: string
+          tipo_cambio_pago?: number | null
         }
         Relationships: [
           {
-            foreignKeyName: "pagos_estadia_id_fkey"
-            columns: ["estadia_id"]
+            foreignKeyName: "pagos_caja_turno_id_fkey"
+            columns: ["caja_turno_id"]
             isOneToOne: false
-            referencedRelation: "estadias"
+            referencedRelation: "caja_turnos"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "pagos_turno_id_fkey"
-            columns: ["turno_id"]
+            foreignKeyName: "pagos_comprobante_id_fkey"
+            columns: ["comprobante_id"]
             isOneToOne: false
-            referencedRelation: "turnos"
+            referencedRelation: "comprobantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_comprobante_id_fkey"
+            columns: ["comprobante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_historial_comprobantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_reserva_id_fkey"
+            columns: ["reserva_id"]
+            isOneToOne: false
+            referencedRelation: "reservas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_reserva_id_fkey"
+            columns: ["reserva_id"]
+            isOneToOne: false
+            referencedRelation: "vw_reservas_con_datos_basicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reserva_huespedes: {
+        Row: {
+          created_at: string | null
+          es_titular: boolean | null
+          huesped_id: string | null
+          id: string
+          reserva_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          es_titular?: boolean | null
+          huesped_id?: string | null
+          id?: string
+          reserva_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          es_titular?: boolean | null
+          huesped_id?: string | null
+          id?: string
+          reserva_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reserva_huespedes_huesped_id_fkey"
+            columns: ["huesped_id"]
+            isOneToOne: false
+            referencedRelation: "huespedes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reserva_huespedes_huesped_id_fkey"
+            columns: ["huesped_id"]
+            isOneToOne: false
+            referencedRelation: "vw_reservas_con_datos_basicos"
+            referencedColumns: ["titular_id"]
+          },
+          {
+            foreignKeyName: "reserva_huespedes_reserva_id_fkey"
+            columns: ["reserva_id"]
+            isOneToOne: false
+            referencedRelation: "reservas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reserva_huespedes_reserva_id_fkey"
+            columns: ["reserva_id"]
+            isOneToOne: false
+            referencedRelation: "vw_reservas_con_datos_basicos"
             referencedColumns: ["id"]
           },
         ]
       }
       reservas: {
         Row: {
-          adelanto_pagado: number | null
+          autorizado_descuento: boolean | null
+          canal_venta_id: string | null
+          check_in_real: string | null
+          check_out_real: string | null
+          codigo_reserva: string | null
           created_at: string | null
-          estado: Database["public"]["Enums"]["estado_reserva"] | null
-          fecha_llegada: string
+          estado: Database["public"]["Enums"]["estado_reserva_enum"] | null
+          fecha_entrada: string
           fecha_salida: string
           habitacion_id: string | null
-          huesped_titular_id: string | null
+          huesped_presente: boolean | null
           id: string
-          observaciones: string | null
-          origen: string | null
-          precio_pactado_total: number | null
+          moneda_pactada: Database["public"]["Enums"]["moneda_enum"] | null
+          precio_base_tarifa: number | null
+          precio_pactado: number
+          updated_at: string | null
         }
         Insert: {
-          adelanto_pagado?: number | null
+          autorizado_descuento?: boolean | null
+          canal_venta_id?: string | null
+          check_in_real?: string | null
+          check_out_real?: string | null
+          codigo_reserva?: string | null
           created_at?: string | null
-          estado?: Database["public"]["Enums"]["estado_reserva"] | null
-          fecha_llegada: string
+          estado?: Database["public"]["Enums"]["estado_reserva_enum"] | null
+          fecha_entrada: string
           fecha_salida: string
           habitacion_id?: string | null
-          huesped_titular_id?: string | null
+          huesped_presente?: boolean | null
           id?: string
-          observaciones?: string | null
-          origen?: string | null
-          precio_pactado_total?: number | null
+          moneda_pactada?: Database["public"]["Enums"]["moneda_enum"] | null
+          precio_base_tarifa?: number | null
+          precio_pactado: number
+          updated_at?: string | null
         }
         Update: {
-          adelanto_pagado?: number | null
+          autorizado_descuento?: boolean | null
+          canal_venta_id?: string | null
+          check_in_real?: string | null
+          check_out_real?: string | null
+          codigo_reserva?: string | null
           created_at?: string | null
-          estado?: Database["public"]["Enums"]["estado_reserva"] | null
-          fecha_llegada?: string
+          estado?: Database["public"]["Enums"]["estado_reserva_enum"] | null
+          fecha_entrada?: string
           fecha_salida?: string
           habitacion_id?: string | null
-          huesped_titular_id?: string | null
+          huesped_presente?: boolean | null
           id?: string
-          observaciones?: string | null
-          origen?: string | null
-          precio_pactado_total?: number | null
+          moneda_pactada?: Database["public"]["Enums"]["moneda_enum"] | null
+          precio_base_tarifa?: number | null
+          precio_pactado?: number
+          updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "reservas_canal_venta_id_fkey"
+            columns: ["canal_venta_id"]
+            isOneToOne: false
+            referencedRelation: "canales_venta"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reservas_habitacion_id_fkey"
             columns: ["habitacion_id"]
@@ -582,160 +753,323 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "reservas_huesped_titular_id_fkey"
-            columns: ["huesped_titular_id"]
+            foreignKeyName: "reservas_habitacion_id_fkey"
+            columns: ["habitacion_id"]
             isOneToOne: false
-            referencedRelation: "huespedes"
+            referencedRelation: "vw_habitaciones_disponibles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservas_habitacion_id_fkey"
+            columns: ["habitacion_id"]
+            isOneToOne: false
+            referencedRelation: "vw_reservas_con_datos_basicos"
+            referencedColumns: ["habitacion_id"]
           },
         ]
       }
-      series_comprobantes: {
+      series_comprobante: {
         Row: {
-          activo: boolean | null
-          correlativo_actual: number | null
+          caja_id: string | null
+          correlativo_actual: number
           id: string
           serie: string
-          tipo_comprobante: Database["public"]["Enums"]["tipo_comprobante"]
+          tipo_comprobante: Database["public"]["Enums"]["tipo_comprobante_enum"]
         }
         Insert: {
-          activo?: boolean | null
-          correlativo_actual?: number | null
+          caja_id?: string | null
+          correlativo_actual?: number
           id?: string
           serie: string
-          tipo_comprobante: Database["public"]["Enums"]["tipo_comprobante"]
+          tipo_comprobante: Database["public"]["Enums"]["tipo_comprobante_enum"]
         }
         Update: {
-          activo?: boolean | null
-          correlativo_actual?: number | null
+          caja_id?: string | null
+          correlativo_actual?: number
           id?: string
           serie?: string
-          tipo_comprobante?: Database["public"]["Enums"]["tipo_comprobante"]
+          tipo_comprobante?: Database["public"]["Enums"]["tipo_comprobante_enum"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "series_comprobante_caja_id_fkey"
+            columns: ["caja_id"]
+            isOneToOne: false
+            referencedRelation: "cajas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tarifas: {
         Row: {
           activa: boolean | null
-          categoria_id: string | null
+          categoria_habitacion_id: string | null
+          created_at: string | null
+          fecha_fin: string | null
+          fecha_inicio: string | null
           id: string
-          nombre: string
-          precio: number
+          nombre_tarifa: string
+          precio_base: number
+          precio_minimo: number
+          tipo_habitacion_id: string | null
         }
         Insert: {
           activa?: boolean | null
-          categoria_id?: string | null
+          categoria_habitacion_id?: string | null
+          created_at?: string | null
+          fecha_fin?: string | null
+          fecha_inicio?: string | null
           id?: string
-          nombre: string
-          precio: number
+          nombre_tarifa: string
+          precio_base: number
+          precio_minimo: number
+          tipo_habitacion_id?: string | null
         }
         Update: {
           activa?: boolean | null
-          categoria_id?: string | null
+          categoria_habitacion_id?: string | null
+          created_at?: string | null
+          fecha_fin?: string | null
+          fecha_inicio?: string | null
           id?: string
-          nombre?: string
-          precio?: number
+          nombre_tarifa?: string
+          precio_base?: number
+          precio_minimo?: number
+          tipo_habitacion_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "tarifas_categoria_id_fkey"
-            columns: ["categoria_id"]
+            foreignKeyName: "tarifas_categoria_habitacion_id_fkey"
+            columns: ["categoria_habitacion_id"]
             isOneToOne: false
-            referencedRelation: "categorias"
+            referencedRelation: "categorias_habitacion"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarifas_tipo_habitacion_id_fkey"
+            columns: ["tipo_habitacion_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_habitacion"
             referencedColumns: ["id"]
           },
         ]
       }
-      turnos: {
+      tipos_habitacion: {
         Row: {
-          estado: string | null
-          fin: string | null
+          capacidad_personas: number
+          created_at: string | null
           id: string
-          inicio: string | null
-          monto_final_real: number | null
-          monto_inicial: number
-          usuario_id: string | null
+          nombre: string
         }
         Insert: {
-          estado?: string | null
-          fin?: string | null
+          capacidad_personas?: number
+          created_at?: string | null
           id?: string
-          inicio?: string | null
-          monto_final_real?: number | null
-          monto_inicial: number
-          usuario_id?: string | null
+          nombre: string
         }
         Update: {
-          estado?: string | null
-          fin?: string | null
+          capacidad_personas?: number
+          created_at?: string | null
           id?: string
-          inicio?: string | null
-          monto_final_real?: number | null
-          monto_inicial?: number
-          usuario_id?: string | null
+          nombre?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "turnos_usuario_id_fkey"
-            columns: ["usuario_id"]
-            isOneToOne: false
-            referencedRelation: "usuarios"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       usuarios: {
         Row: {
-          activo: boolean | null
+          apellidos: string | null
           created_at: string | null
-          email: string
+          estado: boolean | null
           id: string
-          nombre_completo: string
-          rol: Database["public"]["Enums"]["rol_usuario"] | null
+          nombres: string
+          rol: Database["public"]["Enums"]["rol_usuario_enum"]
+          updated_at: string | null
         }
         Insert: {
-          activo?: boolean | null
+          apellidos?: string | null
           created_at?: string | null
-          email: string
+          estado?: boolean | null
           id: string
-          nombre_completo: string
-          rol?: Database["public"]["Enums"]["rol_usuario"] | null
+          nombres: string
+          rol?: Database["public"]["Enums"]["rol_usuario_enum"]
+          updated_at?: string | null
         }
         Update: {
-          activo?: boolean | null
+          apellidos?: string | null
           created_at?: string | null
-          email?: string
+          estado?: boolean | null
           id?: string
-          nombre_completo?: string
-          rol?: Database["public"]["Enums"]["rol_usuario"] | null
+          nombres?: string
+          rol?: Database["public"]["Enums"]["rol_usuario_enum"]
+          updated_at?: string | null
         }
         Relationships: []
       }
     }
     Views: {
-      [_ in never]: never
+      vw_habitaciones_disponibles: {
+        Row: {
+          capacidad_personas: number | null
+          categoria: string | null
+          estado_visual: string | null
+          id: string | null
+          numero: string | null
+          piso: string | null
+          precio_sugerido: number | null
+          tipo: string | null
+        }
+        Relationships: []
+      }
+      vw_historial_comprobantes: {
+        Row: {
+          caja_id: string | null
+          cdr_url: string | null
+          cliente_doc: string | null
+          cliente_nombre: string | null
+          created_at: string | null
+          emisor_nombre: string | null
+          emisor_rol: Database["public"]["Enums"]["rol_usuario_enum"] | null
+          estado_sunat: Database["public"]["Enums"]["estado_sunat_enum"] | null
+          external_id: string | null
+          fecha_emision: string | null
+          hash_cpe: string | null
+          id: string | null
+          moneda: Database["public"]["Enums"]["moneda_enum"] | null
+          monto_icbper: number | null
+          monto_igv: number | null
+          nota_credito_ref_id: string | null
+          numero: number | null
+          op_exoneradas: number | null
+          op_gravadas: number | null
+          op_inafectas: number | null
+          receptor_direccion: string | null
+          receptor_tipo_doc: string | null
+          reserva_id: string | null
+          serie: string | null
+          tipo_cambio: number | null
+          tipo_comprobante:
+            | Database["public"]["Enums"]["tipo_comprobante_enum"]
+            | null
+          total_venta: number | null
+          turno_caja_id: string | null
+          usuario_id: string | null
+          xml_url: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caja_turnos_caja_id_fkey"
+            columns: ["caja_id"]
+            isOneToOne: false
+            referencedRelation: "cajas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caja_turnos_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comprobantes_nota_credito_ref_id_fkey"
+            columns: ["nota_credito_ref_id"]
+            isOneToOne: false
+            referencedRelation: "comprobantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comprobantes_nota_credito_ref_id_fkey"
+            columns: ["nota_credito_ref_id"]
+            isOneToOne: false
+            referencedRelation: "vw_historial_comprobantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comprobantes_reserva_id_fkey"
+            columns: ["reserva_id"]
+            isOneToOne: false
+            referencedRelation: "reservas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comprobantes_reserva_id_fkey"
+            columns: ["reserva_id"]
+            isOneToOne: false
+            referencedRelation: "vw_reservas_con_datos_basicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comprobantes_turno_caja_id_fkey"
+            columns: ["turno_caja_id"]
+            isOneToOne: false
+            referencedRelation: "caja_turnos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_reservas_con_datos_basicos: {
+        Row: {
+          categoria_habitacion: string | null
+          check_in_real: string | null
+          check_out_real: string | null
+          codigo_reserva: string | null
+          created_at: string | null
+          estado: Database["public"]["Enums"]["estado_reserva_enum"] | null
+          fecha_entrada: string | null
+          fecha_salida: string | null
+          habitacion_id: string | null
+          habitacion_numero: string | null
+          habitacion_piso: string | null
+          huesped_presente: boolean | null
+          id: string | null
+          moneda_pactada: Database["public"]["Enums"]["moneda_enum"] | null
+          precio_pactado: number | null
+          tipo_habitacion: string | null
+          titular_correo: string | null
+          titular_id: string | null
+          titular_nacionalidad: string | null
+          titular_nombre: string | null
+          titular_numero_doc: string | null
+          titular_telefono: string | null
+          titular_tipo_doc: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      calcular_movimientos_turno: {
+        Args: { p_turno_id: string }
+        Returns: {
+          total_egresos_pen: number
+          total_egresos_usd: number
+          total_ingresos_pen: number
+          total_ingresos_usd: number
+        }[]
+      }
       obtener_siguiente_correlativo: {
         Args: { p_serie: string }
         Returns: number
       }
     }
     Enums: {
-      estado_estadia: "ACTIVA" | "FINALIZADA"
-      estado_limpieza: "LIMPIA" | "SUCIA"
-      estado_ocupacion: "DISPONIBLE" | "OCUPADA" | "MANTENIMIENTO"
-      estado_reserva: "PENDIENTE" | "CONFIRMADA" | "CANCELADA" | "NOSHOW"
-      estado_sunat:
-        | "PENDIENTE"
-        | "ENVIADO"
-        | "ACEPTADO"
-        | "RECHAZADO"
-        | "ANULADO"
-      rol_usuario: "admin" | "recepcion" | "limpieza" | "contador"
-      tipo_comprobante: "BOLETA" | "FACTURA" | "NOTA_CREDITO" | "NOTA_DEBITO"
-      tipo_doc_identidad: "DNI" | "RUC" | "PASAPORTE" | "CARNET_EXT" | "OTROS"
-      ubicacion_llave: "RECEPCION" | "CLIENTE"
+      estado_limpieza_enum: "LIMPIA" | "SUCIA" | "EN_LIMPIEZA"
+      estado_ocupacion_enum: "LIBRE" | "OCUPADA"
+      estado_reserva_enum:
+        | "RESERVADA"
+        | "CHECKED_IN"
+        | "CHECKED_OUT"
+        | "CANCELADA"
+        | "NO_SHOW"
+      estado_servicio_enum: "OPERATIVA" | "MANTENIMIENTO" | "FUERA_SERVICIO"
+      estado_sunat_enum: "PENDIENTE" | "ACEPTADO" | "RECHAZADO" | "ANULADO"
+      moneda_enum: "PEN" | "USD"
+      rol_usuario_enum: "ADMIN" | "RECEPCION" | "HOUSEKEEPING"
+      tipo_comprobante_enum:
+        | "BOLETA"
+        | "FACTURA"
+        | "NOTA_CREDITO"
+        | "TICKET_INTERNO"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -863,21 +1197,25 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      estado_estadia: ["ACTIVA", "FINALIZADA"],
-      estado_limpieza: ["LIMPIA", "SUCIA"],
-      estado_ocupacion: ["DISPONIBLE", "OCUPADA", "MANTENIMIENTO"],
-      estado_reserva: ["PENDIENTE", "CONFIRMADA", "CANCELADA", "NOSHOW"],
-      estado_sunat: [
-        "PENDIENTE",
-        "ENVIADO",
-        "ACEPTADO",
-        "RECHAZADO",
-        "ANULADO",
+      estado_limpieza_enum: ["LIMPIA", "SUCIA", "EN_LIMPIEZA"],
+      estado_ocupacion_enum: ["LIBRE", "OCUPADA"],
+      estado_reserva_enum: [
+        "RESERVADA",
+        "CHECKED_IN",
+        "CHECKED_OUT",
+        "CANCELADA",
+        "NO_SHOW",
       ],
-      rol_usuario: ["admin", "recepcion", "limpieza", "contador"],
-      tipo_comprobante: ["BOLETA", "FACTURA", "NOTA_CREDITO", "NOTA_DEBITO"],
-      tipo_doc_identidad: ["DNI", "RUC", "PASAPORTE", "CARNET_EXT", "OTROS"],
-      ubicacion_llave: ["RECEPCION", "CLIENTE"],
+      estado_servicio_enum: ["OPERATIVA", "MANTENIMIENTO", "FUERA_SERVICIO"],
+      estado_sunat_enum: ["PENDIENTE", "ACEPTADO", "RECHAZADO", "ANULADO"],
+      moneda_enum: ["PEN", "USD"],
+      rol_usuario_enum: ["ADMIN", "RECEPCION", "HOUSEKEEPING"],
+      tipo_comprobante_enum: [
+        "BOLETA",
+        "FACTURA",
+        "NOTA_CREDITO",
+        "TICKET_INTERNO",
+      ],
     },
   },
 } as const

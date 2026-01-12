@@ -8,7 +8,24 @@ import { KpiChips } from './kpi-chips'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { buscarGlobal } from '@/lib/actions/rack'
 import { cn } from '@/lib/utils'
-import type { RackKPIs } from '@/lib/actions/rack'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
+
+// Definimos el tipo localmente para evitar problemas de exportación
+export type RackKPIs = {
+  llegadas: number
+  salidas: number
+  sucias: number
+  ocupadas: number
+}
 
 type Props = {
   kpis: RackKPIs
@@ -34,7 +51,7 @@ export function CommandBar({ kpis, viewMode, onViewModeChange }: Props) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Búsqueda con debounce
+  // Búsqueda con debounce y aplanado de resultados
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([])
@@ -45,8 +62,31 @@ export function CommandBar({ kpis, viewMode, onViewModeChange }: Props) {
     const timer = setTimeout(async () => {
       setIsSearching(true)
       try {
-        const results = await buscarGlobal(searchQuery)
-        setSearchResults(results)
+        const data = await buscarGlobal(searchQuery)
+
+        // Aplanar resultados para la lista unificada
+        const flatResults = [
+          ...data.reservas.map((r: any) => ({
+            type: 'reserva',
+            title: `Reserva ${r.codigo_reserva}`,
+            subtitle: `Hab: ${r.habitaciones?.numero} - ${new Date(r.fecha_entrada).toLocaleDateString()}`,
+            data: r
+          })),
+          ...data.huespedes.map((h: any) => ({
+            type: 'huesped',
+            title: `${h.nombres} ${h.apellidos}`,
+            subtitle: `Doc: ${h.numero_documento}`,
+            data: h
+          })),
+          ...data.habitaciones.map((h: any) => ({
+            type: 'habitacion',
+            title: `Habitación ${h.numero}`,
+            subtitle: h.estado_ocupacion,
+            data: h
+          }))
+        ]
+
+        setSearchResults(flatResults)
         setShowResults(true)
       } catch (error) {
         console.error('Error en búsqueda:', error)
@@ -68,25 +108,37 @@ export function CommandBar({ kpis, viewMode, onViewModeChange }: Props) {
 
   return (
     <div className="border-b bg-background">
-      <div className="flex h-14 items-center justify-between gap-4 px-4">
-        {/* Left side: Logo + Search */}
-        <div className="flex items-center gap-4">
-          {/* Logo/Title */}
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold">Rack</h1>
-          </div>
+      <div className="flex h-16 items-center px-4 gap-4">
 
-          {/* Omnibox - Buscador Global */}
-          <div className="relative w-96" ref={searchRef}>
+        {/* Left: Trigger + Breadcrumb */}
+        <div className="flex items-center gap-2 min-w-fit">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem className="hidden md:block">
+                <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator className="hidden md:block" />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Rack</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </div>
+
+        {/* Center: Search Box */}
+        <div className="flex-1 max-w-md mx-auto hidden md:block">
+          <div className="relative" ref={searchRef}>
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar huésped, reserva o habitación..."
-              className="pl-9"
+              placeholder="Buscar huésped, reserva, habitación..."
+              className="pl-9 h-9 bg-muted/40 border-muted-foreground/20"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => searchResults.length > 0 && setShowResults(true)}
             />
-            
+
             {/* Resultados flotantes */}
             {showResults && (
               <div className="absolute top-full mt-1 w-full bg-popover border rounded-md shadow-lg z-50 max-h-96 overflow-y-auto">
@@ -100,12 +152,13 @@ export function CommandBar({ kpis, viewMode, onViewModeChange }: Props) {
                   </div>
                 ) : (
                   <div className="py-2">
-                    {searchResults.map((result, index) => (
+                    {searchResults.map((result: any, index: number) => (
                       <button
                         key={index}
                         className="w-full px-4 py-2 text-left hover:bg-accent flex items-center gap-3 transition-colors"
                         onClick={() => {
-                          // TODO: Implementar acción de click (scroll al elemento, abrir detalle)
+                          // TODO: Implementar navegación
+                          console.log('Selected:', result)
                           setShowResults(false)
                           setSearchQuery('')
                         }}
@@ -113,10 +166,10 @@ export function CommandBar({ kpis, viewMode, onViewModeChange }: Props) {
                         {getIconForType(result.type)}
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm truncate">
-                            {result.titulo}
+                            {result.title}
                           </div>
                           <div className="text-xs text-muted-foreground truncate">
-                            {result.subtitulo}
+                            {result.subtitle}
                           </div>
                         </div>
                       </button>
@@ -129,27 +182,31 @@ export function CommandBar({ kpis, viewMode, onViewModeChange }: Props) {
         </div>
 
         {/* Right side: KPIs + Actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 ml-auto">
           {/* View Toggle */}
           <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && onViewModeChange(value as 'rack' | 'cards')}>
-            <ToggleGroupItem value="rack" aria-label="Vista Rack" size="sm">
+            <ToggleGroupItem value="rack" aria-label="Vista Rack" size="sm" className="h-8 w-8 p-0">
               <LayoutList className="h-4 w-4" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="cards" aria-label="Vista Tarjetas" size="sm">
+            <ToggleGroupItem value="cards" aria-label="Vista Tarjetas" size="sm" className="h-8 w-8 p-0">
               <LayoutGrid className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
 
-          {/* KPI Chips */}
-          <KpiChips kpis={kpis} />
+          <div className="h-4 w-px bg-border mx-2 hidden sm:block" />
 
-          {/* Actions */}
-          <div className="flex items-center gap-2">
-            <Button>
-              <Plus className="h-4 w-4" />
-              Nueva Reserva
-            </Button>
+          <div className="hidden sm:block">
+            <KpiChips kpis={kpis} />
           </div>
+
+          <div className="h-4 w-px bg-border mx-2 hidden sm:block" />
+
+          {/* New Reservation */}
+          <Button size="sm" className="h-8">
+            <Plus className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Nueva Reserva</span>
+            <span className="sm:hidden">Nueva</span>
+          </Button>
         </div>
       </div>
     </div>

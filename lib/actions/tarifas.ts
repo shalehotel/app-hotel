@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logger } from '@/lib/logger'
+import { getErrorMessage } from '@/lib/errors'
 
 // ========================================
 // TYPES
@@ -37,7 +39,7 @@ export async function getTarifas() {
     .order('created_at', { ascending: false })
 
   if (error) {
-    console.error('Error fetching tarifas:', error)
+    logger.error('Error al obtener tarifas', { action: 'getTarifas', originalError: getErrorMessage(error) })
     throw new Error('Error al obtener tarifas')
   }
 
@@ -83,7 +85,7 @@ export async function createTarifa(formData: FormData) {
   })
 
   if (error) {
-    console.error('Error creating tarifa:', error)
+    logger.error('Error al crear tarifa', { action: 'createTarifa', originalError: getErrorMessage(error) })
     throw new Error('Error al crear tarifa')
   }
 
@@ -127,7 +129,7 @@ export async function updateTarifa(id: string, formData: FormData) {
     .eq('id', id)
 
   if (error) {
-    console.error('Error updating tarifa:', error)
+    logger.error('Error al actualizar tarifa', { action: 'updateTarifa', originalError: getErrorMessage(error) })
     throw new Error('Error al actualizar tarifa')
   }
 
@@ -146,7 +148,7 @@ export async function toggleTarifaActiva(id: string, activa: boolean) {
     .eq('id', id)
 
   if (error) {
-    console.error('Error toggling tarifa:', error)
+    logger.error('Error al cambiar estado de tarifa', { action: 'toggleTarifaActiva', originalError: getErrorMessage(error) })
     throw new Error('Error al cambiar estado de tarifa')
   }
 
@@ -172,7 +174,7 @@ export async function deleteTarifa(id: string) {
     .eq('id', id)
 
   if (error) {
-    console.error('Error deleting tarifa:', error)
+    logger.error('Error al eliminar tarifa', { action: 'deleteTarifa', originalError: getErrorMessage(error) })
     throw new Error('Error al eliminar tarifa')
   }
 

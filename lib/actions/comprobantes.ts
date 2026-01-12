@@ -13,25 +13,25 @@ export type Comprobante = {
   serie_numero: string
   correlativo: number
   numero_completo: string
-  
+
   // Cliente
   cliente_tipo_doc: string
   cliente_numero_doc: string
   cliente_nombre: string
   cliente_direccion: string | null
-  
+
   // Montos
   subtotal: number
   igv: number
   total: number
   moneda: 'PEN' | 'USD'
-  
+
   // SUNAT
   estado_sunat: 'PENDIENTE' | 'ACEPTADO' | 'RECHAZADO' | 'ANULADO'
   hash_cpe: string | null
   xml_firmado: string | null
   pdf_url: string | null
-  
+
   // Auditoría
   fecha_emision: string
   usuario_emisor_id: string
@@ -42,16 +42,16 @@ export type EmitirComprobanteInput = {
   reserva_id: string
   tipo_comprobante: 'BOLETA' | 'FACTURA'
   serie: string  // Serie como texto, ej: 'B001', 'F001'
-  
+
   // Datos del cliente
   cliente_tipo_doc: 'DNI' | 'RUC' | 'PASAPORTE' | 'CE'
   cliente_numero_doc: string
   cliente_nombre: string
   cliente_direccion?: string
-  
+
   // Items del comprobante
   items: ComprobanteItem[]
-  
+
   // Observaciones
   observaciones?: string
 }
@@ -146,12 +146,12 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
       tipo_comprobante: input.tipo_comprobante,
       serie: input.serie,
       numero: correlativo,
-      
+
       receptor_tipo_doc: input.cliente_tipo_doc,
       receptor_nro_doc: input.cliente_numero_doc,
       receptor_razon_social: input.cliente_nombre,
       receptor_direccion: input.cliente_direccion,
-      
+
       moneda: 'PEN',
       tipo_cambio: 1.000,
       op_gravadas: op_gravadas,
@@ -160,7 +160,7 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
       monto_igv: monto_igv,
       monto_icbper: 0.00,
       total_venta: total_venta,
-      
+
       estado_sunat: 'PENDIENTE',
       fecha_emision: new Date().toISOString(),
     })
@@ -471,4 +471,146 @@ export async function getComprobantesPendientesSunat() {
   }
 
   return data || []
+}
+
+// ========================================
+// EMITIR NOTA DE CRÉDITO PARCIAL
+// ========================================
+// Tipo 07: Devolución parcial por ítem (usado para acortamiento de estadía)
+export type EmitirNotaCreditoInput = {
+  comprobante_original_id: string
+  monto_devolucion: number
+  motivo: string
+  dias_devueltos?: number
+}
+
+export async function emitirNotaCreditoParcial(input: EmitirNotaCreditoInput) {
+  const supabase = await createClient()
+
+  try {
+    // 1. Obtener comprobante original
+    const { data: comprobanteOriginal, error: comprobanteError } = await supabase
+      .from('comprobantes')
+      .select('*')
+      .eq('id', input.comprobante_original_id)
+      .single()
+
+    if (comprobanteError || !comprobanteOriginal) {
+      return { success: false, error: 'Comprobante original no encontrado' }
+    }
+
+    if (comprobanteOriginal.estado_sunat === 'ANULADO') {
+      return { success: false, error: 'No se puede emitir NC sobre comprobante anulado' }
+    }
+
+    // 2. Obtener turno de caja activo
+    const { data: turnoActivo, error: turnoError } = await supabase
+      .from('caja_turnos')
+      .select('id')
+      .eq('estado', 'ABIERTA')
+      .single()
+
+    if (turnoError || !turnoActivo) {
+      return { success: false, error: 'No hay un turno de caja activo' }
+    }
+
+    // 3. Obtener serie de NC (buscar serie NC disponible)
+    const { data: serieNC } = await supabase
+      .from('series_comprobante')
+      .select('serie')
+      .eq('tipo_comprobante', 'NOTA_CREDITO')
+      .limit(1)
+      .single()
+
+    if (!serieNC) {
+      return { success: false, error: 'No hay serie de Nota de Crédito configurada' }
+    }
+
+    // 4. Obtener siguiente correlativo
+    const { data: correlativo, error: corrError } = await supabase
+      .rpc('obtener_siguiente_correlativo', { p_serie: serieNC.serie })
+
+    if (corrError || !correlativo) {
+      return { success: false, error: 'Error al obtener correlativo' }
+    }
+
+    // 5. Calcular montos de la NC
+    const monto_devolucion = input.monto_devolucion
+    const base_imponible = monto_devolucion / 1.18  // Descontar IGV
+    const igv = monto_devolucion - base_imponible
+
+    // 6. Crear la Nota de Crédito
+    const { data: notaCredito, error: ncError } = await supabase
+      .from('comprobantes')
+      .insert({
+        turno_caja_id: turnoActivo.id,
+        reserva_id: comprobanteOriginal.reserva_id,
+        tipo_comprobante: 'NOTA_CREDITO',
+        serie: serieNC.serie,
+        numero: correlativo,
+
+        // Datos del receptor (mismo que original)
+        receptor_tipo_doc: comprobanteOriginal.receptor_tipo_doc,
+        receptor_nro_doc: comprobanteOriginal.receptor_nro_doc,
+        receptor_razon_social: comprobanteOriginal.receptor_razon_social,
+        receptor_direccion: comprobanteOriginal.receptor_direccion,
+
+        // Montos (negativos conceptualmente, pero se guardan positivos)
+        moneda: comprobanteOriginal.moneda,
+        tipo_cambio: 1.000,
+        op_gravadas: base_imponible,
+        op_exoneradas: 0.00,
+        op_inafectas: 0.00,
+        monto_igv: igv,
+        monto_icbper: 0.00,
+        total_venta: monto_devolucion,
+
+        // Referencia al comprobante original
+        nota_credito_ref_id: comprobanteOriginal.id,
+
+        estado_sunat: 'PENDIENTE',
+        fecha_emision: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (ncError) {
+      console.error('Error al crear NC:', ncError)
+      return { success: false, error: 'Error al emitir Nota de Crédito' }
+    }
+
+    // 7. Crear detalle de la NC
+    const descripcionItem = input.dias_devueltos
+      ? `Devolución por acortamiento de estadía (${input.dias_devueltos} noches)`
+      : `Devolución parcial: ${input.motivo}`
+
+    await supabase
+      .from('comprobante_detalles')
+      .insert({
+        comprobante_id: notaCredito.id,
+        descripcion: descripcionItem,
+        cantidad: input.dias_devueltos || 1,
+        precio_unitario: base_imponible / (input.dias_devueltos || 1),
+        subtotal: base_imponible,
+        codigo_afectacion_igv: '10'  // Gravado
+      })
+
+    revalidatePath('/comprobantes')
+
+    const numeroCompleto = `${serieNC.serie}-${String(correlativo).padStart(8, '0')}`
+
+    return {
+      success: true,
+      notaCredito: {
+        id: notaCredito.id,
+        numero: numeroCompleto,
+        monto: monto_devolucion
+      },
+      mensaje: `Nota de Crédito ${numeroCompleto} emitida por S/${monto_devolucion.toFixed(2)}`
+    }
+
+  } catch (error) {
+    console.error('Error en emitirNotaCreditoParcial:', error)
+    return { success: false, error: 'Error al procesar la Nota de Crédito' }
+  }
 }

@@ -70,6 +70,28 @@ interface NacionalidadComboboxProps {
 
 export function NacionalidadCombobox({ value, onValueChange, disabled }: NacionalidadComboboxProps) {
     const [open, setOpen] = React.useState(false)
+    const [inputValue, setInputValue] = React.useState(value || '')
+
+    // Sincronizar inputValue con value cuando cambia externamente
+    React.useEffect(() => {
+        setInputValue(value || '')
+    }, [value])
+
+    const filteredNacionalidades = NACIONALIDADES.filter((nac) =>
+        nac.toLowerCase().includes(inputValue.toLowerCase())
+    )
+
+    const handleInputChange = (newValue: string) => {
+        setInputValue(newValue)
+        // Actualizar el valor en tiempo real para permitir valores personalizados
+        onValueChange(newValue)
+    }
+
+    const handleSelect = (selectedValue: string) => {
+        onValueChange(selectedValue)
+        setInputValue(selectedValue)
+        setOpen(false)
+    }
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -81,24 +103,33 @@ export function NacionalidadCombobox({ value, onValueChange, disabled }: Naciona
                     className="w-full justify-between"
                     disabled={disabled}
                 >
-                    {value || 'Selecciona nacionalidad...'}
+                    {value || 'Selecciona o escribe...'}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-full p-0" align="start">
-                <Command>
-                    <CommandInput placeholder="Buscar nacionalidad..." />
+                <Command shouldFilter={false}>
+                    <CommandInput
+                        placeholder="Buscar o escribir nacionalidad..."
+                        value={inputValue}
+                        onValueChange={handleInputChange}
+                    />
                     <CommandList>
-                        <CommandEmpty>No se encontró la nacionalidad.</CommandEmpty>
+                        {filteredNacionalidades.length === 0 && inputValue && (
+                            <CommandItem
+                                value={inputValue}
+                                onSelect={() => handleSelect(inputValue)}
+                            >
+                                <Check className="mr-2 h-4 w-4 opacity-0" />
+                                Usar "{inputValue}"
+                            </CommandItem>
+                        )}
                         <CommandGroup>
-                            {NACIONALIDADES.map((nacionalidad) => (
+                            {filteredNacionalidades.map((nacionalidad) => (
                                 <CommandItem
                                     key={nacionalidad}
                                     value={nacionalidad}
-                                    onSelect={(currentValue) => {
-                                        onValueChange(currentValue === value.toLowerCase() ? '' : nacionalidad)
-                                        setOpen(false)
-                                    }}
+                                    onSelect={() => handleSelect(nacionalidad)}
                                 >
                                     <Check
                                         className={cn(

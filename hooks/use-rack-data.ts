@@ -8,10 +8,8 @@ import {
   getRackReservas,
   getRackKPIs,
   getTareasDelDia,
-  type RackHabitacion,
-  type RackReserva,
-  type RackKPIs
 } from '@/lib/actions/rack'
+import type { RackHabitacion, RackReserva, RackKPIs } from '@/types/rack'
 
 type TareasDelDia = {
   checkins: any[]
@@ -40,7 +38,7 @@ export function useRackData(daysRange = 30) {
   // Esto prioriza la venta futura sobre el historial
   const today = startOfDay(new Date())
   const PAST_DAYS_CONTEXT = 3
-  
+
   const startDate = addDays(today, -PAST_DAYS_CONTEXT)
   const endDate = addDays(today, daysRange - PAST_DAYS_CONTEXT)
 

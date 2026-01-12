@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useRef, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import {
   Tooltip,
@@ -10,7 +11,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { differenceInDays, format } from 'date-fns'
+import { differenceInDays, format, addDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
   DollarSign,
@@ -19,16 +20,19 @@ import {
   Moon,
   CreditCard,
   MessageSquare,
-  User
+  User,
+  GripVertical
 } from 'lucide-react'
 import { ReservationContextMenu } from '../context-menu/reservation-context-menu'
-import type { RackReserva } from '@/lib/actions/rack'
+import type { RackReserva } from '@/types/rack'
 
 type Props = {
   reserva: RackReserva
   nights: number
   onClick: (id: string) => void
   onUpdate: () => void
+  onResizeStart?: (reservaId: string) => void
+  onResizeEnd?: (reservaId: string, newNights: number, newFechaSalida: string) => void
 }
 
 export function ReservationBlock({ reserva, nights, onClick, onUpdate }: Props) {

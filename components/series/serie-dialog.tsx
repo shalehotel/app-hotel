@@ -25,7 +25,7 @@ import { getCajas } from '@/lib/actions/cajas'
 import type { Database } from '@/types/database.types'
 
 type Caja = Database['public']['Tables']['cajas']['Row']
-type TipoComprobante = Database['public']['Enums']['tipo_comprobante']
+type TipoComprobante = Database['public']['Enums']['tipo_comprobante_enum']
 
 // Tipo para el objeto que se pasa al editar
 type Serie = {
@@ -178,7 +178,7 @@ export function SerieDialog({ open, onOpenChange, serie, onSuccess }: SerieDialo
                 <SelectItem value="BOLETA">Boleta</SelectItem>
                 <SelectItem value="FACTURA">Factura</SelectItem>
                 <SelectItem value="NOTA_CREDITO">Nota de Crédito</SelectItem>
-                <SelectItem value="NOTA_DEBITO">Nota de Débito</SelectItem>
+                <SelectItem value="TICKET_INTERNO">Ticket Interno</SelectItem>
               </SelectContent>
             </Select>
           </div>

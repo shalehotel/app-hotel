@@ -4,7 +4,9 @@ import { DirectorioHuespedesClient } from './directorio-huespedes-client'
 import { DashboardHeader } from '@/components/dashboard-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Users, Star, AlertCircle, TrendingUp } from 'lucide-react'
+import { Users, Star, AlertCircle, TrendingUp, BookOpen } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 export const metadata = {
   title: 'Directorio de Huéspedes',
@@ -60,19 +62,27 @@ export default async function DirectorioHuespedesPage() {
 
   return (
     <>
-      <DashboardHeader 
+      <DashboardHeader
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Directorio de Huéspedes' }
         ]}
       />
-      
+
       <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
-        <div className="space-y-1">
-          <h2 className="text-2xl font-bold tracking-tight">Directorio de Huéspedes</h2>
-          <p className="text-sm text-muted-foreground">
-            Historial completo de clientes y estadísticas
-          </p>
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold tracking-tight">Directorio de Huéspedes</h2>
+            <p className="text-sm text-muted-foreground">
+              Historial completo de clientes y estadísticas
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <Link href="/huespedes/registro-legal">
+              <BookOpen className="mr-2 h-4 w-4" />
+              Libro de Registro Legal
+            </Link>
+          </Button>
         </div>
 
         <Suspense fallback={<SkeletonStats />}>

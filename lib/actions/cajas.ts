@@ -20,7 +20,7 @@ export type CajaWithStats = Caja & {
   ultimo_cierre?: string
 }
 
-type Result<T = any> = 
+type Result<T = any> =
   | { success: true; data: T }
   | { success: false; error: string }
 
@@ -105,6 +105,72 @@ export async function getCajasWithStats(): Promise<Result<CajaWithStats[]>> {
     console.error('Error al obtener cajas con stats:', error)
     return { success: false, error: error.message }
   }
+}
+
+/**
+ * Abrir nuevo turno
+ */
+export async function abrirTurno(data: {
+  caja_id: string
+  monto_apertura_pen: number
+  monto_apertura_usd?: number
+  usuario_id?: string
+}): Promise<Result<{ id: string }>> {
+  const supabase = await createClient()
+
+  // Usar usuario_id proporcionado o el del usuario autenticado
+  let userId = data.usuario_id
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'No autenticado' }
+    userId = user.id
+  }
+
+  // Verificar si ya tiene turno abierto
+  const { data: turnoActivo } = await supabase
+    .from('caja_turnos')
+    .select('id')
+    .eq('usuario_id', userId)
+    .eq('estado', 'ABIERTA')
+    .maybeSingle() // Usar maybeSingle para evitar error si hay multiples (aunque no deberia)
+
+  if (turnoActivo) {
+    return { success: false, error: 'Ya tienes un turno abierto' }
+  }
+
+  // Verificar si la caja está ocupada
+  const { data: cajaOcupada } = await supabase
+    .from('caja_turnos')
+    .select('id')
+    .eq('caja_id', data.caja_id)
+    .eq('estado', 'ABIERTA')
+    .maybeSingle()
+
+  if (cajaOcupada) {
+    return { success: false, error: 'Esta caja ya está ocupada por otro usuario' }
+  }
+
+  // Insertar turno
+  const { data: nuevoTurno, error } = await supabase
+    .from('caja_turnos')
+    .insert({
+      caja_id: data.caja_id,
+      usuario_id: userId,
+      monto_apertura: data.monto_apertura_pen,
+      monto_apertura_usd: data.monto_apertura_usd || 0,
+      fecha_apertura: new Date().toISOString(),
+      estado: 'ABIERTA'
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('Error al abrir turno:', error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath('/cajas')
+  return { success: true, data: { id: nuevoTurno.id } }
 }
 
 /**
@@ -337,9 +403,9 @@ export async function deleteCaja(id: string): Promise<Result<void>> {
       .single()
 
     if (turnoActivo) {
-      return { 
-        success: false, 
-        error: 'No se puede eliminar una caja con turnos activos. Cierra el turno primero.' 
+      return {
+        success: false,
+        error: 'No se puede eliminar una caja con turnos activos. Cierra el turno primero.'
       }
     }
 
@@ -455,6 +521,13 @@ export interface DetalleTurno {
     total_esperado_usd: number
     diferencia_pen?: number
     diferencia_usd?: number
+    desglose_metodos_pago?: {
+      efectivo: number
+      tarjeta: number
+      billetera: number
+      transferencia: number
+      otros: number
+    }
   }
 }
 
@@ -559,7 +632,8 @@ export async function getTurnoActivo(userId?: string): Promise<DetalleTurno | nu
     `)
     .eq('usuario_id', userId)
     .eq('estado', 'ABIERTA')
-    .single()
+    .limit(1)
+    .maybeSingle()
 
   if (turnoError) {
     console.log('[getTurnoActivo] Error al buscar turno:', turnoError.message)
@@ -653,12 +727,14 @@ export async function getTurnoActivo(userId?: string): Promise<DetalleTurno | nu
 }
 
 /**
- * Obtener todos los turnos activos (SOLO ADMIN)
+ * Obtener todos los turnos activos
+ * - Si es ADMIN: Ve todos los turnos abiertos
+ * - Si es RECEPCION: Ve solo su propio turno abierto
  */
 export async function getTodosLosTurnosActivos(): Promise<DetalleTurno[]> {
   const supabase = await createClient()
 
-  // Verificar que el usuario sea ADMIN
+  // Verificar usuario
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('No autenticado')
 
@@ -668,11 +744,15 @@ export async function getTodosLosTurnosActivos(): Promise<DetalleTurno[]> {
     .eq('id', user.id)
     .single()
 
-  if (!usuario || usuario.rol !== 'ADMIN') {
-    throw new Error('Acceso denegado: Se requiere rol ADMIN')
+  if (!usuario) throw new Error('Usuario no encontrado')
+
+  // Si no es ADMIN, devolver solo su turno
+  if (usuario.rol !== 'ADMIN') {
+    const miTurno = await getTurnoActivo(user.id)
+    return miTurno ? [miTurno] : []
   }
 
-  // Obtener todos los turnos abiertos
+  // Si es ADMIN, obtener todos los turnos abiertos
   const { data: turnos, error } = await supabase
     .from('caja_turnos')
     .select(`
@@ -808,6 +888,160 @@ export async function getDetalleTurnoCerrado(turnoId: string): Promise<DetalleTu
 }
 
 /**
+ * Obtener detalle de un turno activo por ID (para página de gestionar)
+ */
+export async function getDetalleTurnoActivo(turnoId: string): Promise<DetalleTurno | null> {
+  const supabase = await createClient()
+
+  const { data: turno, error: turnoError } = await supabase
+    .from('caja_turnos')
+    .select(`
+      id,
+      fecha_apertura,
+      fecha_cierre,
+      monto_apertura,
+      monto_apertura_usd,
+      monto_cierre_sistema,
+      monto_cierre_declarado,
+      monto_cierre_sistema_usd,
+      monto_cierre_declarado_usd,
+      estado,
+      cajas!inner(nombre),
+      usuarios!inner(nombres, apellidos)
+    `)
+    .eq('id', turnoId)
+    .eq('estado', 'ABIERTA')
+    .single()
+
+  if (turnoError || !turno) {
+    console.log('[getDetalleTurnoActivo] Turno no encontrado:', turnoId)
+    return null
+  }
+
+  const { data: movimientos, error: movError } = await supabase
+    .from('caja_movimientos')
+    .select(`
+      id,
+      tipo,
+      categoria,
+      moneda,
+      monto,
+      motivo,
+      comprobante_referencia,
+      created_at,
+      usuarios!inner(nombres, apellidos)
+    `)
+    .eq('caja_turno_id', turno.id)
+    .order('created_at', { ascending: false })
+
+  if (movError) {
+    console.error('Error al obtener movimientos:', movError)
+    return null
+  }
+
+  const { data: stats } = await supabase.rpc('calcular_movimientos_turno', {
+    p_turno_id: turno.id
+  })
+
+  const estadisticas = stats?.[0] || {
+    total_ingresos_pen: 0,
+    total_ingresos_usd: 0,
+    total_egresos_pen: 0,
+    total_egresos_usd: 0,
+  }
+
+  const flujo_neto_pen = estadisticas.total_ingresos_pen - estadisticas.total_egresos_pen
+  const flujo_neto_usd = estadisticas.total_ingresos_usd - estadisticas.total_egresos_usd
+
+  // Calcular desglose por método de pago consultando la tabla de pagos
+  const { data: pagos } = await supabase
+    .from('pagos')
+    .select('metodo_pago, monto, moneda_pago, tipo_cambio_pago')
+    .eq('caja_turno_id', turno.id)
+
+  const desglose = {
+    efectivo: 0,
+    tarjeta: 0,
+    billetera: 0,
+    transferencia: 0,
+    otros: 0
+  }
+
+  // Ingresos reportados en pagos
+  if (pagos) {
+    pagos.forEach(p => {
+      // Normalizar todo a PEN para el desglose visual principal
+      const montoEnPen = p.moneda_pago === 'USD' ? p.monto * (p.tipo_cambio_pago || 1) : p.monto
+
+      switch (p.metodo_pago) {
+        case 'EFECTIVO': desglose.efectivo += montoEnPen; break;
+        case 'TARJETA': desglose.tarjeta += montoEnPen; break;
+        case 'YAPE':
+        case 'PLIN': desglose.billetera += montoEnPen; break;
+        case 'TRANSFERENCIA': desglose.transferencia += montoEnPen; break;
+        default: desglose.otros += montoEnPen;
+      }
+    })
+  }
+
+  // Importante: Los "ingresos" en caja_movimientos incluyen los cobros de pagos + otros ingresos manuales.
+  // Pero la tabla pagos solo tiene cobros de reservas. 
+  // Para cuadrar con "Total Ingresos", debemos considerar que:
+  // Total Ingresos = (Pagos Efectivo) + (Pagos Otros Métodos) + (Ingresos Manuales Caja)
+  // Normalmente en arqueo, solo "Efectivo" debe cuadrar con lo físico en cajón.
+  // Los ingresos manuales de caja se asumen EFECTIVO a menos que se especifique lo contrario (no implementado aún campo metodo en movimientos manuales).
+  // Por ahora asumiremos que todo movimiento manual 'INGRESO' en caja es efectivo.
+
+  // Calcular ingresos manuales (no vienen de cobros de reserva)
+  // Un movimiento manual NO tiene 'comprobante_referencia' o tiene motivo manual
+  // Simplificación: Total Ingresos Caja - Total Pagos Registrados = Ingresos Manuales (Efectivo)
+
+  const totalPagosRegistrados = desglose.efectivo + desglose.tarjeta + desglose.billetera + desglose.transferencia + desglose.otros
+  const totalIngresosCaja = estadisticas.total_ingresos_pen // Asumiendo todo en PEN por ahora para simplificar vista
+
+  // Si hay diferencia positiva, es dinero ingresado manualmente (caja chica, aportes, etc) -> Efectivo
+  if (totalIngresosCaja > totalPagosRegistrados) {
+    desglose.efectivo += (totalIngresosCaja - totalPagosRegistrados)
+  }
+
+  return {
+    turno: {
+      id: turno.id,
+      caja_nombre: (turno.cajas as any).nombre,
+      usuario_nombre: `${(turno.usuarios as any).nombres} ${(turno.usuarios as any).apellidos || ''}`.trim(),
+      fecha_apertura: turno.fecha_apertura,
+      fecha_cierre: turno.fecha_cierre,
+      monto_apertura: turno.monto_apertura,
+      monto_apertura_usd: turno.monto_apertura_usd,
+      monto_cierre_sistema: turno.monto_cierre_sistema,
+      monto_cierre_declarado: turno.monto_cierre_declarado,
+      monto_cierre_sistema_usd: turno.monto_cierre_sistema_usd,
+      monto_cierre_declarado_usd: turno.monto_cierre_declarado_usd,
+      estado: turno.estado,
+    },
+    movimientos: movimientos.map((m: any) => ({
+      id: m.id,
+      tipo: m.tipo,
+      categoria: m.categoria,
+      moneda: m.moneda,
+      monto: m.monto,
+      motivo: m.motivo,
+      comprobante_referencia: m.comprobante_referencia,
+      usuario_nombre: `${m.usuarios.nombres} ${m.usuarios.apellidos || ''}`.trim(),
+      created_at: m.created_at,
+    })),
+    estadisticas: {
+      ...estadisticas,
+      flujo_neto_pen,
+      flujo_neto_usd,
+      total_esperado_pen: turno.monto_apertura + flujo_neto_pen,
+      total_esperado_usd: turno.monto_apertura_usd + flujo_neto_usd,
+      desglose_metodos_pago: desglose
+    },
+  }
+}
+
+/**
  * Abrir caja (crear nuevo turno)
  */
 export async function abrirCaja(input: {
@@ -880,7 +1114,7 @@ export async function cerrarCaja(input: {
       fecha_cierre: new Date().toISOString(),
       monto_cierre_declarado: input.monto_declarado_pen,
       monto_cierre_declarado_usd: input.monto_declarado_usd,
-      monto_cierre_sistema: detalleTurno.estadisticas.total_esperado_pen,
+      monto_cierre_sistema: await calcularEfectivoLocal(supabase, input.turno_id, detalleTurno.estadisticas.total_esperado_pen),
       monto_cierre_sistema_usd: detalleTurno.estadisticas.total_esperado_usd,
     })
     .eq('id', input.turno_id)
@@ -942,7 +1176,7 @@ export async function forzarCierreCaja(input: {
       fecha_cierre: new Date().toISOString(),
       monto_cierre_declarado: input.monto_declarado_pen,
       monto_cierre_declarado_usd: input.monto_declarado_usd,
-      monto_cierre_sistema: detalleTurno.estadisticas.total_esperado_pen,
+      monto_cierre_sistema: await calcularEfectivoLocal(supabase, input.turno_id, detalleTurno.estadisticas.total_esperado_pen),
       monto_cierre_sistema_usd: detalleTurno.estadisticas.total_esperado_usd,
     })
     .eq('id', input.turno_id)
@@ -1007,3 +1241,156 @@ export async function registrarMovimiento(input: {
   revalidatePath('/cajas')
   return { success: true }
 }
+
+/**
+ * Obtener reporte de métodos de pago para un turno
+ * Retorna totales agrupados por método de pago consultando la tabla PAGOS
+ */
+export async function getReporteMetodosPago(turnoId: string) {
+  const supabase = await createClient()
+
+  // 1. Obtener pagos vinculados a este turno
+  const { data: pagos, error } = await supabase
+    .from('pagos')
+    .select('metodo_pago, monto, moneda_pago, tipo_cambio_pago')
+    .eq('caja_turno_id', turnoId)
+
+  if (error) {
+    console.error('Error al obtener pagos del turno:', error)
+    return { success: false, error: 'Error al calcular reporte de pagos' }
+  }
+
+  // 2. Inicializar contadores
+  const totales = {
+    totalEfectivoPEN: 0,
+    totalTarjeta: 0,
+    totalYape: 0,
+    totalPlin: 0,
+    totalTransferencia: 0,
+    totalGeneral: 0,
+    pagos: pagos || []
+  }
+
+  // 3. Obtener "Otros Ingresos" directos a caja (que NO son cobros de reserva)
+  // Ej: Aportes de caja chica, ingresos manuales. Se asumen efectivo.
+  // Cálculo: Total Ingresos Caja (movimientos) - Total Pagos (cobros reserva)
+
+  // Primero necesitamos el total de ingresos registrados en movimientos de caja
+  const { data: movimientos } = await supabase
+    .from('caja_movimientos')
+    .select('monto, moneda, tipo')
+    .eq('caja_turno_id', turnoId)
+    .eq('tipo', 'INGRESO')
+
+  let totalIngresosCajaPEN = 0
+  if (movimientos) {
+    movimientos.forEach(m => {
+      // Asumiendo cambio 1.0 si no hay info mejor, o usar moneda. 
+      // Simplificación: si es USD convertir a PEN (TODO: usar tasa del día o movimiento)
+      // Por ahora asumimos movimientos son consistentes o todo PEN.
+      totalIngresosCajaPEN += m.monto
+    })
+  }
+
+  // 4. Sumar pagos
+  pagos.forEach(p => {
+    // Normalizar a PEN
+    const monto = p.moneda_pago === 'USD' ? p.monto * (p.tipo_cambio_pago || 1) : p.monto
+    totales.totalGeneral += monto
+
+    switch (p.metodo_pago) {
+      case 'EFECTIVO': totales.totalEfectivoPEN += monto; break;
+      case 'TARJETA': totales.totalTarjeta += monto; break;
+      case 'YAPE': totales.totalYape += monto; break;
+      case 'PLIN': totales.totalPlin += monto; break;
+      case 'TRANSFERENCIA': totales.totalTransferencia += monto; break;
+    }
+  })
+
+  // 5. Ajustar Efectivo con la diferencia (Ingresos Manuales)
+  // Si en la caja hay MÁS ingresos que los reportados por pagos de reserva, 
+  // la diferencia se asume ingreso en Efectivo (ej: ingreso manual sin reserva).
+  if (totalIngresosCajaPEN > totales.totalGeneral) {
+    const diferencia = totalIngresosCajaPEN - totales.totalGeneral
+    totales.totalEfectivoPEN += diferencia
+  }
+
+  return { success: true, data: totales }
+}
+
+async function calcularEfectivoLocal(supabase: any, turnoId: string, totalEsperado: number) {
+  const { data: pagos } = await supabase.from('pagos').select('metodo_pago, monto, moneda_pago, tipo_cambio_pago').eq('caja_turno_id', turnoId)
+  if (!pagos) return totalEsperado
+
+  let noEfectivo = 0
+  pagos.forEach((p: any) => {
+    if (p.metodo_pago !== 'EFECTIVO') {
+      const m = p.moneda_pago === 'USD' ? p.monto * (p.tipo_cambio_pago || 1) : p.monto
+      noEfectivo += m
+    }
+  })
+  return totalEsperado - noEfectivo
+}
+
+export async function getHistorialTurnos(filtros?: {
+  fecha_inicio?: string
+  fecha_fin?: string
+  usuario_id?: string
+  caja_id?: string
+  solo_descuadres?: boolean
+}) {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('caja_turnos')
+    .select(`
+      id,
+      fecha_cierre,
+      monto_apertura,
+      monto_apertura_usd,
+      monto_cierre_sistema,
+      monto_cierre_declarado,
+      monto_cierre_sistema_usd,
+      monto_cierre_declarado_usd,
+      estado,
+      cajas!inner(nombre),
+      usuarios!inner(nombres, apellidos)
+    `)
+    .eq('estado', 'CERRADA')
+    .order('fecha_cierre', { ascending: false })
+
+  if (filtros?.fecha_inicio) {
+    query = query.gte('fecha_cierre', filtros.fecha_inicio)
+  }
+  if (filtros?.fecha_fin) {
+    query = query.lte('fecha_cierre', filtros.fecha_fin + ' 23:59:59')
+  }
+  // usuario_id y caja_id si se implementan filtros específicos UI
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error('Error getHistorialTurnos:', error)
+    return { success: false, error: 'Error al cargar historial' }
+  }
+
+  const turnos = data.map((t: any) => ({
+    id: t.id,
+    fecha_cierre: t.fecha_cierre,
+    monto_apertura: t.monto_apertura,
+    monto_apertura_usd: t.monto_apertura_usd,
+    monto_cierre_sistema: t.monto_cierre_sistema,
+    monto_cierre_declarado: t.monto_cierre_declarado,
+    monto_cierre_sistema_usd: t.monto_cierre_sistema_usd,
+    monto_cierre_declarado_usd: t.monto_cierre_declarado_usd,
+    caja: { nombre: t.cajas.nombre },
+    usuario: { nombres: t.usuarios.nombres, apellidos: t.usuarios.apellidos }
+  }))
+
+  if (filtros?.solo_descuadres) {
+    return { success: true, data: turnos.filter((t: any) => Math.abs((t.monto_cierre_declarado || 0) - (t.monto_cierre_sistema || 0)) > 0.5) }
+  }
+
+  return { success: true, data: turnos }
+}
+

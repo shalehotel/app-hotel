@@ -1,22 +1,29 @@
 import { Suspense } from 'react'
 import { SeriesClient } from './series-client'
 import { Skeleton } from '@/components/ui/skeleton'
+import { DashboardHeader } from '@/components/dashboard-header'
 
 export default function SeriesPage() {
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-      <div className="flex items-center justify-between">
+    <>
+      <DashboardHeader
+        breadcrumbs={[
+          { label: 'Configuración', href: '/configuracion' },
+          { label: 'Series' }
+        ]}
+      />
+      <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Series de Comprobantes</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Series de Comprobantes</h2>
           <p className="text-muted-foreground">
             Gestiona las series de numeración para Boletas, Facturas y otros comprobantes.
           </p>
         </div>
+
+        <Suspense fallback={<Skeleton className="h-[400px] w-full" />}>
+          <SeriesClient />
+        </Suspense>
       </div>
-      
-      <Suspense fallback={<Skeleton className="h-[400px] w-full" />}>
-        <SeriesClient />
-      </Suspense>
-    </div>
+    </>
   )
 }

@@ -14,23 +14,23 @@ export default async function TarifasPage() {
 
   return (
     <>
-      <DashboardHeader 
+      <DashboardHeader
         breadcrumbs={[
           { label: 'Configuración', href: '/configuracion' },
           { label: 'Tarifas' }
-        ]} 
+        ]}
       />
-      
+
       <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tarifas y Precios</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Tarifas</h1>
           <p className="text-muted-foreground">
             Define precios base y mínimos por tipo y categoría de habitación
           </p>
         </div>
 
         <Suspense fallback={<Skeleton className="h-[400px]" />}>
-          <TarifasClientNew 
+          <TarifasClientNew
             tarifas={tarifas}
             tipos={tipos}
             categorias={categorias}

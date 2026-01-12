@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logger } from '@/lib/logger'
+import { getErrorMessage } from '@/lib/errors'
 
 // ========================================
 // CANCELAR RESERVA
@@ -42,7 +44,7 @@ export async function cancelarReserva(reservaId: string, motivo?: string) {
     // 3. Actualizar estado de reserva
     const { error: updateError } = await supabase
       .from('reservas')
-      .update({ 
+      .update({
         estado: 'CANCELADA'
       })
       .eq('id', reservaId)
@@ -55,19 +57,28 @@ export async function cancelarReserva(reservaId: string, motivo?: string) {
     if (reserva.estado === 'CHECKED_IN' && reserva.habitacion_id) {
       await supabase
         .from('habitaciones')
-        .update({ 
+        .update({
           estado_ocupacion: 'LIBRE',
           estado_limpieza: 'SUCIA'
         })
         .eq('id', reserva.habitacion_id)
     }
 
-    return { 
-      success: true, 
-      message: 'Reserva cancelada exitosamente' 
+    logger.info('Reserva cancelada exitosamente', {
+      action: 'cancelarReserva',
+      reservaId,
+    })
+
+    return {
+      success: true,
+      message: 'Reserva cancelada exitosamente'
     }
-  } catch (error: any) {
-    console.error('[cancelarReserva] Error:', error)
+  } catch (error: unknown) {
+    logger.error('Error al cancelar reserva', {
+      action: 'cancelarReserva',
+      reservaId,
+      originalError: getErrorMessage(error),
+    })
     return {
       error: 'Error de sistema',
       message: 'Hubo un problema al cancelar la reserva',
@@ -79,26 +90,9 @@ export async function cancelarReserva(reservaId: string, motivo?: string) {
 // ========================================
 // HELPERS PARA CÁLCULOS
 // ========================================
-function calcularTotalEstimado(reserva: {
-  precio_pactado: number
-  fecha_entrada: string | Date
-  fecha_salida: string | Date
-}): number {
-  const entrada = new Date(reserva.fecha_entrada)
-  const salida = new Date(reserva.fecha_salida)
-  const noches = Math.max(1, 
-    Math.floor((salida.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24))
-  )
-  return reserva.precio_pactado * noches
-}
-
-function calcularNoches(fecha_entrada: string | Date, fecha_salida: string | Date): number {
-  const entrada = new Date(fecha_entrada)
-  const salida = new Date(fecha_salida)
-  return Math.max(1, 
-    Math.floor((salida.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24))
-  )
-}
+// Helpers movidos a @/lib/utils para evitar error de Server Actions
+// calcularTotalReserva
+// calcularNoches
 
 // ========================================
 // CONTROL DE PRESENCIA (LLAVE)
@@ -117,8 +111,12 @@ export async function toggleHuespedPresente(reservaId: string, presente: boolean
     revalidatePath('/rack')
     revalidatePath(`/reservas/${reservaId}`)
     return { success: true }
-  } catch (error: any) {
-    console.error('Error toggleHuespedPresente:', error)
+  } catch (error: unknown) {
+    logger.error('Error al actualizar estado del huésped', {
+      action: 'toggleHuespedPresente',
+      reservaId,
+      originalError: getErrorMessage(error),
+    })
     return { error: 'Error al actualizar estado del huésped' }
   }
 }

@@ -27,15 +27,17 @@ import { toast } from 'sonner'
 import { cerrarCaja, forzarCierreCaja } from '@/lib/actions/cajas'
 import { Lock, Loader2, AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useTurnoContext } from '@/components/providers/turno-provider'
 
 interface Props {
   turnoId: string
   totalEsperadoPen: number
   totalEsperadoUsd: number
   esAdmin?: boolean
+  customTrigger?: React.ReactNode
 }
 
-export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, esAdmin = false }: Props) {
+export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, esAdmin = false, customTrigger }: Props) {
   const [open, setOpen] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -44,11 +46,12 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
     monto_declarado_usd: ''
   })
   const router = useRouter()
+  const { refetchTurno } = useTurnoContext()
 
-  const diferenciaPen = formData.monto_declarado_pen 
-    ? parseFloat(formData.monto_declarado_pen) - totalEsperadoPen 
+  const diferenciaPen = formData.monto_declarado_pen
+    ? parseFloat(formData.monto_declarado_pen) - totalEsperadoPen
     : 0
-  
+
   const diferenciaUsd = formData.monto_declarado_usd
     ? parseFloat(formData.monto_declarado_usd) - totalEsperadoUsd
     : 0
@@ -69,7 +72,7 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
         monto_declarado_usd: parseFloat(formData.monto_declarado_usd) || 0
       }
 
-      const result = esAdmin 
+      const result = esAdmin
         ? await forzarCierreCaja(input)
         : await cerrarCaja(input)
 
@@ -78,6 +81,8 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
           description: esAdmin ? 'Cierre forzoso realizado' : 'Tu turno ha finalizado',
         })
         setOpen(false)
+        // Actualizar estado global del turno inmediatamente
+        await refetchTurno()
         router.refresh()
         if (!esAdmin) {
           router.push('/cajas/historial')
@@ -100,23 +105,25 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant={esAdmin ? "destructive" : "default"} className="gap-2">
-            <Lock className="h-4 w-4" />
-            {esAdmin ? 'Cierre Forzoso' : 'Cerrar Turno'}
-          </Button>
+          {customTrigger || (
+            <Button variant={esAdmin ? "destructive" : "default"} className="gap-2">
+              <Lock className="h-4 w-4" />
+              {esAdmin ? 'Cierre Forzoso' : 'Cerrar Turno'}
+            </Button>
+          )}
         </DialogTrigger>
         <DialogContent className="sm:max-w-[500px]">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>{esAdmin ? '⚠️ Cierre Forzoso' : 'Cerrar Turno'}</DialogTitle>
               <DialogDescription>
-                {esAdmin 
+                {esAdmin
                   ? 'Vas a cerrar el turno de otro usuario. Cuenta el dinero físico en su caja.'
                   : 'Cuenta el dinero físico en tu caja antes de cerrar.'
                 }
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="grid gap-4 py-4">
               {/* Soles (PEN) */}
               <div className="space-y-3">
@@ -137,8 +144,8 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
                   required
                   className={
                     formData.monto_declarado_pen && Math.abs(diferenciaPen) > 0.01
-                      ? diferenciaPen < 0 
-                        ? 'border-red-500 focus-visible:ring-red-500' 
+                      ? diferenciaPen < 0
+                        ? 'border-red-500 focus-visible:ring-red-500'
                         : 'border-blue-500 focus-visible:ring-blue-500'
                       : ''
                   }
@@ -168,8 +175,8 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
                   onChange={(e) => setFormData({ ...formData, monto_declarado_usd: e.target.value })}
                   className={
                     formData.monto_declarado_usd && Math.abs(diferenciaUsd) > 0.01
-                      ? diferenciaUsd < 0 
-                        ? 'border-red-500 focus-visible:ring-red-500' 
+                      ? diferenciaUsd < 0
+                        ? 'border-red-500 focus-visible:ring-red-500'
                         : 'border-blue-500 focus-visible:ring-blue-500'
                       : ''
                   }
@@ -189,7 +196,7 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
                     <div className="text-sm text-yellow-800">
                       <p className="font-medium">Hay una diferencia entre el sistema y lo contado</p>
                       <p className="text-xs mt-1">
-                        {diferenciaPen < 0 
+                        {diferenciaPen < 0
                           ? 'Falta dinero en caja. Revisa si olvidaste registrar algún egreso.'
                           : 'Sobra dinero en caja. Revisa si olvidaste registrar algún ingreso.'
                         }
@@ -204,8 +211,8 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
                 Cancelar
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 variant={esAdmin ? "destructive" : "default"}
                 disabled={loading || !formData.monto_declarado_pen}
               >
@@ -231,7 +238,7 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
             <AlertDialogDescription>
               {Math.abs(diferenciaPen) > 0.01 ? (
                 <span className="text-yellow-800">
-                  ⚠️ Hay una diferencia de <strong>{diferenciaPen >= 0 ? '+' : ''}S/ {diferenciaPen.toFixed(2)}</strong>. 
+                  ⚠️ Hay una diferencia de <strong>{diferenciaPen >= 0 ? '+' : ''}S/ {diferenciaPen.toFixed(2)}</strong>.
                   Esta acción no se puede deshacer.
                 </span>
               ) : (

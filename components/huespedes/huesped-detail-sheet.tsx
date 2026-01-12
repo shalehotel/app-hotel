@@ -123,26 +123,26 @@ export function HuespedDetailSheet({ huespedId, open, onClose }: Props) {
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-          
+
           {/* Estadísticas */}
           <div className="grid grid-cols-2 gap-4">
-             <div className="p-3 border rounded-lg">
-                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Total Gastado</p>
-                <p className="text-lg font-bold mt-1">
-                  {new Intl.NumberFormat('es-PE', {
-                    style: 'currency',
-                    currency: 'PEN',
-                    minimumFractionDigits: 0
-                  }).format(huesped.gasto_total_historico || 0)}
-                </p>
-             </div>
-             <div className="p-3 border rounded-lg">
-                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Visitas</p>
-                <div className="flex items-baseline gap-1 mt-1">
-                   <span className="text-lg font-bold">{huesped.visitas_completadas}</span>
-                   <span className="text-xs text-muted-foreground">de {huesped.total_visitas} reservas</span>
-                </div>
-             </div>
+            <div className="p-3 border rounded-lg">
+              <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Total Gastado</p>
+              <p className="text-lg font-bold mt-1">
+                {new Intl.NumberFormat('es-PE', {
+                  style: 'currency',
+                  currency: 'PEN',
+                  minimumFractionDigits: 0
+                }).format(huesped.gasto_total_historico || 0)}
+              </p>
+            </div>
+            <div className="p-3 border rounded-lg">
+              <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Visitas</p>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-lg font-bold">{huesped.visitas_completadas}</span>
+                <span className="text-xs text-muted-foreground">de {huesped.total_visitas} reservas</span>
+              </div>
+            </div>
           </div>
 
           <Separator />
@@ -164,17 +164,21 @@ export function HuespedDetailSheet({ huespedId, open, onClose }: Props) {
                 <p className="font-medium">{huesped.nacionalidad || '—'}</p>
               </div>
               <div>
+                <p className="text-muted-foreground">Procedencia (Dpto)</p>
+                <p className="font-medium">{huesped.procedencia_departamento || '—'}</p>
+              </div>
+              <div>
                 <p className="text-muted-foreground">Cumpleaños</p>
                 <p className="font-medium">
-                  {huesped.fecha_nacimiento 
-                    ? format(new Date(huesped.fecha_nacimiento), 'dd MMM yyyy', { locale: es }) 
+                  {huesped.fecha_nacimiento
+                    ? format(new Date(huesped.fecha_nacimiento), 'dd MMM yyyy', { locale: es })
                     : '—'}
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground">Última Visita</p>
                 <p className="font-medium">
-                   {huesped.ultima_visita
+                  {huesped.ultima_visita
                     ? format(new Date(huesped.ultima_visita), 'dd MMM yyyy', { locale: es })
                     : 'Nunca'}
                 </p>
@@ -199,14 +203,14 @@ export function HuespedDetailSheet({ huespedId, open, onClose }: Props) {
               className="min-h-[100px] resize-y"
             />
             <div className="mt-2 flex justify-end">
-               <Button 
-                 size="sm" 
-                 onClick={handleGuardarNotas}
-                 disabled={saving || notas === notasOriginales}
-               >
-                  {saving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-                  Guardar Notas
-               </Button>
+              <Button
+                size="sm"
+                onClick={handleGuardarNotas}
+                disabled={saving || notas === notasOriginales}
+              >
+                {saving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                Guardar Notas
+              </Button>
             </div>
           </div>
 
@@ -217,27 +221,27 @@ export function HuespedDetailSheet({ huespedId, open, onClose }: Props) {
             <h3 className="font-semibold text-lg mb-3">Historial Reciente</h3>
             {huesped.estadias && huesped.estadias.length > 0 ? (
               <div className="space-y-3">
-                 {huesped.estadias.slice(0, 3).map((estadia: any) => (
-                    <div key={estadia.id} className="flex justify-between items-center p-3 border rounded-lg">
-                       <div>
-                          <p className="font-medium text-sm">Reserva {estadia.codigo_reserva}</p>
-                          <p className="text-xs text-muted-foreground">
-                             {format(new Date(estadia.fecha_entrada), 'dd MMM yyyy', { locale: es })}
-                          </p>
-                       </div>
-                       <Badge variant={
-                          estadia.estado === 'CHECKED_IN' ? 'default' :
-                          estadia.estado === 'CANCELADA' ? 'destructive' : 'secondary'
-                       } className="text-[10px]">
-                          {estadia.estado}
-                       </Badge>
+                {huesped.estadias.slice(0, 3).map((estadia: any) => (
+                  <div key={estadia.id} className="flex justify-between items-center p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">Reserva {estadia.codigo_reserva}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(estadia.fecha_entrada), 'dd MMM yyyy', { locale: es })}
+                      </p>
                     </div>
-                 ))}
-                 {huesped.estadias.length > 3 && (
-                    <p className="text-center text-xs text-muted-foreground pt-1">
-                      y {huesped.estadias.length - 3} estadías más...
-                    </p>
-                 )}
+                    <Badge variant={
+                      estadia.estado === 'CHECKED_IN' ? 'default' :
+                        estadia.estado === 'CANCELADA' ? 'destructive' : 'secondary'
+                    } className="text-[10px]">
+                      {estadia.estado}
+                    </Badge>
+                  </div>
+                ))}
+                {huesped.estadias.length > 3 && (
+                  <p className="text-center text-xs text-muted-foreground pt-1">
+                    y {huesped.estadias.length - 3} estadías más...
+                  </p>
+                )}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground italic">No hay historial de estadías.</p>
@@ -247,14 +251,14 @@ export function HuespedDetailSheet({ huespedId, open, onClose }: Props) {
         </div>
 
         <SheetFooter className="p-6 pt-2 border-t mt-auto">
-           <Button
-              className="w-full"
-              variant={huesped.es_frecuente ? 'outline' : 'secondary'}
-              onClick={handleToggleVIP}
-            >
-              <Star className="mr-2 h-4 w-4" />
-              {huesped.es_frecuente ? 'Quitar estado VIP' : 'Marcar como VIP'}
-            </Button>
+          <Button
+            className="w-full"
+            variant={huesped.es_frecuente ? 'outline' : 'secondary'}
+            onClick={handleToggleVIP}
+          >
+            <Star className="mr-2 h-4 w-4" />
+            {huesped.es_frecuente ? 'Quitar estado VIP' : 'Marcar como VIP'}
+          </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

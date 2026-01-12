@@ -3,6 +3,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getHotelConfig } from '@/lib/actions/configuracion'
+import { calcularTotalReserva } from '@/lib/utils'
+import { logger } from '@/lib/logger'
+import { getErrorMessage } from '@/lib/errors'
 
 // ========================================
 // TYPES
@@ -24,7 +27,7 @@ export type Pago = {
 export type CobrarYFacturarInput = {
   reserva_id: string
   caja_turno_id?: string // Opcional, si no se envía se busca el activo
-  
+
   // Datos del Pago
   metodo_pago: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'YAPE' | 'PLIN'
   monto: number
@@ -40,7 +43,7 @@ export type CobrarYFacturarInput = {
   cliente_numero_doc: string
   cliente_nombre: string
   cliente_direccion?: string
-  
+
   // Detalle del servicio (Items)
   items: Array<{
     descripcion: string
@@ -72,7 +75,7 @@ async function getTurnoActivo(usuario_id: string): Promise<string | null> {
 // ========================================
 export async function cobrarYFacturar(input: CobrarYFacturarInput) {
   const supabase = await createClient()
-  
+
   try {
     // 1. Validar Usuario y Turno
     const { data: { user } } = await supabase.auth.getUser()
@@ -113,7 +116,7 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
 
     for (const item of input.items) {
       total_venta += item.subtotal
-      
+
       // Si el hotel es exonerado, forzamos código 20
       const codigoAfectacion = ES_EXONERADO ? '20' : (item.codigo_afectacion_igv || '10')
 
@@ -137,13 +140,13 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
         tipo_comprobante: input.tipo_comprobante,
         serie: input.serie,
         numero: correlativo,
-        
+
         // Snapshot Cliente
         receptor_tipo_doc: input.cliente_tipo_doc,
         receptor_nro_doc: input.cliente_numero_doc,
         receptor_razon_social: input.cliente_nombre,
         receptor_direccion: input.cliente_direccion || null,
-        
+
         // Snapshot Montos
         moneda: input.moneda,
         tipo_cambio: input.tipo_cambio || 1.0,
@@ -153,7 +156,7 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
         monto_igv,
         monto_icbper: 0,
         total_venta,
-        
+
         estado_sunat: 'PENDIENTE',
         fecha_emision: new Date().toISOString()
       })
@@ -199,9 +202,14 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
       })
 
     if (pagoError) {
-       // Rollback crítico (ya se emitió comprobante pero falló pago)
-       console.error('CRITICAL: Comprobante emitido sin pago', comprobante.id)
-       throw new Error('Error registrando el pago. Contacte a soporte.')
+      // Rollback crítico (ya se emitió comprobante pero falló pago)
+      logger.error('CRITICAL: Comprobante emitido sin pago', {
+        action: 'cobrarYFacturar',
+        reservaId: input.reserva_id,
+        comprobanteId: comprobante.id,
+        originalError: getErrorMessage(pagoError),
+      })
+      throw new Error('Error registrando el pago. Contacte a soporte.')
     }
 
     // 8. INSERTAR MOVIMIENTO DE CAJA (CRÍTICO PARA ARQUEO)
@@ -220,8 +228,12 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
       })
 
     if (movError) {
-      console.error('CRITICAL: Pago registrado pero NO impactó caja', movError)
-      // Lanzamos error visible para que el usuario sepa
+      logger.error('CRITICAL: Pago registrado pero NO impactó caja', {
+        action: 'cobrarYFacturar',
+        reservaId: input.reserva_id,
+        cajaTurnoId: cajaTurnoId,
+        originalError: getErrorMessage(movError),
+      })
       throw new Error(`Error crítico: El pago se registró pero NO se pudo guardar en caja. Detalle: ${movError.message}`)
     }
 
@@ -229,14 +241,18 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
     revalidatePath('/reservas')
     revalidatePath('/ocupaciones')
     revalidatePath(`/reservas/${input.reserva_id}`)
-    
+
     return { success: true, comprobante, message: 'Cobro registrado y comprobante emitido' }
 
-  } catch (error: any) {
-    console.error('Error en cobrarYFacturar:', error)
-    return { 
-      success: false, 
-      error: error.message || 'Error desconocido al procesar el cobro' 
+  } catch (error: unknown) {
+    logger.error('Error en cobrarYFacturar', {
+      action: 'cobrarYFacturar',
+      reservaId: input.reserva_id,
+      originalError: getErrorMessage(error),
+    })
+    return {
+      success: false,
+      error: getErrorMessage(error) || 'Error desconocido al procesar el cobro'
     }
   }
 }
@@ -248,14 +264,17 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
 export async function getSaldoPendiente(reserva_id: string): Promise<number> {
   const supabase = await createClient()
 
-  // 1. Obtener precio pactado
+  // 1. Obtener precio pactado y FECHAS
   const { data: reserva } = await supabase
     .from('reservas')
-    .select('precio_pactado, moneda_pactada')
+    .select('precio_pactado, moneda_pactada, fecha_entrada, fecha_salida')
     .eq('id', reserva_id)
     .single()
 
   if (!reserva?.precio_pactado) return 0
+
+  // 1.5 Calcular total real por estadía
+  const totalEstadia = calcularTotalReserva(reserva as any)
 
   // 2. Obtener pagos
   const { data: pagos } = await supabase
@@ -267,13 +286,13 @@ export async function getSaldoPendiente(reserva_id: string): Promise<number> {
     // Normalizar a moneda de la reserva (asumimos reserva en PEN por defecto)
     // Si la reserva fuera en USD, la lógica sería inversa.
     // Por simplicidad del MVP: Todo se calcula en PEN.
-    const montoNormalizado = p.moneda_pago === 'USD' 
-      ? p.monto * p.tipo_cambio_pago 
+    const montoNormalizado = p.moneda_pago === 'USD'
+      ? p.monto * p.tipo_cambio_pago
       : p.monto
     return sum + montoNormalizado
   }, 0) || 0
 
-  return Math.max(0, reserva.precio_pactado - totalPagado)
+  return Math.max(0, totalEstadia - totalPagado)
 }
 
 export async function getPagosByReserva(reserva_id: string): Promise<Pago[]> {

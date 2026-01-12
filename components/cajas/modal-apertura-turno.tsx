@@ -22,7 +22,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getCajasDisponibles, type Caja } from '@/lib/actions/cajas'
-import { abrirTurno } from '@/lib/actions/turnos'
+import { abrirTurno } from '@/lib/actions/cajas'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Loader2, Lock, DollarSign } from 'lucide-react'
