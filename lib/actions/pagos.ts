@@ -97,13 +97,30 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
 
     if (reservaError || !reserva) throw new Error('Reserva no encontrada')
 
-    // 3. Obtener Correlativo (Atómico)
+    // 3. Validar que la serie existe y es del tipo correcto
+    const { data: serieValida, error: serieError } = await supabase
+      .from('series_comprobante')
+      .select('id, tipo_comprobante')
+      .eq('serie', input.serie)
+      .single()
+
+    if (serieError || !serieValida) {
+      throw new Error(`La serie ${input.serie} no existe. Configure las series en Configuración > Cajas`)
+    }
+
+    if (serieValida.tipo_comprobante !== input.tipo_comprobante) {
+      throw new Error(
+        `La serie ${input.serie} es de tipo ${serieValida.tipo_comprobante}, no se puede usar para ${input.tipo_comprobante}`
+      )
+    }
+
+    // 4. Obtener Correlativo (Atómico)
     const { data: correlativo, error: corrError } = await supabase
       .rpc('obtener_siguiente_correlativo', { p_serie: input.serie })
 
     if (corrError || !correlativo) throw new Error('Error al generar número de comprobante')
 
-    // 4. Calcular Totales Fiscales
+    // 5. Calcular Totales Fiscales
     // Obtener configuración dinámica del hotel
     const config = await getHotelConfig()
     const TASA_IGV = (config.tasa_igv || 18.00) / 100
@@ -131,7 +148,7 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
       }
     }
 
-    // 5. INSERTAR COMPROBANTE (Snapshot)
+    // 6. INSERTAR COMPROBANTE (Snapshot)
     const { data: comprobante, error: compError } = await supabase
       .from('comprobantes')
       .insert({
@@ -165,14 +182,14 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
 
     if (compError) throw new Error(`Error creando comprobante: ${compError.message}`)
 
-    // 6. INSERTAR DETALLES
+    // 7. INSERTAR DETALLES
     const detallesToInsert = input.items.map(item => ({
       comprobante_id: comprobante.id,
       descripcion: item.descripcion,
       cantidad: item.cantidad,
       precio_unitario: item.precio_unitario,
       subtotal: item.subtotal,
-      codigo_afectacion_igv: item.codigo_afectacion_igv || '10'
+      codigo_afectacion_igv: ES_EXONERADO ? '20' : (item.codigo_afectacion_igv || '10')
     }))
 
     const { error: detError } = await supabase
@@ -185,7 +202,7 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
       throw new Error('Error guardando detalles del comprobante')
     }
 
-    // 7. INSERTAR PAGO (Vinculado)
+    // 8. INSERTAR PAGO (Vinculado)
     const { error: pagoError } = await supabase
       .from('pagos')
       .insert({
@@ -212,7 +229,7 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
       throw new Error('Error registrando el pago. Contacte a soporte.')
     }
 
-    // 8. INSERTAR MOVIMIENTO DE CAJA (CRÍTICO PARA ARQUEO)
+    // 9. INSERTAR MOVIMIENTO DE CAJA (CRÍTICO PARA ARQUEO)
     // Sin esto, el dinero no "aparece" en la caja
     const { error: movError } = await supabase
       .from('caja_movimientos')
@@ -282,14 +299,22 @@ export async function getSaldoPendiente(reserva_id: string): Promise<number> {
     .select('monto, moneda_pago, tipo_cambio_pago')
     .eq('reserva_id', reserva_id)
 
+  // 3. Normalizar TODOS los pagos a la moneda de la reserva
   const totalPagado = pagos?.reduce((sum, p) => {
-    // Normalizar a moneda de la reserva (asumimos reserva en PEN por defecto)
-    // Si la reserva fuera en USD, la lógica sería inversa.
-    // Por simplicidad del MVP: Todo se calcula en PEN.
-    const montoNormalizado = p.moneda_pago === 'USD'
-      ? p.monto * p.tipo_cambio_pago
-      : p.monto
-    return sum + montoNormalizado
+    let montoEnMonedaReserva = p.monto
+
+    // Solo convertir si las monedas son diferentes
+    if (reserva.moneda_pactada !== p.moneda_pago) {
+      if (reserva.moneda_pactada === 'PEN' && p.moneda_pago === 'USD') {
+        // Reserva en PEN, pago en USD → multiplicar por tipo de cambio
+        montoEnMonedaReserva = p.monto * p.tipo_cambio_pago
+      } else if (reserva.moneda_pactada === 'USD' && p.moneda_pago === 'PEN') {
+        // Reserva en USD, pago en PEN → dividir por tipo de cambio
+        montoEnMonedaReserva = p.monto / p.tipo_cambio_pago
+      }
+    }
+
+    return sum + montoEnMonedaReserva
   }, 0) || 0
 
   return Math.max(0, totalEstadia - totalPagado)

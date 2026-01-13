@@ -40,6 +40,105 @@ Este es el **schema inicial completo y actualizado** que crea toda la estructura
 
 ---
 
+### ✅ `20260108120000_add_moneda_config.sql`
+
+**Estado:** ✅ **APLICADO**
+
+Agrega soporte para configuración de moneda predeterminada y tipo de cambio.
+
+**¿Qué hace?**
+- Agrega columnas `moneda_predeterminada` y `tipo_cambio` a `hotel_configuracion`
+- Establece 'PEN' como moneda por defecto
+- Tipo de cambio inicial: 1.00
+
+**Ejecución:**
+```bash
+npx supabase db push
+```
+
+---
+
+### ✅ `20260201120000_add_cobrar_facturar_atomico.sql` 🆕
+
+**Estado:** ✅ **LISTO PARA APLICAR**
+
+**Resuelve:** Issue #2 de auditoría - Transacciones no atómicas
+
+**¿Qué hace?**
+Crea la función PostgreSQL `cobrar_y_facturar_atomico()` que envuelve la creación de comprobante + pago + movimiento de caja en una **transacción ACID**.
+
+**Beneficios:**
+- ✅ **ACID completo:** Todo sucede o nada sucede
+- ✅ **Lock optimista:** Previene correlativos duplicados
+- ✅ **Rollback automático:** PostgreSQL lo maneja si falla cualquier paso
+- ✅ **Performance:** 3 round-trips → 1 round-trip
+- ✅ **Producción-ready:** Manejo robusto de errores
+
+**Parámetros de entrada:**
+```sql
+cobrar_y_facturar_atomico(
+  -- Comprobante (8 params)
+  p_tipo_comprobante VARCHAR,
+  p_serie_id UUID,
+  p_reserva_id UUID,
+  p_base_imponible DECIMAL(10,2),
+  p_total DECIMAL(10,2),
+  p_moneda VARCHAR(3),
+  p_tipo_cambio_factura DECIMAL(10,4),
+  p_fecha_emision TIMESTAMP,
+  
+  -- Pago (5 params)
+  p_monto_pago DECIMAL(10,2),
+  p_moneda_pago VARCHAR(3),
+  p_tipo_cambio_pago DECIMAL(10,4),
+  p_metodo_pago VARCHAR,
+  p_referencia_pago VARCHAR,
+  
+  -- Contexto (3 params)
+  p_sesion_caja_id UUID,
+  p_usuario_id UUID,
+  p_descripcion TEXT
+)
+RETURNS JSONB
+```
+
+**Retorna:**
+```json
+{
+  "success": true,
+  "comprobante_id": "uuid",
+  "numero_comprobante": "B001-00000123",
+  "pago_id": "uuid",
+  "movimiento_id": "uuid"
+}
+```
+
+**Uso desde TypeScript:**
+```typescript
+import { cobrarYFacturarAtomico } from '@/lib/actions/facturacion-atomica'
+
+const resultado = await cobrarYFacturarAtomico(
+  { tipo_comprobante: 'BOLETA', serie_id: '...', ... },
+  { monto: 118.00, moneda: 'PEN', ... },
+  { sesion_caja_id: '...', usuario_id: '...' }
+)
+
+if (resultado.success) {
+  console.log('✅ Factura:', resultado.numero_comprobante)
+}
+```
+
+**Ejecución:**
+```bash
+npx supabase db push
+```
+
+**Documentación:**
+- Guía completa: [GUIA_MIGRACION_FUNCION_ATOMICA.md](../GUIA_MIGRACION_FUNCION_ATOMICA.md)
+- Resumen: [RESUMEN_CORRECCIONES_IMPLEMENTADAS.md](../RESUMEN_CORRECCIONES_IMPLEMENTADAS.md)
+
+---
+
 ### ⚠️ `20260107000002_refactor_schema.sql` (OPCIONAL)
 
 **Estado:** ⚠️ **SOLO PARA ACTUALIZACIÓN DE BD EXISTENTE**

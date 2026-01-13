@@ -2,6 +2,10 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getHotelConfig } from '@/lib/actions/configuracion'
+import { enviarComprobanteNubefact } from '@/lib/services/nubefact'
+import { logger } from '@/lib/logger'
+import { getErrorMessage } from '@/lib/errors'
 
 // ========================================
 // TYPES
@@ -129,15 +133,73 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
     throw new Error('Debe agregar al menos un item al comprobante')
   }
 
-  // 4. Calcular montos
-  const op_gravadas = input.items.reduce((sum, item) => sum + item.subtotal, 0)
-  const monto_igv = op_gravadas * 0.18 // 18% IGV
-  const total_venta = op_gravadas + monto_igv
+  // 4. Obtener configuración fiscal
+  const config = await getHotelConfig()
+  
+  // Validar configuración fiscal completa
+  if (!config.ruc || config.ruc === '20000000001') {
+    throw new Error('Debe configurar el RUC de su empresa en Configuración antes de emitir comprobantes')
+  }
+  
+  // Validar formato de RUC (11 dígitos, comienza con 10, 15, 17 o 20)
+  const rucPattern = /^(10|15|17|20)[0-9]{9}$/
+  if (!rucPattern.test(config.ruc)) {
+    throw new Error(
+      'El RUC configurado no tiene formato válido. ' +
+      'Debe tener 11 dígitos e iniciar con 10, 15, 17 o 20'
+    )
+  }
+  
+  if (!config.razon_social || config.razon_social === 'MI HOTEL S.A.C.') {
+    throw new Error('Debe configurar la razón social de su empresa en Configuración')
+  }
+  
+  if (!config.direccion_fiscal) {
+    throw new Error('Debe configurar la dirección fiscal en Configuración')
+  }
+  
+  // Validar documento del cliente según tipo de comprobante
+  if (input.tipo_comprobante === 'FACTURA') {
+    if (input.cliente_tipo_doc !== 'RUC') {
+      throw new Error('Las facturas requieren que el cliente tenga RUC')
+    }
+    if (input.cliente_numero_doc.length !== 11) {
+      throw new Error('El RUC del cliente debe tener 11 dígitos')
+    }
+  } else if (input.tipo_comprobante === 'BOLETA') {
+    if (input.cliente_tipo_doc === 'DNI' && input.cliente_numero_doc.length !== 8) {
+      throw new Error('El DNI debe tener 8 dígitos')
+    }
+  }
+  
+  // Calcular totales según configuración
+  const TASA_IGV = config.es_exonerado_igv ? 0 : (config.tasa_igv || 18.00) / 100
+  
+  // 5. Calcular montos fiscales
+  let op_gravadas = 0
+  let op_exoneradas = 0
+  let monto_igv = 0
+  
+  for (const item of input.items) {
+    const codigoAfectacion = config.es_exonerado_igv ? '20' : (item.codigo_afectacion_igv || '10')
+    
+    if (codigoAfectacion === '10') {
+      // Gravado: el subtotal incluye IGV, hay que desglosa
+      const base = item.subtotal / (1 + TASA_IGV)
+      op_gravadas += base
+      monto_igv += (item.subtotal - base)
+    } else {
+      // Exonerado o Inafecto
+      op_exoneradas += item.subtotal
+    }
+  }
+  
+  const total_venta = op_gravadas + monto_igv + op_exoneradas
 
-  // 5. Obtener siguiente correlativo (atómico)
+  // 6. Obtener siguiente correlativo (atómico)
   const { correlativo, numero_completo } = await obtenerSiguienteCorrelativo(input.serie)
 
-  // 6. Crear comprobante
+  // 7. Crear comprobante con totales calculados
   const { data: comprobante, error: comprobanteError } = await supabase
     .from('comprobantes')
     .insert({
@@ -155,7 +217,7 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
       moneda: 'PEN',
       tipo_cambio: 1.000,
       op_gravadas: op_gravadas,
-      op_exoneradas: 0.00,
+      op_exoneradas: op_exoneradas,
       op_inafectas: 0.00,
       monto_igv: monto_igv,
       monto_icbper: 0.00,
@@ -172,14 +234,14 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
     throw new Error('Error al emitir el comprobante')
   }
 
-  // 7. Crear items del comprobante
+  // 8. Crear items del comprobante
   const itemsToInsert = input.items.map(item => ({
     comprobante_id: comprobante.id,
     descripcion: item.descripcion,
     cantidad: item.cantidad,
     precio_unitario: item.precio_unitario,
     subtotal: item.subtotal,
-    codigo_afectacion_igv: item.codigo_afectacion_igv || '10'
+    codigo_afectacion_igv: config.es_exonerado_igv ? '20' : (item.codigo_afectacion_igv || '10')
   }))
 
   const { error: itemsError } = await supabase
@@ -193,11 +255,79 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
     throw new Error('Error al registrar items del comprobante')
   }
 
-  // 8. TODO: Enviar a SUNAT (integración futura)
-  // - Generar XML
-  // - Firmar con certificado digital
-  // - Enviar a webservice de SUNAT
-  // - Actualizar estado_sunat, hash_cpe, xml_firmado
+  // 9. Enviar a NubeFact (si está configurado)
+  try {
+    const respuesta = await enviarComprobanteNubefact({
+      tipo_comprobante: input.tipo_comprobante,
+      serie: input.serie,
+      numero: correlativo,
+      
+      cliente_tipo_documento: input.cliente_tipo_doc,
+      cliente_numero_documento: input.cliente_numero_doc,
+      cliente_denominacion: input.cliente_nombre,
+      cliente_direccion: input.cliente_direccion,
+      
+      fecha_emision: new Date().toISOString().split('T')[0],
+      moneda: 'PEN',
+      tipo_cambio: 1.000,
+      porcentaje_igv: config.tasa_igv,
+      total_gravada: op_gravadas,
+      total_exonerada: op_exoneradas,
+      total_igv: monto_igv,
+      total: total_venta,
+      
+      items: input.items.map(item => ({
+        unidad_de_medida: 'NIU',
+        codigo: 'HOSP-001',
+        descripcion: item.descripcion,
+        cantidad: item.cantidad,
+        valor_unitario: item.precio_unitario,
+        precio_unitario: item.precio_unitario,
+        subtotal: item.subtotal,
+        tipo_de_igv: config.es_exonerado_igv ? 2 : 1
+      }))
+    })
+    
+    if (respuesta.success && respuesta.aceptada_por_sunat) {
+      // Actualizar con respuesta de NubeFact
+      await supabase
+        .from('comprobantes')
+        .update({
+          estado_sunat: 'ACEPTADO',
+          hash_cpe: respuesta.hash,
+          xml_url: respuesta.enlace,
+          cdr_url: respuesta.enlace_del_cdr,
+          external_id: respuesta.enlace_pdf
+        })
+        .eq('id', comprobante.id)
+      
+      logger.info('Comprobante aceptado por SUNAT', {
+        comprobante_id: comprobante.id,
+        hash: respuesta.hash
+      })
+    } else {
+      // Marcar como rechazado si SUNAT lo rechazó
+      await supabase
+        .from('comprobantes')
+        .update({
+          estado_sunat: 'RECHAZADO',
+          observaciones: respuesta.errors || respuesta.mensaje
+        })
+        .eq('id', comprobante.id)
+      
+      logger.warn('Comprobante rechazado por SUNAT', {
+        comprobante_id: comprobante.id,
+        error: respuesta.errors
+      })
+    }
+  } catch (error) {
+    // Si falla el envío a NubeFact, el comprobante queda PENDIENTE
+    logger.error('Error al enviar a NubeFact', {
+      comprobante_id: comprobante.id,
+      error: getErrorMessage(error)
+    })
+    // No lanzar error, el comprobante se puede reenviar después
+  }
 
   revalidatePath('/comprobantes')
   revalidatePath('/rack')
@@ -219,7 +349,11 @@ export async function getHistorialComprobantes(filtros?: {
 
   let query = supabase
     .from('vw_historial_comprobantes')
-    .select('*')
+    .select(`
+      *,
+      reserva_id,
+      codigo_reserva
+    `)
 
   // Aplicar filtros
   if (filtros?.tipo_comprobante && filtros.tipo_comprobante !== 'TODAS') {
@@ -443,10 +577,10 @@ export async function anularComprobante(comprobante_id: string, motivo: string) 
     throw new Error('Error al anular el comprobante')
   }
 
-  // 3. TODO: Generar Nota de Crédito electrónica en SUNAT
+  // 3. TODO: Generar Nota de Crédito electrónica vía NubeFact
   // - Crear nuevo comprobante tipo NOTA_CREDITO
   // - Referenciar al comprobante original
-  // - Enviar a SUNAT
+  // - Enviar a NubeFact con tipo_nota_credito='01'
 
   revalidatePath('/comprobantes')
 

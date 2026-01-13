@@ -7,7 +7,7 @@ export default function HistorialCierresPage() {
     <>
       <DashboardHeader
         breadcrumbs={[
-          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Inicio', href: '/' },
           { label: 'Cajas' },
           { label: 'Historial de Cierres' }
         ]}

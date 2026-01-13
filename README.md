@@ -1,16 +1,44 @@
-# Next.js + Supabase + shadcn/ui
+# Sistema PMS Hotel - Next.js + Supabase
 
-Proyecto moderno con Next.js 15, Supabase, shadcn/ui y Lucide React.
+Sistema de gestión hotelera (PMS) moderno con Next.js 15, Supabase, shadcn/ui y arquitectura empresarial robusta.
+
+## 🏆 Estado del Proyecto
+
+✅ **ARQUITECTURA AUDITADA Y CORREGIDA** (Enero 2025)
+
+Todos los issues críticos e importantes identificados en auditoría han sido corregidos:
+- ✅ IGV dinámico desde configuración
+- ✅ Validación fiscal antes de facturar
+- ✅ Validación de series y correlativos
+- ✅ Cálculo multimoneda bidireccional (PEN ↔ USD)
+- ✅ Rollback automático en checkout
+- ✅ Validación de transiciones de estado
+- ✅ Función PostgreSQL atómica para facturación
+
+Ver detalles en [RESUMEN_CORRECCIONES_IMPLEMENTADAS.md](RESUMEN_CORRECCIONES_IMPLEMENTADAS.md)
 
 ## 🚀 Stack Tecnológico
 
-- **Next.js 15** - Framework de React con App Router y React Compiler
-- **TypeScript** - Tipado estático
-- **Supabase** - Backend as a Service (autenticación, base de datos, storage)
+- **Next.js 15** - Framework de React con App Router y Server Actions
+- **TypeScript 5.7** - Tipado estático estricto
+- **Supabase** - Backend PostgreSQL con SSR y autenticación
 - **shadcn/ui** - Componentes UI accesibles y personalizables
 - **Tailwind CSS v4** - Framework de CSS utility-first
 - **Lucide React** - Iconos modernos
+- **Zod** - Validación de schemas
 - **ESLint** - Linting de código
+
+## 📚 Documentación Técnica
+
+### Auditoría y Correcciones
+- [AUDITORIA_COMPLETA_SISTEMA_PMS.md](AUDITORIA_COMPLETA_SISTEMA_PMS.md) - Auditoría arquitectónica completa
+- [RESUMEN_CORRECCIONES_IMPLEMENTADAS.md](RESUMEN_CORRECCIONES_IMPLEMENTADAS.md) - Correcciones aplicadas
+
+### Módulos
+- [docs/modulo-cajas.md](docs/modulo-cajas.md) - Sistema de cajas y turnos
+- [docs/modulo-facturacion.md](docs/modulo-facturacion.md) - Facturación SUNAT
+- [docs/modulo-checkin.md](docs/modulo-checkin.md) - Check-in y huéspedes
+- [docs/modulo-habitaciones.md](docs/modulo-habitaciones.md) - Gestión de habitaciones
 
 ## 📦 Instalación
 
@@ -24,17 +52,37 @@ npm install
 
 ### Variables de Entorno
 
-Crea un archivo `.env.local` en la raíz del proyecto:
+Crea un archivo `.env.local` basándote en el template:
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=tu-url-de-proyecto-supabase
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=tu-clave-publishable
+```bash
+cp .env.example .env.local
 ```
 
-Para obtener estas credenciales:
+Configura las siguientes variables:
+
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=tu-url-de-proyecto-supabase
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=tu-clave-publishable
+
+# NubeFact (Facturación Electrónica)
+NUBEFACT_TOKEN=tu-token-nubefact
+NUBEFACT_RUC=20123456789
+NUBEFACT_MODE=demo  # "demo" o "production"
+```
+
+**Obtener credenciales:**
+
+**Supabase:**
 1. Ve a tu proyecto en [Supabase](https://app.supabase.com)
 2. Dirígete a Settings > API
-3. Copia la URL del proyecto y la clave publishable (publishable default key)
+3. Copia la URL del proyecto y la clave publishable
+
+**NubeFact:**
+1. Crea cuenta en [NubeFact](https://nubefact.com)
+2. Ve a Configuración → API
+3. Copia tu token de API
+4. Usa modo "demo" para pruebas, "production" para facturación real
 
 ## 🏃‍♂️ Desarrollo
 

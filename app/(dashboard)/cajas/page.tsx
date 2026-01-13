@@ -8,7 +8,7 @@ export default function CajasPage() {
     <>
       <DashboardHeader
         breadcrumbs={[
-          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Inicio', href: '/' },
           { label: 'Gestión de Cajas' }
         ]}
       />

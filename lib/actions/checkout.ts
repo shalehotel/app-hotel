@@ -123,7 +123,7 @@ export async function realizarCheckout(input: CheckoutInput): Promise<CheckoutRe
     }
   }
 
-  // 4. Marcar habitación como SUCIA y LIBRE
+  // 4. Marcar habitación como SUCIA y LIBRE (CRÍTICO)
   const { error: updateHabitacionError } = await supabase
     .from('habitaciones')
     .update({
@@ -133,12 +133,27 @@ export async function realizarCheckout(input: CheckoutInput): Promise<CheckoutRe
     .eq('id', reserva.habitacion_id)
 
   if (updateHabitacionError) {
-    logger.warn('Checkout exitoso pero falló actualización de habitación', {
+    logger.error('Error al actualizar habitación en checkout, haciendo rollback', {
       action: 'realizarCheckout',
       reservaId: input.reserva_id,
       habitacionId: reserva.habitacion_id,
       originalError: getErrorMessage(updateHabitacionError),
     })
+
+    // ROLLBACK: Revertir el checkout de la reserva
+    await supabase
+      .from('reservas')
+      .update({
+        estado: 'CHECKED_IN',
+        check_out_real: null,
+        huesped_presente: true
+      })
+      .eq('id', input.reserva_id)
+
+    return {
+      success: false,
+      message: 'Error: No se pudo liberar la habitación. El checkout no se completó.'
+    }
   }
 
   // 5. Revalidar páginas

@@ -48,7 +48,7 @@ const navItems = [
   },
 
   {
-    title: 'Reservas',
+    title: 'Historial de Reservas',
     url: '/reservas',
     icon: Calendar,
   },

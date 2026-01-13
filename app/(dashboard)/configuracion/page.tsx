@@ -10,7 +10,7 @@ export default async function ConfiguracionPage() {
     <>
       <DashboardHeader
         breadcrumbs={[
-          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Inicio', href: '/' },
           { label: 'Configuración' }
         ]}
       />

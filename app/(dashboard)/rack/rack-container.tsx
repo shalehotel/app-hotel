@@ -15,7 +15,7 @@ import { useRackData } from '@/hooks/use-rack-data'
 import { useTurnoContext } from '@/components/providers/turno-provider'
 import { getRoomVisualState } from '@/lib/utils/room-status'
 import { type FilterState, initialFilters } from './components/smart-sidebar/filters-tab'
-import type { RackHabitacion } from '@/lib/actions/rack'
+import type { RackHabitacion } from '@/types/rack'
 
 type NewReservationData = {
   habitacion: RackHabitacion
@@ -105,21 +105,13 @@ export function RackContainer() {
         />
       </div>
 
-      {/* Indicador sutil de recarga */}
-      {isRefreshing && (
-        <div className="flex-shrink-0 bg-blue-50 dark:bg-blue-950/20 border-b border-blue-200 dark:border-blue-900">
-          <div className="px-4 py-2 flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
-            <div className="h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <span>Actualizando rack...</span>
-          </div>
-        </div>
-      )}
+      {/* Recarga silenciosa - sin indicadores visuales molestos */}
 
       {/* Main Content Area */}
       <div className="flex-1 flex min-h-0">
         {/* ZONA C: Main Grid */}
         <div className="flex-1 overflow-auto no-scrollbar">
-          {isLoading ? (
+          {isLoading && habitaciones.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">Cargando habitaciones...</p>
             </div>

@@ -77,7 +77,7 @@ export default function FacturacionPage() {
     <>
       <DashboardHeader
         breadcrumbs={[
-          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Inicio', href: '/' },
           { label: 'Historial de Ventas' }
         ]}
       />

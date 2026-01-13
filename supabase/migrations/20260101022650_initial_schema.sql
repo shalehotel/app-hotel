@@ -65,7 +65,7 @@ CREATE TABLE public.hotel_configuracion (
     tasa_icbper numeric(5,2) DEFAULT 0.50,
     es_exonerado_igv boolean DEFAULT false,
     facturacion_activa boolean DEFAULT true,
-    proveedor_sunat_config jsonb,
+    proveedor_metadata jsonb,
     hora_checkin time DEFAULT '14:00:00',
     hora_checkout time DEFAULT '12:00:00',
     telefono text,
@@ -74,7 +74,12 @@ CREATE TABLE public.hotel_configuracion (
     logo_url text,
     descripcion text,
     moneda_principal text DEFAULT 'PEN',
-    updated_at timestamptz DEFAULT now()
+    updated_at timestamptz DEFAULT now(),
+    -- Constraints de validación
+    CONSTRAINT check_ruc_format CHECK (ruc ~ '^(10|15|17|20)[0-9]{9}$'),
+    CONSTRAINT check_ubigeo_format CHECK (ubigeo_codigo IS NULL OR ubigeo_codigo ~ '^[0-9]{6}$'),
+    CONSTRAINT check_tasa_igv_range CHECK (tasa_igv >= 0 AND tasa_igv <= 100),
+    CONSTRAINT check_moneda_principal CHECK (moneda_principal IN ('PEN', 'USD'))
 );
 CREATE UNIQUE INDEX only_one_config_row ON public.hotel_configuracion ((true));
 
@@ -274,7 +279,9 @@ CREATE TABLE public.comprobante_detalles (
     cantidad numeric(10,2) NOT NULL,
     precio_unitario numeric(12,2) NOT NULL,
     subtotal numeric(12,2) NOT NULL,
-    codigo_afectacion_igv text NOT NULL DEFAULT '10'
+    codigo_afectacion_igv text NOT NULL DEFAULT '10',
+    unidad_medida text DEFAULT 'NIU',
+    codigo_producto text DEFAULT 'SERV-001'
 );
 
 -- PAGOS
@@ -500,12 +507,16 @@ SELECT
     u.nombres || ' ' || COALESCE(u.apellidos, '') as emisor_nombre,
     u.rol as emisor_rol,
     
+    -- Código de reserva para trazabilidad
+    r.codigo_reserva,
+    
     -- Metadata
     c.created_at
     
 FROM public.comprobantes c
 JOIN public.caja_turnos ct ON c.turno_caja_id = ct.id
 JOIN public.usuarios u ON ct.usuario_id = u.id
+LEFT JOIN public.reservas r ON c.reserva_id = r.id
 ORDER BY c.fecha_emision DESC, c.numero DESC;
 
 
@@ -553,9 +564,31 @@ ON public.pagos(reserva_id);
 CREATE INDEX IF NOT EXISTS idx_reservas_habitacion_estado
 ON public.reservas(habitacion_id, estado);
 
+-- Índices para comprobantes (facturación electrónica)
+CREATE INDEX IF NOT EXISTS idx_comprobantes_estado_fecha 
+ON public.comprobantes(estado_sunat, fecha_emision DESC);
+
+CREATE INDEX IF NOT EXISTS idx_comprobantes_pendientes 
+ON public.comprobantes(estado_sunat) 
+WHERE estado_sunat = 'PENDIENTE';
+
+CREATE INDEX IF NOT EXISTS idx_comprobantes_receptor 
+ON public.comprobantes(receptor_nro_doc, fecha_emision DESC);
+
 -- 4. Comentarios para documentación
 COMMENT ON COLUMN public.huespedes.notas_internas IS 'Notas de recepción: alertas, preferencias, incidentes';
 COMMENT ON COLUMN public.huespedes.es_frecuente IS 'Marcador VIP para clientes recurrentes (>= 3 visitas)';
+
+COMMENT ON COLUMN public.hotel_configuracion.proveedor_metadata IS 
+'SOLO metadatos públicos del proveedor (nombre, último envío, modo).
+NUNCA guardar tokens, passwords o secretos aquí.
+Ejemplo: {"proveedor": "nubefact", "modo_produccion": true, "ultimo_envio": "2026-01-12"}';
+
+COMMENT ON COLUMN public.comprobante_detalles.unidad_medida IS 
+'Unidad de medida según catálogo SUNAT. NIU = Unidad (servicios). ZZ = Unidad (servicios varios)';
+
+COMMENT ON COLUMN public.comprobante_detalles.codigo_producto IS 
+'Código interno del producto/servicio. Para hoteles usar: HOSP-001 (hospedaje), CONS-001 (consumo), etc.';
 
 COMMENT ON TABLE public.reservas IS 
 'Corazón del sistema - Estadías de huéspedes.
@@ -579,6 +612,161 @@ COMMENT ON VIEW public.vw_historial_comprobantes IS
 'Vista con datos crudos de comprobantes.
 El formateo y contexto (ej: "Anula a...", "Hab 201...") 
 se genera en el frontend/backend según necesidad.';
+
+
+-- =============================================
+-- 6. FUNCIONES
+-- =============================================
+
+-- Función atómica para cobrar y facturar (transacción ACID)
+CREATE OR REPLACE FUNCTION cobrar_y_facturar_atomico(
+  -- Parámetros del comprobante
+  p_tipo_comprobante VARCHAR,
+  p_serie_id UUID,
+  p_reserva_id UUID,
+  p_base_imponible DECIMAL(10,2),
+  p_total DECIMAL(10,2),
+  p_moneda VARCHAR(3),
+  p_tipo_cambio_factura DECIMAL(10,4),
+  p_fecha_emision TIMESTAMP,
+  
+  -- Parámetros del pago
+  p_monto_pago DECIMAL(10,2),
+  p_moneda_pago VARCHAR(3),
+  p_tipo_cambio_pago DECIMAL(10,4),
+  p_metodo_pago VARCHAR,
+  p_referencia_pago VARCHAR,
+  
+  -- Parámetros del movimiento de caja
+  p_sesion_caja_id UUID,
+  p_usuario_id UUID,
+  p_descripcion TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_comprobante_id UUID;
+  v_correlativo INTEGER;
+  v_numero_comprobante VARCHAR;
+  v_pago_id UUID;
+  v_movimiento_id UUID;
+  v_result JSONB;
+BEGIN
+  -- PASO 1: Generar correlativo y crear comprobante
+  SELECT proximo_numero INTO v_correlativo
+  FROM series
+  WHERE id = p_serie_id
+  FOR UPDATE;
+
+  IF v_correlativo IS NULL THEN
+    RAISE EXCEPTION 'Serie no encontrada o inválida';
+  END IF;
+
+  UPDATE series
+  SET proximo_numero = proximo_numero + 1,
+      ultimo_numero_usado = v_correlativo
+  WHERE id = p_serie_id;
+
+  SELECT CONCAT(codigo_serie, '-', LPAD(v_correlativo::TEXT, 8, '0'))
+  INTO v_numero_comprobante
+  FROM series
+  WHERE id = p_serie_id;
+
+  INSERT INTO comprobantes (
+    tipo_comprobante,
+    serie_id,
+    numero_comprobante,
+    reserva_id,
+    base_imponible,
+    total,
+    moneda,
+    tipo_cambio,
+    fecha_emision,
+    estado_sunat
+  ) VALUES (
+    p_tipo_comprobante,
+    p_serie_id,
+    v_numero_comprobante,
+    p_reserva_id,
+    p_base_imponible,
+    p_total,
+    p_moneda,
+    p_tipo_cambio_factura,
+    p_fecha_emision,
+    'PENDIENTE'
+  )
+  RETURNING id INTO v_comprobante_id;
+
+  -- PASO 2: Registrar el pago
+  INSERT INTO pagos (
+    reserva_id,
+    comprobante_id,
+    monto,
+    moneda_pago,
+    tipo_cambio_pago,
+    metodo_pago,
+    referencia_transaccion,
+    fecha_pago
+  ) VALUES (
+    p_reserva_id,
+    v_comprobante_id,
+    p_monto_pago,
+    p_moneda_pago,
+    p_tipo_cambio_pago,
+    p_metodo_pago,
+    p_referencia_pago,
+    p_fecha_emision
+  )
+  RETURNING id INTO v_pago_id;
+
+  -- PASO 3: Registrar movimiento de caja (solo si es EFECTIVO)
+  IF p_metodo_pago = 'EFECTIVO' THEN
+    INSERT INTO movimientos_caja (
+      sesion_caja_id,
+      tipo_movimiento,
+      concepto,
+      monto,
+      moneda,
+      usuario_id,
+      pago_id,
+      comprobante_id,
+      fecha_movimiento
+    ) VALUES (
+      p_sesion_caja_id,
+      'INGRESO',
+      p_descripcion,
+      p_monto_pago,
+      p_moneda_pago,
+      p_usuario_id,
+      v_pago_id,
+      v_comprobante_id,
+      p_fecha_emision
+    )
+    RETURNING id INTO v_movimiento_id;
+  END IF;
+
+  -- RETORNAR RESULTADO
+  v_result := jsonb_build_object(
+    'success', true,
+    'comprobante_id', v_comprobante_id,
+    'numero_comprobante', v_numero_comprobante,
+    'pago_id', v_pago_id,
+    'movimiento_id', v_movimiento_id
+  );
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'Error en transacción atómica: %', SQLERRM;
+END;
+$$;
+
+COMMENT ON FUNCTION cobrar_y_facturar_atomico IS 
+'Función atómica que crea comprobante, registra pago y movimiento de caja en una transacción ACID. 
+Garantiza que o todo sucede o nada sucede, evitando inconsistencias de datos.
+Reemplaza el flujo manual multi-step que existía en las Server Actions.';
 
 
 -- =============================================

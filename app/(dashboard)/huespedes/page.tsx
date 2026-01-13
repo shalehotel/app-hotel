@@ -64,7 +64,7 @@ export default async function DirectorioHuespedesPage() {
     <>
       <DashboardHeader
         breadcrumbs={[
-          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Inicio', href: '/' },
           { label: 'Directorio de Huéspedes' }
         ]}
       />

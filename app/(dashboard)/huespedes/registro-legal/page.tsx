@@ -11,7 +11,7 @@ export default function RegistroLegalPage() {
         <>
             <DashboardHeader
                 breadcrumbs={[
-                    { label: 'Dashboard', href: '/dashboard' },
+                    { label: 'Inicio', href: '/' },
                     { label: 'Huéspedes', href: '/huespedes' },
                     { label: 'Libro Legal' }
                 ]}

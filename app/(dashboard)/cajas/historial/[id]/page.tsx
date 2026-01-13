@@ -22,7 +22,7 @@ export default async function DetalleTurnoPage({
     <>
       <DashboardHeader
         breadcrumbs={[
-          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Inicio', href: '/' },
           { label: 'Cajas' },
           { label: 'Historial', href: '/cajas/historial' },
           { label: `Turno ${turno.turno.caja_nombre}` }

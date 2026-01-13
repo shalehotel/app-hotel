@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/logger'
 import { getErrorMessage } from '@/lib/errors'
+import { esTransicionValida } from '@/lib/utils/validaciones-reservas'
 
 // ========================================
 // CANCELAR RESERVA
@@ -26,18 +27,12 @@ export async function cancelarReserva(reservaId: string, motivo?: string) {
       }
     }
 
-    // 2. Validar que se pueda cancelar
-    if (reserva.estado === 'CANCELADA') {
+    // 2. Validar que se pueda cancelar usando el helper
+    const validacion = esTransicionValida(reserva.estado, 'CANCELADA')
+    if (!validacion.valida) {
       return {
-        error: 'La reserva ya está cancelada',
-        code: 'YA_CANCELADA'
-      }
-    }
-
-    if (reserva.estado === 'CHECKED_OUT') {
-      return {
-        error: 'No se puede cancelar una reserva que ya hizo check-out',
-        code: 'CHECKOUT_COMPLETADO'
+        error: validacion.mensaje || 'Transición de estado no permitida',
+        code: 'TRANSICION_INVALIDA'
       }
     }
 

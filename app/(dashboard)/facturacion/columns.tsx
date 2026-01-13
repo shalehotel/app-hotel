@@ -1,6 +1,7 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,6 +30,8 @@ export type Comprobante = {
   moneda: string
   emisor_nombre: string
   metodo_pago?: string
+  reserva_id?: string
+  codigo_reserva?: string
 }
 
 const formatCurrency = (amount: number, currency: string = 'PEN') => {
@@ -89,6 +92,30 @@ export const comprobantesColumns: ColumnDef<Comprobante>[] = [
           <span className="font-medium">{comprobante.cliente_nombre}</span>
           <span className="text-xs text-muted-foreground">DNI: {comprobante.cliente_doc}</span>
         </div>
+      )
+    },
+  },
+  {
+    id: 'reserva',
+    accessorKey: 'codigo_reserva',
+    header: 'Reserva',
+    cell: ({ row }) => {
+      const comprobante = row.original
+      
+      if (!comprobante.reserva_id || !comprobante.codigo_reserva) {
+        return (
+          <span className="text-xs text-muted-foreground italic">Venta directa</span>
+        )
+      }
+      
+      return (
+        <Link 
+          href={`/reservas?id=${comprobante.reserva_id}`}
+          className="font-mono text-sm text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {comprobante.codigo_reserva}
+        </Link>
       )
     },
   },

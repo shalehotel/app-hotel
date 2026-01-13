@@ -20,7 +20,8 @@ const DEFAULT_CONFIG: Partial<HotelConfig> = {
   es_exonerado_igv: false,
   facturacion_activa: false,
   hora_checkin: '14:00:00',
-  hora_checkout: '12:00:00'
+  hora_checkout: '12:00:00',
+  proveedor_metadata: null // Solo metadatos públicos, NUNCA secretos
 }
 
 /**

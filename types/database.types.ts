@@ -448,7 +448,7 @@ export type Database = {
           moneda_principal: string | null
           nombre_comercial: string | null
           pagina_web: string | null
-          proveedor_sunat_config: Json | null
+          proveedor_metadata: Json | null
           razon_social: string
           ruc: string
           tasa_icbper: number | null
@@ -492,7 +492,7 @@ export type Database = {
           moneda_principal?: string | null
           nombre_comercial?: string | null
           pagina_web?: string | null
-          proveedor_sunat_config?: Json | null
+          proveedor_metadata?: Json | null
           razon_social?: string
           ruc?: string
           tasa_icbper?: number | null
