@@ -108,13 +108,13 @@ export function HistorialCierresTable({ cierres }: Props) {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      S/ {cierre.monto_apertura.toFixed(2)}
+                      S/ {cierre.monto_apertura_efectivo.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      S/ {cierre.monto_cierre_sistema.toFixed(2)}
+                      S/ {cierre.monto_cierre_teorico_efectivo.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      S/ {cierre.monto_cierre_declarado.toFixed(2)}
+                      S/ {cierre.monto_cierre_real_efectivo.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-center">
                       {getEstadoBadge(cierre.estado)}

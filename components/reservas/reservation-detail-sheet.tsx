@@ -188,12 +188,22 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
                 <p className="font-medium">
                   {format(new Date(reserva.fecha_entrada), 'dd MMM yyyy', { locale: es })}
                 </p>
+                {reserva.check_in_real && (
+                  <p className="text-xs text-green-600 mt-0.5">
+                    Check-in: {format(new Date(reserva.check_in_real), 'HH:mm', { locale: es })}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-muted-foreground">Fecha Salida</p>
                 <p className="font-medium">
                   {format(new Date(reserva.fecha_salida), 'dd MMM yyyy', { locale: es })}
                 </p>
+                {reserva.check_out_real && (
+                  <p className="text-xs text-blue-600 mt-0.5">
+                    Check-out: {format(new Date(reserva.check_out_real), 'HH:mm', { locale: es })}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-muted-foreground">Estancia</p>
@@ -202,8 +212,8 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground">Piso</p>
-                <p className="font-medium">{reserva.habitacion_piso}</p>
+                <p className="text-muted-foreground">Precio Pactado</p>
+                <p className="font-medium">S/ {reserva.precio_pactado.toFixed(2)} / noche</p>
               </div>
             </div>
 
@@ -243,10 +253,22 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
                            <p className="text-xs text-muted-foreground">Fecha Nacimiento</p>
                            <p>{datos.fecha_nacimiento ? format(new Date(datos.fecha_nacimiento), 'dd/MM/yyyy') : '-'}</p>
                          </div>
-                         {(datos.telefono || datos.correo) && (
+                         {datos.telefono && (
+                           <div>
+                             <p className="text-xs text-muted-foreground">Teléfono</p>
+                             <p className="font-mono text-xs">{datos.telefono}</p>
+                           </div>
+                         )}
+                         {datos.correo && (
+                           <div>
+                             <p className="text-xs text-muted-foreground">Correo</p>
+                             <p className="text-xs truncate">{datos.correo}</p>
+                           </div>
+                         )}
+                         {datos.direccion && (
                            <div className="col-span-2">
-                             <p className="text-xs text-muted-foreground">Contacto</p>
-                             <p className="truncate">{[datos.telefono, datos.correo].filter(Boolean).join(' • ')}</p>
+                             <p className="text-xs text-muted-foreground">Dirección</p>
+                             <p className="text-xs">{datos.direccion}</p>
                            </div>
                          )}
                        </div>
@@ -324,6 +346,17 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
                     </p>
                   </div>
                 </div>
+              )}
+              
+              {/* Metadatos de auditoría */}
+              {readonly && (
+                <>
+                  <Separator />
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>Código de Reserva: <span className="font-mono font-medium">{reserva.codigo_reserva}</span></p>
+                    <p>Creado: {reserva.created_at && format(new Date(reserva.created_at), "dd MMM yyyy HH:mm", { locale: es })}</p>
+                  </div>
+                </>
               )}
 
           </div>

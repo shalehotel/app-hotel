@@ -135,12 +135,12 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
 
   // 4. Obtener configuración fiscal
   const config = await getHotelConfig()
-  
+
   // Validar configuración fiscal completa
   if (!config.ruc || config.ruc === '20000000001') {
     throw new Error('Debe configurar el RUC de su empresa en Configuración antes de emitir comprobantes')
   }
-  
+
   // Validar formato de RUC (11 dígitos, comienza con 10, 15, 17 o 20)
   const rucPattern = /^(10|15|17|20)[0-9]{9}$/
   if (!rucPattern.test(config.ruc)) {
@@ -149,15 +149,15 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
       'Debe tener 11 dígitos e iniciar con 10, 15, 17 o 20'
     )
   }
-  
+
   if (!config.razon_social || config.razon_social === 'MI HOTEL S.A.C.') {
     throw new Error('Debe configurar la razón social de su empresa en Configuración')
   }
-  
+
   if (!config.direccion_fiscal) {
     throw new Error('Debe configurar la dirección fiscal en Configuración')
   }
-  
+
   // Validar documento del cliente según tipo de comprobante
   if (input.tipo_comprobante === 'FACTURA') {
     if (input.cliente_tipo_doc !== 'RUC') {
@@ -171,18 +171,18 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
       throw new Error('El DNI debe tener 8 dígitos')
     }
   }
-  
+
   // Calcular totales según configuración
   const TASA_IGV = config.es_exonerado_igv ? 0 : (config.tasa_igv || 18.00) / 100
-  
+
   // 5. Calcular montos fiscales
   let op_gravadas = 0
   let op_exoneradas = 0
   let monto_igv = 0
-  
+
   for (const item of input.items) {
     const codigoAfectacion = config.es_exonerado_igv ? '20' : (item.codigo_afectacion_igv || '10')
-    
+
     if (codigoAfectacion === '10') {
       // Gravado: el subtotal incluye IGV, hay que desglosa
       const base = item.subtotal / (1 + TASA_IGV)
@@ -193,7 +193,7 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
       op_exoneradas += item.subtotal
     }
   }
-  
+
   const total_venta = op_gravadas + monto_igv + op_exoneradas
 
   // 6. Obtener siguiente correlativo (atómico)
@@ -261,21 +261,21 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
       tipo_comprobante: input.tipo_comprobante,
       serie: input.serie,
       numero: correlativo,
-      
+
       cliente_tipo_documento: input.cliente_tipo_doc,
       cliente_numero_documento: input.cliente_numero_doc,
       cliente_denominacion: input.cliente_nombre,
       cliente_direccion: input.cliente_direccion,
-      
+
       fecha_emision: new Date().toISOString().split('T')[0],
       moneda: 'PEN',
       tipo_cambio: 1.000,
-      porcentaje_igv: config.tasa_igv,
+      porcentaje_igv: config.tasa_igv ?? 18,
       total_gravada: op_gravadas,
       total_exonerada: op_exoneradas,
       total_igv: monto_igv,
       total: total_venta,
-      
+
       items: input.items.map(item => ({
         unidad_de_medida: 'NIU',
         codigo: 'HOSP-001',
@@ -287,7 +287,7 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
         tipo_de_igv: config.es_exonerado_igv ? 2 : 1
       }))
     })
-    
+
     if (respuesta.success && respuesta.aceptada_por_sunat) {
       // Actualizar con respuesta de NubeFact
       await supabase
@@ -300,7 +300,7 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
           external_id: respuesta.enlace_pdf
         })
         .eq('id', comprobante.id)
-      
+
       logger.info('Comprobante aceptado por SUNAT', {
         comprobante_id: comprobante.id,
         hash: respuesta.hash
@@ -314,7 +314,7 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
           observaciones: respuesta.errors || respuesta.mensaje
         })
         .eq('id', comprobante.id)
-      
+
       logger.warn('Comprobante rechazado por SUNAT', {
         comprobante_id: comprobante.id,
         error: respuesta.errors
@@ -403,7 +403,15 @@ export async function getDetalleComprobante(comprobante_id: string) {
     .from('comprobantes')
     .select(`
       *,
+      caja_turnos (
+        usuario_id,
+        usuarios!caja_turnos_usuario_id_fkey (
+          nombres,
+          apellidos
+        )
+      ),
       reservas (
+        id,
         codigo_reserva,
         habitaciones (
           numero,
@@ -415,10 +423,46 @@ export async function getDetalleComprobante(comprobante_id: string) {
     .single()
 
   if (comprobanteError || !comprobante) {
+    console.error('Error al cargar comprobante:', comprobanteError)
     throw new Error('Comprobante no encontrado')
   }
 
-  // 2. Obtener items/detalles
+  // 2. Obtener serie y caja (usando el campo serie del comprobante)
+  let serieCaja = null
+  if (comprobante.serie) {
+    const { data: serieData } = await supabase
+      .from('series_comprobante')
+      .select(`
+        serie,
+        cajas (
+          nombre
+        )
+      `)
+      .eq('serie', comprobante.serie)
+      .single()
+
+    serieCaja = serieData
+  }
+
+  // Formatear datos para el Sheet
+  const cajaFromSerie = (serieCaja?.cajas as any)
+  const comprobanteFormatted = {
+    ...comprobante,
+    // Serie y caja
+    caja_nombre: cajaFromSerie?.nombre || null,
+
+    // Reserva
+    reserva_id: comprobante.reservas?.id || null,
+    codigo_reserva: comprobante.reservas?.codigo_reserva || null,
+    habitacion_numero: comprobante.reservas?.habitaciones?.numero || null,
+
+    // Emisor (desde turno)
+    emisor_nombre: comprobante.caja_turnos?.usuarios
+      ? `${comprobante.caja_turnos.usuarios.nombres} ${comprobante.caja_turnos.usuarios.apellidos || ''}`.trim()
+      : null
+  }
+
+  // 3. Obtener items/detalles
   const { data: detalles, error: detallesError } = await supabase
     .from('comprobante_detalles')
     .select('*')
@@ -431,7 +475,7 @@ export async function getDetalleComprobante(comprobante_id: string) {
   }
 
   return {
-    comprobante,
+    comprobante: comprobanteFormatted,
     detalles: detalles || []
   }
 }

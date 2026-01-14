@@ -55,7 +55,7 @@ export function HabitacionDialog({ open, onOpenChange, habitacion, categorias }:
     const [error, setError] = useState('')
 
     const form = useForm<HabitacionFormValues>({
-        resolver: zodResolver(habitacionFormSchema),
+        resolver: zodResolver(habitacionFormSchema) as any,
         defaultValues: {
             numero: habitacion?.numero || '',
             piso: habitacion?.piso || 1,

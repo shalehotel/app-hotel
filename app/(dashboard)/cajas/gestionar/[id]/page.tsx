@@ -8,9 +8,9 @@ export const dynamic = 'force-dynamic'
 export default async function GestionarCajaPage({
     params
 }: {
-    params: { id: string }
+    params: Promise<{ id: string }>
 }) {
-    const { id } = await Promise.resolve(params)
+    const { id } = await params
 
     try {
         const turno = await getDetalleTurnoActivo(id)

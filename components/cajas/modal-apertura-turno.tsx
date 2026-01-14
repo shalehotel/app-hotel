@@ -28,7 +28,13 @@ import { toast } from 'sonner'
 import { Loader2, Lock, DollarSign } from 'lucide-react'
 
 type Props = {
-  onSuccess: () => void
+  onSuccess: () => void | Promise<void>
+  onCancel?: () => void
+  allowCancel?: boolean
+  // Datos pre-cargados del TurnoProvider (optimización)
+  cajasIniciales?: Caja[]
+  loadingCajasInicial?: boolean
+  userIdInicial?: string | null
 }
 
 type FormData = {
@@ -40,13 +46,20 @@ type FormData = {
 const DENOMINACIONES_PEN = [200, 100, 50, 20, 10, 5, 2, 1, 0.50, 0.20, 0.10]
 const DENOMINACIONES_USD = [100, 50, 20, 10, 5, 1]
 
-export function ModalAperturaTurno({ onSuccess }: Props) {
+export function ModalAperturaTurno({
+  onSuccess,
+  onCancel,
+  allowCancel = true,
+  cajasIniciales,
+  loadingCajasInicial = false,
+  userIdInicial
+}: Props) {
   const [loading, setLoading] = useState(false)
-  const [loadingCajas, setLoadingCajas] = useState(true)
-  const [cajas, setCajas] = useState<Caja[]>([])
+  const [loadingCajas, setLoadingCajas] = useState(loadingCajasInicial)
+  const [cajas, setCajas] = useState<Caja[]>(cajasIniciales || [])
   const [cajaSeleccionada, setCajaSeleccionada] = useState<string>('')
-  const [usuarioId, setUsuarioId] = useState<string>('')
-  
+  const [usuarioId, setUsuarioId] = useState<string>(userIdInicial || '')
+
   // Contadores de billetes/monedas
   const [desglosePEN, setDesglosePEN] = useState<Record<number, number>>({})
   const [desgloseUSD, setDesgloseUSD] = useState<Record<number, number>>({})
@@ -62,34 +75,56 @@ export function ModalAperturaTurno({ onSuccess }: Props) {
   const montoPEN = watch('monto_apertura_pen')
   const montoUSD = watch('monto_apertura_usd')
 
+  // Solo cargar datos si NO se pasaron pre-cargados
   useEffect(() => {
-    const loadData = async () => {
-      // Obtener usuario actual
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUsuarioId(user.id)
-      }
-
-      // Cargar cajas disponibles
-      setLoadingCajas(true)
-      const result = await getCajasDisponibles()
-      if (result.success) {
-        setCajas(result.data)
-        if (result.data.length > 0) {
-          setCajaSeleccionada(result.data[0].id)
-          setValue('caja_id', result.data[0].id)
-        }
-      } else {
-        toast.error('Error al cargar cajas', {
-          description: result.error
-        })
-      }
+    // Si ya tenemos cajas pre-cargadas, solo seleccionar la primera
+    if (cajasIniciales && cajasIniciales.length > 0) {
+      setCajas(cajasIniciales)
+      setCajaSeleccionada(cajasIniciales[0].id)
+      setValue('caja_id', cajasIniciales[0].id)
       setLoadingCajas(false)
     }
 
+    // Si ya tenemos userId pre-cargado, usarlo
+    if (userIdInicial) {
+      setUsuarioId(userIdInicial)
+    }
+
+    // Solo hacer fetch si NO tenemos datos pre-cargados
+    const needsFetch = !cajasIniciales || !userIdInicial
+    if (!needsFetch) return
+
+    const loadData = async () => {
+      // Solo obtener usuario si no lo tenemos
+      if (!userIdInicial) {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          setUsuarioId(user.id)
+        }
+      }
+
+      // Solo cargar cajas si no las tenemos
+      if (!cajasIniciales) {
+        setLoadingCajas(true)
+        const result = await getCajasDisponibles()
+        if (result.success && result.data) {
+          setCajas(result.data)
+          if (result.data.length > 0) {
+            setCajaSeleccionada(result.data[0].id)
+            setValue('caja_id', result.data[0].id)
+          }
+        } else if (!result.success) {
+          toast.error('Error al cargar cajas', {
+            description: result.error
+          })
+        }
+        setLoadingCajas(false)
+      }
+    }
+
     loadData()
-  }, [setValue])
+  }, [cajasIniciales, userIdInicial, setValue])
 
   // Calcular total del desglose
   const calcularTotalDesglose = (desglose: Record<number, number>) => {
@@ -123,10 +158,12 @@ export function ModalAperturaTurno({ onSuccess }: Props) {
       })
 
       if (result.success) {
+        console.log('[ModalAperturaTurno] Turno creado exitosamente, llamando onSuccess...')
         toast.success('Turno abierto', {
           description: 'Tu turno de caja ha sido iniciado correctamente'
         })
-        onSuccess()
+        await onSuccess()
+        console.log('[ModalAperturaTurno] onSuccess completado')
       } else {
         toast.error('Error al abrir turno', {
           description: result.error
@@ -141,12 +178,18 @@ export function ModalAperturaTurno({ onSuccess }: Props) {
     }
   }
 
+  const handleCancel = () => {
+    if (onCancel) {
+      onCancel()
+    }
+  }
+
   return (
-    <Dialog open={true} onOpenChange={() => {}}>
-      <DialogContent 
+    <Dialog open={true} onOpenChange={(open) => !open && allowCancel && handleCancel()}>
+      <DialogContent
         className="max-w-2xl max-h-[90vh] overflow-y-auto"
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
+        onInteractOutside={(e) => !allowCancel && e.preventDefault()}
+        onEscapeKeyDown={(e) => !allowCancel && e.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -349,12 +392,26 @@ export function ModalAperturaTurno({ onSuccess }: Props) {
               </div>
             </div>
 
-            {/* Botón Submit */}
-            <Button type="submit" disabled={loading} className="w-full" size="lg">
-              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              <Lock className="h-4 w-4 mr-2" />
-              Abrir Turno e Iniciar Jornada
-            </Button>
+            {/* Botones */}
+            <div className="flex gap-3">
+              {allowCancel && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={loading}
+                  className="flex-1"
+                  size="lg"
+                >
+                  Cancelar
+                </Button>
+              )}
+              <Button type="submit" disabled={loading} className="flex-1" size="lg">
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <Lock className="h-4 w-4 mr-2" />
+                Abrir Turno
+              </Button>
+            </div>
           </form>
         )}
       </DialogContent>

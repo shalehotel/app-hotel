@@ -1,11 +1,14 @@
 'use client'
 
-import { startOfDay } from 'date-fns'
+import { startOfDay, differenceInHours, format, isSameDay, isToday } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { RoomContextMenu } from '../context-menu/room-context-menu'
 import { getRoomVisualState } from '@/lib/utils/room-status'
-import { Key, User, Sparkles, Users } from 'lucide-react'
+import { Key, User, Sparkles, Users, LogIn, LogOut, Clock, AlertCircle } from 'lucide-react'
 import type { RackHabitacion, RackReserva } from '@/lib/actions/rack'
+import { cn } from '@/lib/utils'
 
 type Props = {
     habitacion: RackHabitacion
@@ -23,9 +26,10 @@ export function RoomCard({
     onUpdate
 }: Props) {
     const visualState = getRoomVisualState(habitacion)
+    const now = new Date()
+    const today = startOfDay(now)
 
     // Buscar reserva activa (CHECKED_IN) de hoy
-    const today = startOfDay(new Date())
     const activeReservation = reservas.find(r => {
         if (r.estado !== 'CHECKED_IN') return false
         const start = startOfDay(new Date(r.fecha_entrada))
@@ -33,9 +37,27 @@ export function RoomCard({
         return today >= start && today <= end
     })
 
+    // Buscar reserva próxima (RESERVADA que entra hoy)
+    const upcomingReservation = reservas.find(r => {
+        if (r.estado !== 'RESERVADA') return false
+        return isToday(new Date(r.fecha_entrada))
+    })
+
+    // Calcular horas hasta check-in próximo
+    const hoursUntilCheckin = upcomingReservation 
+        ? differenceInHours(new Date(upcomingReservation.fecha_entrada), now)
+        : null
+
+    // Hora de checkout esperada para reserva activa
+    const checkoutTime = activeReservation 
+        ? format(new Date(activeReservation.fecha_salida), 'HH:mm', { locale: es })
+        : null
+
     const handleClick = () => {
         if (activeReservation) {
             onReservationClick(activeReservation.id)
+        } else if (upcomingReservation) {
+            onReservationClick(upcomingReservation.id)
         } else {
             onNewReservation(habitacion, new Date())
         }
@@ -48,31 +70,70 @@ export function RoomCard({
             onUpdate={onUpdate}
         >
             <div
-                className="relative bg-card border rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-shadow group h-full flex flex-col justify-between overflow-hidden"
+                className={cn(
+                    "relative bg-card border rounded-xl shadow-sm p-4 cursor-pointer transition-all duration-200 group h-full flex flex-col justify-between overflow-hidden",
+                    "hover:shadow-lg hover:border-primary/50 hover:-translate-y-0.5"
+                )}
                 onClick={handleClick}
             >
-                {/* Barra de estado lateral */}
-                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${habitacion.estado_servicio !== 'OPERATIVA' ? 'bg-[#374151]' :
-                        habitacion.estado_ocupacion === 'OCUPADA' ? 'bg-[#f44250]' :
-                            'bg-[#6BD968]'
-                    }`} />
+                {/* Barra de estado lateral con gradiente */}
+                <div className={cn(
+                    "absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 group-hover:w-1.5",
+                    habitacion.estado_servicio !== 'OPERATIVA' ? 'bg-gradient-to-b from-gray-500 to-gray-700' :
+                    habitacion.estado_ocupacion === 'OCUPADA' ? 'bg-gradient-to-b from-red-500 to-red-600' :
+                    'bg-gradient-to-b from-green-400 to-green-600'
+                )} />
 
-                <div className="flex items-start justify-between mb-2 pl-2">
-                    <div>
-                        <h3 className="font-bold text-xl leading-none group-hover:text-primary transition-colors">{habitacion.numero}</h3>
-                        <p className="text-sm text-muted-foreground mt-1.5 font-medium">{habitacion.tipos_habitacion.nombre}</p>
+                {/* Quick Actions en hover - Superior derecha */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1 z-10">
+                    {activeReservation && (
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 w-7 p-0 shadow-md"
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onReservationClick(activeReservation.id)
+                            }}
+                            title="Ver Check-out"
+                        >
+                            <LogOut className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
+                    {upcomingReservation && !activeReservation && (
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 w-7 p-0 shadow-md"
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onReservationClick(upcomingReservation.id)
+                            }}
+                            title="Ver Check-in"
+                        >
+                            <LogIn className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
+                </div>
+
+                <div className="flex items-start justify-between mb-3 pl-2">
+                    <div className="space-y-1">
+                        <h3 className="font-bold text-2xl leading-none group-hover:text-primary transition-colors">{habitacion.numero}</h3>
+                        <p className="text-xs text-muted-foreground font-medium">{habitacion.tipos_habitacion.nombre}</p>
                     </div>
 
-                    {/* Badges solo si está ocupada */}
+                    {/* Badges con mejor diseño */}
                     {habitacion.estado_ocupacion === 'OCUPADA' ? (
-                        <div className="flex flex-col items-end gap-1">
+                        <div className="flex flex-col items-end gap-1.5">
                             {/* Badge Huésped */}
                             <Badge
                                 variant="outline"
-                                className={`${activeReservation?.huesped_presente === false
-                                    ? 'bg-[#f59e0b] text-white border-0'
-                                    : 'bg-[#f44250] text-white border-0'
-                                    } text-[10px] px-2 py-0.5 flex items-center gap-1 shadow-sm`}
+                                className={cn(
+                                    "text-[10px] px-2 py-0.5 flex items-center gap-1 shadow-sm border-0 font-medium",
+                                    activeReservation?.huesped_presente === false
+                                        ? 'bg-amber-500 text-white'
+                                        : 'bg-red-500 text-white'
+                                )}
                             >
                                 {activeReservation?.huesped_presente === false ? (
                                     <><Key className="w-3 h-3" /> Fuera</>
@@ -84,45 +145,93 @@ export function RoomCard({
                             {/* Badge Limpieza */}
                             <Badge
                                 variant="outline"
-                                className={`${habitacion.estado_limpieza === 'SUCIA' ? 'bg-[#fecc1b] text-white border-0' :
-                                        habitacion.estado_limpieza === 'EN_LIMPIEZA' ? 'bg-[#2B7FFF] text-white border-0' :
-                                            'bg-[#2B7FFF] text-white border-0'
-                                    } text-[10px] px-2 py-0.5 flex items-center gap-1 shadow-sm`}
+                                className={cn(
+                                    "text-[10px] px-2 py-0.5 flex items-center gap-1 shadow-sm border-0 font-medium",
+                                    habitacion.estado_limpieza === 'SUCIA' ? 'bg-yellow-500 text-white' :
+                                    habitacion.estado_limpieza === 'EN_LIMPIEZA' ? 'bg-blue-500 text-white' :
+                                    'bg-blue-600 text-white'
+                                )}
                             >
                                 <Sparkles className="w-3 h-3" />
                                 {habitacion.estado_limpieza === 'SUCIA' ? 'Sucia' :
                                     habitacion.estado_limpieza === 'EN_LIMPIEZA' ? 'Limpiando' :
-                                        'Limpia'}
+                                    'Limpia'}
                             </Badge>
                         </div>
+                    ) : upcomingReservation && hoursUntilCheckin !== null && hoursUntilCheckin <= 6 ? (
+                        <Badge
+                            variant="outline"
+                            className="bg-orange-500 text-white border-0 text-[10px] px-2 py-0.5 font-semibold shadow-sm flex items-center gap-1 animate-pulse"
+                        >
+                            <AlertCircle className="w-3 h-3" />
+                            Entrada {hoursUntilCheckin}h
+                        </Badge>
                     ) : (
                         <Badge
                             variant="outline"
-                            className={`${visualState.badgeColor} ${visualState.textColor} border-0 text-xs px-2 py-0.5 font-semibold shadow-sm`}
+                            className={cn(
+                                visualState.badgeColor,
+                                visualState.textColor,
+                                "border-0 text-xs px-2.5 py-0.5 font-semibold shadow-sm"
+                            )}
                         >
                             {visualState.label}
                         </Badge>
                     )}
                 </div>
 
-                <div className="text-xs space-y-2 pl-2 mt-2 text-muted-foreground">
-                    <div className="flex justify-between items-center">
-                        <span>Piso {habitacion.piso}</span>
-                        <div className="flex items-center gap-1 bg-secondary/50 px-1.5 py-0.5 rounded">
+                <div className="text-xs space-y-2.5 pl-2 mt-auto">
+                    <div className="flex justify-between items-center text-muted-foreground">
+                        <span className="font-medium">Piso {habitacion.piso}</span>
+                        <div className="flex items-center gap-1 bg-secondary/60 px-2 py-1 rounded-md">
                             <Users className="w-3 h-3" />
-                            {habitacion.tipos_habitacion.capacidad_personas || 2}
+                            <span className="font-medium">{habitacion.tipos_habitacion.capacidad_personas || 2}</span>
                         </div>
                     </div>
 
+                    {/* Información de reserva activa */}
                     {activeReservation && (
-                        <div className="pt-2 border-t flex items-center gap-2 text-foreground font-medium">
-                            <User className="w-3 h-3 text-primary" />
-                            <span className="truncate">
-                                {activeReservation.huespedes
-                                    ? `${activeReservation.huespedes.nombres} ${activeReservation.huespedes.apellidos}`
-                                    : 'Huésped'
-                                }
-                            </span>
+                        <>
+                            <div className="pt-2 border-t space-y-1.5">
+                                <div className="flex items-center gap-2 text-foreground font-medium">
+                                    <User className="w-3.5 h-3.5 text-primary" />
+                                    <span className="truncate">
+                                        {activeReservation.huespedes
+                                            ? `${activeReservation.huespedes.nombres} ${activeReservation.huespedes.apellidos}`
+                                            : 'Huésped'
+                                        }
+                                    </span>
+                                </div>
+                                
+                                {/* Hora de checkout esperada */}
+                                {checkoutTime && (
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Clock className="w-3.5 h-3.5" />
+                                        <span className="text-[11px]">Sale: {checkoutTime}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+
+                    {/* Información de reserva próxima */}
+                    {!activeReservation && upcomingReservation && (
+                        <div className="pt-2 border-t border-dashed border-orange-300 bg-orange-50/50 dark:bg-orange-950/20 -mx-2 px-3 py-2 rounded-md">
+                            <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-medium text-[11px]">
+                                <LogIn className="w-3.5 h-3.5" />
+                                <span className="truncate">
+                                    {upcomingReservation.huespedes
+                                        ? `${upcomingReservation.huespedes.nombres} ${upcomingReservation.huespedes.apellidos}`
+                                        : 'Reserva próxima'
+                                    }
+                                </span>
+                            </div>
+                            {hoursUntilCheckin !== null && (
+                                <div className="flex items-center gap-1 mt-1 text-[10px] text-orange-600 dark:text-orange-500">
+                                    <Clock className="w-3 h-3" />
+                                    Entrada en {hoursUntilCheckin}h
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

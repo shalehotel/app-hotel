@@ -44,17 +44,17 @@ export function StepConfirmacion({
         pago: null // Ya no gestionamos pagos aquí
       })
 
-      if (result.error || !result.data) {
-        alert(result.error || 'Error desconocido')
+      if (!result.data) {
+        alert('Error desconocido al crear la reserva')
         return
       }
 
       // Éxito: Pasar datos al padre para mostrar StepExito
       onSuccess(result.data.id, result.data.codigo_reserva, accion === 'checkin')
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating reservation:', error)
-      alert('Error al crear la reserva')
+      alert(error?.message || 'Error al crear la reserva')
     } finally {
       setGuardando(false)
       setTipoAccion(null)

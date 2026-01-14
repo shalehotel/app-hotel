@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { PanelRightOpen } from 'lucide-react'
@@ -32,7 +32,15 @@ export function RackContainer() {
   const [filters, setFilters] = useState<FilterState>(initialFilters)
 
   // Check de turno activo (ahora desde contexto global)
-  const { loading: loadingTurno, hasActiveTurno, refetchTurno } = useTurnoContext()
+  const {
+    loading: loadingTurno,
+    hasActiveTurno,
+    refetchTurno,
+    // Datos pre-cargados para el modal (optimización)
+    cajasDisponibles,
+    loadingCajas,
+    userId
+  } = useTurnoContext()
   // Para recepcionistas, el turno es requerido
   const turnoRequired = true // TODO: Verificar rol si es necesario
 
@@ -50,15 +58,17 @@ export function RackContainer() {
     refetch
   } = useRackData(30)
 
-  // Filtrar habitaciones
-  const filteredHabitaciones = habitaciones.filter(h => {
-    if (filters.tipoId !== 'all' && h.tipo_id !== filters.tipoId) return false
-    if (filters.categoriaId !== 'all' && h.categoria_id !== filters.categoriaId) return false
-    if (filters.estadoLimpieza !== 'all' && h.estado_limpieza !== filters.estadoLimpieza) return false
-    if (filters.estadoOcupacion !== 'all' && h.estado_ocupacion !== filters.estadoOcupacion) return false
-    if (filters.estadoServicio !== 'all' && h.estado_servicio !== filters.estadoServicio) return false
-    return true
-  })
+  // Filtrar habitaciones (memorizado para evitar recálculos innecesarios)
+  const filteredHabitaciones = useMemo(() => {
+    return habitaciones.filter(h => {
+      if (filters.tipoId !== 'all' && h.tipo_id !== filters.tipoId) return false
+      if (filters.categoriaId !== 'all' && h.categoria_id !== filters.categoriaId) return false
+      if (filters.estadoLimpieza !== 'all' && h.estado_limpieza !== filters.estadoLimpieza) return false
+      if (filters.estadoOcupacion !== 'all' && h.estado_ocupacion !== filters.estadoOcupacion) return false
+      if (filters.estadoServicio !== 'all' && h.estado_servicio !== filters.estadoServicio) return false
+      return true
+    })
+  }, [habitaciones, filters])
 
   const handleNewReservation = (habitacion: RackHabitacion, fecha: Date, fechaFinal?: Date) => {
     setNewReservation({ habitacion, fecha, fechaFinal })
@@ -70,8 +80,15 @@ export function RackContainer() {
     refetch()
   }
 
-  const handleTurnoAbierto = () => {
-    refetchTurno()
+  const handleTurnoAbierto = async () => {
+    // Refetch inmediato - el turno ya está guardado en BD
+    console.log('[RackContainer] Turno abierto, refetching...')
+    await refetchTurno()
+    console.log('[RackContainer] refetchTurno completado')
+  }
+
+  const handleCancelarApertura = () => {
+    router.push('/')
   }
 
   // Si está cargando el check de turno, mostrar loading
@@ -89,6 +106,11 @@ export function RackContainer() {
       <div className="h-full w-full">
         <ModalAperturaTurno
           onSuccess={handleTurnoAbierto}
+          onCancel={handleCancelarApertura}
+          allowCancel={true}
+          cajasIniciales={cajasDisponibles}
+          loadingCajasInicial={loadingCajas}
+          userIdInicial={userId}
         />
       </div>
     )

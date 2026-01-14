@@ -53,7 +53,7 @@ export function CategoriaDialog({ open, onOpenChange, categoria }: CategoriaDial
     const [error, setError] = useState('')
 
     const form = useForm<CategoriaFormData>({
-        resolver: zodResolver(categoriaFormSchema),
+        resolver: zodResolver(categoriaFormSchema) as any,
         defaultValues: {
             nombre: categoria?.nombre || '',
             descripcion: categoria?.descripcion || '',

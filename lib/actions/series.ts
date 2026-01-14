@@ -12,6 +12,7 @@ import { getErrorMessage } from '@/lib/errors'
 
 export type TipoComprobante = Database['public']['Enums']['tipo_comprobante_enum']
 export type SerieRow = Database['public']['Tables']['series_comprobante']['Row']
+export type Serie = SerieRow
 
 export type SerieWithCaja = SerieRow & {
   cajas: {

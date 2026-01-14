@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Zap, History, ArrowRight, User, Clock, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+import { Zap, History, ArrowRight, User, Clock, TrendingUp, TrendingDown, Wallet, Plus } from 'lucide-react'
 import { getTodosLosTurnosActivos } from '@/lib/actions/cajas'
+import { ModalAperturaTurno } from '@/components/cajas/modal-apertura-turno'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import Link from 'next/link'
@@ -18,7 +19,7 @@ type TurnoActivo = {
         caja_nombre: string
         usuario_nombre: string
         fecha_apertura: string
-        monto_apertura: number
+        monto_apertura_efectivo: number
     }
     estadisticas: {
         total_esperado_pen: number
@@ -31,6 +32,7 @@ export function GestionCajasClient() {
     const [activeTab, setActiveTab] = useState('monitor')
     const [turnosActivos, setTurnosActivos] = useState<TurnoActivo[]>([])
     const [loading, setLoading] = useState(true)
+    const [showAbrirCaja, setShowAbrirCaja] = useState(false)
 
     useEffect(() => {
         loadTurnosActivos()
@@ -48,14 +50,34 @@ export function GestionCajasClient() {
         }
     }
 
+    const handleTurnoAbierto = () => {
+        setShowAbrirCaja(false)
+        loadTurnosActivos()
+    }
+
     return (
         <div className="space-y-6">
+            {/* Modal Abrir Caja */}
+            {showAbrirCaja && (
+                <ModalAperturaTurno
+                    onSuccess={handleTurnoAbierto}
+                    onCancel={() => setShowAbrirCaja(false)}
+                    allowCancel={true}
+                />
+            )}
+
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold">Gestión de Cajas</h1>
-                <p className="text-sm text-muted-foreground">
-                    Monitoreo en tiempo real y auditoría de cierres
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold">Gestión de Cajas</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Monitoreo en tiempo real y auditoría de cierres
+                    </p>
+                </div>
+                <Button onClick={() => setShowAbrirCaja(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Abrir Caja
+                </Button>
             </div>
 
             {/* Tabs */}
@@ -206,7 +228,7 @@ function CajaActivaCard({ turno, destacada }: { turno: TurnoActivo, destacada?: 
                 <div className="grid grid-cols-3 gap-4 text-center text-sm">
                     <div>
                         <p className="text-muted-foreground text-xs">$ Inicial</p>
-                        <p className="font-medium">S/ {turno.turno.monto_apertura.toFixed(0)}</p>
+                        <p className="font-medium">S/ {turno.turno.monto_apertura_efectivo.toFixed(0)}</p>
                     </div>
                     <div>
                         <p className="text-muted-foreground text-xs flex items-center justify-center gap-1">

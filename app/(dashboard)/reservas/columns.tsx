@@ -27,6 +27,19 @@ const estadoLabel = {
 
 export const columns: ColumnDef<OcupacionReserva>[] = [
   {
+    accessorKey: "codigo_reserva",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Código" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <div className="font-mono text-sm font-medium">
+          {row.original.codigo_reserva || 'N/A'}
+        </div>
+      )
+    },
+  },
+  {
     accessorKey: "habitacion_numero",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Habitación" />

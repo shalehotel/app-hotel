@@ -6,9 +6,9 @@
 -- después de hacer DROP SCHEMA public CASCADE;
 -- =============================================
 -- 
--- ✅ ACTUALIZADO: 2026-01-07
+-- ✅ ACTUALIZADO: 2026-01-13 (Incluye gestión de caja y pagos)
 -- Este schema incorpora todos los cambios identificados en el análisis
--- de refactorización según el DOCUMENTO_DE_REQUERIMIENTOS_DEL_SISTEMA_PMS.md v2.1
+-- de refactorización según el DOCUMENTO_DE_REQUERIMIENTOS_DEL_SISTEMA_PMS.md v2.1 y la nueva gestión de cajas
 -- 
 -- Cambios principales:
 -- - ❌ Eliminados triggers de lógica de negocio (sincronizar_estado, validar_checkin)
@@ -16,6 +16,7 @@
 -- - ✅ Agregado CHECK constraint en tarifas (precio_minimo <= precio_base)
 -- - ✅ Vistas simplificadas (sin subconsultas correlacionadas)
 -- - ✅ 14 índices para performance óptima (< 2 segundos)
+-- - ✅ Gestión de Caja: Separación de efectivo y pagos digitales
 -- - ✅ Comentarios de documentación actualizados
 -- 
 -- Referencia: docs/analisis-refactorizacion-schema.md
@@ -101,21 +102,64 @@ CREATE TABLE public.series_comprobante (
     UNIQUE(serie, tipo_comprobante)
 );
 
--- TURNOS DE CAJA (MULTIMONEDA)
+-- TURNOS DE CAJA (MULTIMONEDA + GESTIÓN EFECTIVO VS DIGITAL)
+-- Separa claramente efectivo (se cuadra físicamente) vs digitales (solo registro)
 CREATE TABLE public.caja_turnos (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     caja_id uuid REFERENCES public.cajas(id) NOT NULL,
     usuario_id uuid REFERENCES public.usuarios(id) NOT NULL,
     fecha_apertura timestamptz DEFAULT now(),
     fecha_cierre timestamptz,
-    monto_apertura numeric(12,2) DEFAULT 0,
-    monto_cierre_declarado numeric(12,2),
-    monto_cierre_sistema numeric(12,2),
+    
+    -- Efectivo (para cuadre físico)
+    monto_apertura_efectivo numeric(12,2) DEFAULT 0,
+    monto_cierre_teorico_efectivo numeric(12,2),
+    monto_cierre_real_efectivo numeric(12,2),
+    descuadre_efectivo numeric(12,2) GENERATED ALWAYS AS (monto_cierre_real_efectivo - monto_cierre_teorico_efectivo) STORED,
+    
+    -- Multimoneda USD
     monto_apertura_usd numeric(12,2) DEFAULT 0,
-    monto_cierre_declarado_usd numeric(12,2) DEFAULT 0,
-    monto_cierre_sistema_usd numeric(12,2) DEFAULT 0,
+    monto_cierre_teorico_usd numeric(12,2) DEFAULT 0,
+    monto_cierre_real_usd numeric(12,2) DEFAULT 0,
+    
+    -- Totales por método de pago (solo registro, NO se cuadran)
+    total_efectivo numeric(12,2) DEFAULT 0,
+    total_tarjeta numeric(12,2) DEFAULT 0,
+    total_transferencia numeric(12,2) DEFAULT 0,
+    total_yape numeric(12,2) DEFAULT 0,
+    
+    -- Totales calculados
+    total_digital numeric(12,2) GENERATED ALWAYS AS (
+        COALESCE(total_tarjeta, 0) + 
+        COALESCE(total_transferencia, 0) + 
+        COALESCE(total_yape, 0)
+    ) STORED,
+    total_vendido numeric(12,2) GENERATED ALWAYS AS (
+        COALESCE(total_efectivo, 0) + 
+        COALESCE(total_tarjeta, 0) + 
+        COALESCE(total_transferencia, 0) + 
+        COALESCE(total_yape, 0)
+    ) STORED,
+    
+    -- Auditoría y autorización
+    observaciones_cierre text,
+    requiere_autorizacion boolean DEFAULT false,
+    autorizado_por uuid REFERENCES public.usuarios(id),
+    
     estado text DEFAULT 'ABIERTA' CHECK (estado IN ('ABIERTA', 'CERRADA'))
 );
+
+-- Comentarios de documentación
+COMMENT ON COLUMN public.caja_turnos.monto_apertura_efectivo IS 'Efectivo físico declarado al abrir turno';
+COMMENT ON COLUMN public.caja_turnos.monto_cierre_teorico_efectivo IS 'Efectivo que debería haber según sistema (apertura + ingresos - egresos)';
+COMMENT ON COLUMN public.caja_turnos.monto_cierre_real_efectivo IS 'Efectivo físico contado al cerrar turno';
+COMMENT ON COLUMN public.caja_turnos.descuadre_efectivo IS 'Diferencia entre efectivo real y teórico (+ sobrante, - faltante)';
+COMMENT ON COLUMN public.caja_turnos.total_efectivo IS 'Total de pagos recibidos en efectivo durante el turno';
+COMMENT ON COLUMN public.caja_turnos.total_tarjeta IS 'Total de pagos con tarjeta (se verifica con vouchers POS, NO se cuenta)';
+COMMENT ON COLUMN public.caja_turnos.total_transferencia IS 'Total de pagos por transferencia (se verifica con extracto bancario)';
+COMMENT ON COLUMN public.caja_turnos.total_yape IS 'Total de pagos por Yape/Plin (se verifica con historial app)';
+COMMENT ON COLUMN public.caja_turnos.total_digital IS 'Suma de todos los pagos digitales (tarjeta + transferencia + yape)';
+COMMENT ON COLUMN public.caja_turnos.total_vendido IS 'Total general vendido (efectivo + digital)';
 
 -- MOVIMIENTOS DE CAJA
 CREATE TABLE public.caja_movimientos (
@@ -768,9 +812,219 @@ COMMENT ON FUNCTION cobrar_y_facturar_atomico IS
 Garantiza que o todo sucede o nada sucede, evitando inconsistencias de datos.
 Reemplaza el flujo manual multi-step que existía en las Server Actions.';
 
+-- Función para calcular totales de turno por método de pago
+CREATE OR REPLACE FUNCTION calcular_totales_turno(p_turno_id uuid)
+RETURNS TABLE(
+  total_efectivo numeric,
+  total_tarjeta numeric,
+  total_transferencia numeric,
+  total_yape numeric,
+  total_egresos numeric,
+  monto_cierre_teorico numeric
+) 
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_monto_apertura numeric;
+BEGIN
+  -- Obtener monto de apertura
+  SELECT monto_apertura_efectivo INTO v_monto_apertura
+  FROM caja_turnos
+  WHERE id = p_turno_id;
+
+  RETURN QUERY
+  SELECT
+    -- Total efectivo de pagos
+    COALESCE(SUM(CASE WHEN p.metodo_pago = 'EFECTIVO' THEN p.monto ELSE 0 END), 0) as total_efectivo,
+    
+    -- Total tarjeta
+    COALESCE(SUM(CASE WHEN p.metodo_pago = 'TARJETA' THEN p.monto ELSE 0 END), 0) as total_tarjeta,
+    
+    -- Total transferencia
+    COALESCE(SUM(CASE WHEN p.metodo_pago = 'TRANSFERENCIA' THEN p.monto ELSE 0 END), 0) as total_transferencia,
+    
+    -- Total yape
+    COALESCE(SUM(CASE WHEN p.metodo_pago IN ('YAPE', 'PLIN') THEN p.monto ELSE 0 END), 0) as total_yape,
+    
+    -- Total egresos de caja
+    COALESCE((
+      SELECT SUM(monto) 
+      FROM caja_movimientos 
+      WHERE caja_turno_id = p_turno_id 
+        AND tipo = 'EGRESO'
+    ), 0) as total_egresos,
+    
+    -- Cierre teórico de efectivo
+    v_monto_apertura + 
+    COALESCE(SUM(CASE WHEN p.metodo_pago = 'EFECTIVO' THEN p.monto ELSE 0 END), 0) -
+    COALESCE((
+      SELECT SUM(monto) 
+      FROM caja_movimientos 
+      WHERE caja_turno_id = p_turno_id 
+        AND tipo = 'EGRESO'
+    ), 0) as monto_cierre_teorico
+  FROM pagos p
+  WHERE p.caja_turno_id = p_turno_id;
+END;
+$$;
+
+COMMENT ON FUNCTION calcular_totales_turno IS 'Calcula totales de un turno desglosados por método de pago y cierre teórico de efectivo';
+
+-- Función para validar cierre de caja
+CREATE OR REPLACE FUNCTION validar_cierre_caja(
+  p_turno_id uuid,
+  p_monto_real_efectivo numeric
+)
+RETURNS TABLE(
+  puede_cerrar boolean,
+  descuadre numeric,
+  requiere_autorizacion boolean,
+  mensaje text
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_totales record;
+  v_descuadre numeric;
+  v_limite_autorizacion numeric := 10.00; -- Límite de descuadre sin autorización
+BEGIN
+  -- Obtener totales calculados
+  SELECT * INTO v_totales
+  FROM calcular_totales_turno(p_turno_id);
+  
+  -- Calcular descuadre
+  v_descuadre := p_monto_real_efectivo - v_totales.monto_cierre_teorico;
+  
+  -- Determinar si puede cerrar y si requiere autorización
+  RETURN QUERY
+  SELECT
+    true as puede_cerrar, -- Siempre puede cerrar, pero puede requerir autorización
+    v_descuadre as descuadre,
+    ABS(v_descuadre) >= v_limite_autorizacion as requiere_autorizacion,
+    CASE
+      WHEN v_descuadre = 0 THEN 'Caja cuadrada perfectamente'
+      WHEN v_descuadre > 0 AND v_descuadre < v_limite_autorizacion 
+        THEN 'Sobrante de S/ ' || v_descuadre::text || ' (dentro del margen)'
+      WHEN v_descuadre > 0 AND v_descuadre >= v_limite_autorizacion 
+        THEN '⚠️ Sobrante de S/ ' || v_descuadre::text || ' - Requiere autorización'
+      WHEN v_descuadre < 0 AND ABS(v_descuadre) < v_limite_autorizacion 
+        THEN 'Faltante de S/ ' || ABS(v_descuadre)::text || ' (dentro del margen)'
+      WHEN v_descuadre < 0 AND ABS(v_descuadre) >= v_limite_autorizacion 
+        THEN '⚠️ Faltante de S/ ' || ABS(v_descuadre)::text || ' - Requiere autorización'
+    END as mensaje;
+END;
+$$;
+
+COMMENT ON FUNCTION validar_cierre_caja IS 'Valida si un cierre de caja es válido y si requiere autorización por descuadre';
+
 
 -- =============================================
--- 7. PERMISOS (CRÍTICO)
+-- 7. VISTAS
+-- =============================================
+
+-- Vista mejorada para resumen de turnos
+CREATE OR REPLACE VIEW vw_resumen_turnos AS
+SELECT
+  ct.id,
+  ct.caja_id,
+  c.nombre as caja_nombre,
+  ct.usuario_id,
+  u.nombres || ' ' || u.apellidos as usuario_nombre,
+  ct.fecha_apertura,
+  ct.fecha_cierre,
+  ct.estado,
+  
+  -- Efectivo (para cuadre)
+  ct.monto_apertura_efectivo,
+  ct.total_efectivo,
+  ct.monto_cierre_teorico_efectivo,
+  ct.monto_cierre_real_efectivo,
+  ct.descuadre_efectivo,
+  
+  -- Digitales (solo registro)
+  ct.total_tarjeta,
+  ct.total_transferencia,
+  ct.total_yape,
+  ct.total_digital,
+  
+  -- Totales
+  ct.total_vendido,
+  
+  -- Metadata
+  ct.requiere_autorizacion,
+  ct.autorizado_por,
+  ct.observaciones_cierre,
+  
+  -- Indicadores
+  CASE 
+    WHEN ct.estado = 'ABIERTA' THEN 'En curso'
+    WHEN ct.descuadre_efectivo = 0 THEN 'Cuadrado'
+    WHEN ABS(ct.descuadre_efectivo) < 10 THEN 'Descuadre menor'
+    ELSE 'Descuadre mayor'
+  END as estado_cuadre
+FROM caja_turnos ct
+JOIN cajas c ON ct.caja_id = c.id
+JOIN usuarios u ON ct.usuario_id = u.id
+ORDER BY ct.fecha_apertura DESC;
+
+COMMENT ON VIEW vw_resumen_turnos IS 'Vista completa de turnos con separación clara entre efectivo (se cuadra) y digitales (solo registro)';
+
+-- Actualizar vista de historial de comprobantes para incluir método de pago
+DROP VIEW IF EXISTS vw_historial_comprobantes;
+CREATE VIEW vw_historial_comprobantes AS
+SELECT 
+    c.id,
+    c.fecha_emision,
+    c.tipo_comprobante,
+    c.serie || '-' || LPAD(c.numero::text, 8, '0') as numero_completo,
+    c.serie,
+    c.numero,
+    c.receptor_razon_social as cliente_nombre,
+    c.receptor_tipo_doc as cliente_tipo_doc,
+    c.receptor_nro_doc as cliente_doc,
+    c.total_venta,
+    c.moneda,
+    c.estado_sunat,
+    
+    -- Método de pago (desde pagos)
+    COALESCE(
+        (SELECT metodo_pago 
+         FROM pagos p 
+         WHERE p.comprobante_id = c.id 
+         LIMIT 1),
+        'NO_ESPECIFICADO'
+    ) as metodo_pago,
+    
+    -- Contexto
+    CASE
+        WHEN c.reserva_id IS NOT NULL THEN 'OCUPACION'
+        ELSE 'VENTA_DIRECTA'
+    END as contexto,
+    
+    c.reserva_id,
+    r.codigo_reserva,
+    c.turno_caja_id,
+    u.nombres || ' ' || COALESCE(u.apellidos, '') as emisor_nombre,
+    u.rol as emisor_rol,
+    sc.serie as serie_caja,
+    ca.nombre as caja_nombre
+FROM comprobantes c
+LEFT JOIN reservas r ON c.reserva_id = r.id
+LEFT JOIN caja_turnos ct ON c.turno_caja_id = ct.id
+LEFT JOIN usuarios u ON ct.usuario_id = u.id
+LEFT JOIN series_comprobante sc ON c.serie = sc.serie
+LEFT JOIN cajas ca ON sc.caja_id = ca.id
+ORDER BY c.fecha_emision DESC;
+
+COMMENT ON VIEW vw_historial_comprobantes IS 'Historial completo de comprobantes con método de pago y trazabilidad';
+
+-- Índices para optimizar consultas de métodos de pago
+CREATE INDEX IF NOT EXISTS idx_pagos_metodo ON pagos(metodo_pago);
+CREATE INDEX IF NOT EXISTS idx_pagos_turno_metodo ON pagos(caja_turno_id, metodo_pago);
+
+
+-- =============================================
+-- 8. PERMISOS (CRÍTICO)
 -- =============================================
 
 -- Dar todos los permisos al rol authenticated
@@ -788,7 +1042,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated, 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated, service_role;
 
 -- =============================================
--- 8. DESHABILITAR RLS EN TODAS LAS TABLAS
+-- 9. DESHABILITAR RLS EN TODAS LAS TABLAS
 -- =============================================
 -- ⚠️ IMPORTANTE: Para sistema interno de hotel, no usar RLS
 -- El control de acceso se maneja en Server Actions de Next.js
@@ -812,7 +1066,7 @@ ALTER TABLE public.comprobante_detalles DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pagos DISABLE ROW LEVEL SECURITY;
 
 -- =============================================
--- 9. DATOS INICIALES (OPCIONAL)
+-- 10. DATOS INICIALES (OPCIONAL)
 -- =============================================
 
 -- Insertar usuario administrador (ajusta el UUID a tu usuario real de auth.users)

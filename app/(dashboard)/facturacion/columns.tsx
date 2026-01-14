@@ -1,7 +1,6 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
-import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, Eye, FileText, Download, XCircle, Receipt, FileSpreadsheet, FileMinus, Ticket, CreditCard, Smartphone, Building2, Banknote } from 'lucide-react'
+import { MoreHorizontal, Eye, FileText, Download, XCircle, Receipt, FileSpreadsheet, FileMinus, Ticket, CreditCard, Smartphone, Building2, Banknote, ExternalLink } from 'lucide-react'
 import { DataTableColumnHeader } from '@/components/tables/data-table-column-header'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -99,8 +98,9 @@ export const comprobantesColumns: ColumnDef<Comprobante>[] = [
     id: 'reserva',
     accessorKey: 'codigo_reserva',
     header: 'Reserva',
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const comprobante = row.original
+      const meta = table.options.meta as any
       
       if (!comprobante.reserva_id || !comprobante.codigo_reserva) {
         return (
@@ -109,13 +109,17 @@ export const comprobantesColumns: ColumnDef<Comprobante>[] = [
       }
       
       return (
-        <Link 
-          href={`/reservas?id=${comprobante.reserva_id}`}
-          className="font-mono text-sm text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-          onClick={(e) => e.stopPropagation()}
+        <Button
+          variant="link"
+          className="h-auto p-0 font-mono text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+          onClick={(e) => {
+            e.stopPropagation()
+            meta?.onVerReserva?.(comprobante.reserva_id)
+          }}
         >
           {comprobante.codigo_reserva}
-        </Link>
+          <ExternalLink className="ml-1 h-3 w-3" />
+        </Button>
       )
     },
   },

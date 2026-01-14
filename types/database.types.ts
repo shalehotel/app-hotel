@@ -73,45 +73,75 @@ export type Database = {
       }
       caja_turnos: {
         Row: {
+          autorizado_por: string | null
           caja_id: string
+          descuadre_efectivo: number | null
           estado: string | null
           fecha_apertura: string | null
           fecha_cierre: string | null
           id: string
-          monto_apertura: number | null
+          monto_apertura_efectivo: number | null
           monto_apertura_usd: number | null
-          monto_cierre_declarado: number | null
-          monto_cierre_declarado_usd: number | null
-          monto_cierre_sistema: number | null
-          monto_cierre_sistema_usd: number | null
+          monto_cierre_real_efectivo: number | null
+          monto_cierre_real_usd: number | null
+          monto_cierre_teorico_efectivo: number | null
+          monto_cierre_teorico_usd: number | null
+          observaciones_cierre: string | null
+          requiere_autorizacion: boolean | null
+          total_digital: number | null
+          total_efectivo: number | null
+          total_tarjeta: number | null
+          total_transferencia: number | null
+          total_vendido: number | null
+          total_yape: number | null
           usuario_id: string
         }
         Insert: {
+          autorizado_por?: string | null
           caja_id: string
+          descuadre_efectivo?: number | null
           estado?: string | null
           fecha_apertura?: string | null
           fecha_cierre?: string | null
           id?: string
-          monto_apertura?: number | null
+          monto_apertura_efectivo?: number | null
           monto_apertura_usd?: number | null
-          monto_cierre_declarado?: number | null
-          monto_cierre_declarado_usd?: number | null
-          monto_cierre_sistema?: number | null
-          monto_cierre_sistema_usd?: number | null
+          monto_cierre_real_efectivo?: number | null
+          monto_cierre_real_usd?: number | null
+          monto_cierre_teorico_efectivo?: number | null
+          monto_cierre_teorico_usd?: number | null
+          observaciones_cierre?: string | null
+          requiere_autorizacion?: boolean | null
+          total_digital?: number | null
+          total_efectivo?: number | null
+          total_tarjeta?: number | null
+          total_transferencia?: number | null
+          total_vendido?: number | null
+          total_yape?: number | null
           usuario_id: string
         }
         Update: {
+          autorizado_por?: string | null
           caja_id?: string
+          descuadre_efectivo?: number | null
           estado?: string | null
           fecha_apertura?: string | null
           fecha_cierre?: string | null
           id?: string
-          monto_apertura?: number | null
+          monto_apertura_efectivo?: number | null
           monto_apertura_usd?: number | null
-          monto_cierre_declarado?: number | null
-          monto_cierre_declarado_usd?: number | null
-          monto_cierre_sistema?: number | null
-          monto_cierre_sistema_usd?: number | null
+          monto_cierre_real_efectivo?: number | null
+          monto_cierre_real_usd?: number | null
+          monto_cierre_teorico_efectivo?: number | null
+          monto_cierre_teorico_usd?: number | null
+          observaciones_cierre?: string | null
+          requiere_autorizacion?: boolean | null
+          total_digital?: number | null
+          total_efectivo?: number | null
+          total_tarjeta?: number | null
+          total_transferencia?: number | null
+          total_vendido?: number | null
+          total_yape?: number | null
           usuario_id?: string
         }
         Relationships: [

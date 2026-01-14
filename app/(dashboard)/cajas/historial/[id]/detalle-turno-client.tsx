@@ -95,7 +95,7 @@ export function DetalleTurnoClient({ turnoId, turnoInicial }: Props) {
   const stats = turno.estadisticas
   const esCerrada = t.estado === 'CERRADA'
 
-  const diferencia = (t.monto_cierre_declarado || 0) - (t.monto_cierre_sistema || stats.total_esperado_pen)
+  const diferencia = (t.monto_cierre_real_efectivo || 0) - (t.monto_cierre_teorico_efectivo || stats.total_esperado_pen)
 
   // Usar datos del reporte de pagos si existen, sino 0 (evitar undefined)
   const porMetodo = desglosePagos || {
@@ -149,7 +149,7 @@ export function DetalleTurnoClient({ turnoId, turnoInicial }: Props) {
               <Flag className="h-4 w-4 text-muted-foreground" />
             </div>
             <p className="text-2xl font-bold mt-2">
-              S/ {t.monto_apertura.toFixed(2)}
+              S/ {t.monto_apertura_efectivo.toFixed(2)}
             </p>
           </CardContent>
         </Card>
@@ -188,7 +188,7 @@ export function DetalleTurnoClient({ turnoId, turnoInicial }: Props) {
               <Wallet className="h-4 w-4 text-blue-600" />
             </div>
             <p className="text-2xl font-bold text-blue-600 mt-2">
-              S/ {(t.monto_cierre_sistema || stats.total_esperado_pen).toFixed(2)}
+              S/ {(t.monto_cierre_teorico_efectivo || stats.total_esperado_pen).toFixed(2)}
             </p>
           </CardContent>
         </Card>
@@ -205,7 +205,7 @@ export function DetalleTurnoClient({ turnoId, turnoInicial }: Props) {
                 <Calculator className="h-4 w-4 text-pink-600" />
               </div>
               <p className="text-2xl font-bold text-pink-600 mt-2">
-                S/ {(t.monto_cierre_declarado || 0).toFixed(2)}
+                S/ {(t.monto_cierre_real_efectivo || 0).toFixed(2)}
               </p>
             </CardContent>
           </Card>

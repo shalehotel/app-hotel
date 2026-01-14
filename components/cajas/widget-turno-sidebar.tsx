@@ -70,7 +70,7 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
   const totalEgresosPEN = resumenMovimientos?.total_egresos_pen || 0
 
   const saldoEfectivoReal =
-    t.monto_apertura +
+    t.monto_apertura_efectivo +
     (reportePagos?.totalEfectivoPEN || 0) -
     totalEgresosPEN
 

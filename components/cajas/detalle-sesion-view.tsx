@@ -52,9 +52,9 @@ type DetalleSesion = {
     usuario_nombre: string
     fecha_apertura: string
     fecha_cierre: string | null
-    monto_apertura: number
-    monto_cierre_sistema: number | null
-    monto_cierre_declarado: number | null
+    monto_apertura_efectivo: number
+    monto_cierre_teorico_efectivo: number | null
+    monto_cierre_real_efectivo: number | null
     estado: 'ABIERTO' | 'CERRADO'
     estadisticas: {
         total_ingresos_pen: number
@@ -80,8 +80,8 @@ type Props = {
 
 export function DetalleSesionView({ detalle }: Props) {
     const esCerrada = detalle.estado === 'CERRADO'
-    const diferencia = esCerrada && detalle.monto_cierre_declarado && detalle.monto_cierre_sistema
-        ? detalle.monto_cierre_declarado - detalle.monto_cierre_sistema
+    const diferencia = esCerrada && detalle.monto_cierre_real_efectivo && detalle.monto_cierre_teorico_efectivo
+        ? detalle.monto_cierre_real_efectivo - detalle.monto_cierre_teorico_efectivo
         : 0
 
     return (
@@ -120,7 +120,7 @@ export function DetalleSesionView({ detalle }: Props) {
                             <Flag className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <p className="text-2xl font-bold mt-2">
-                            S/ {detalle.monto_apertura.toFixed(2)}
+                            S/ {detalle.monto_apertura_efectivo.toFixed(2)}
                         </p>
                     </CardContent>
                 </Card>
@@ -176,7 +176,7 @@ export function DetalleSesionView({ detalle }: Props) {
                                 <Calculator className="h-4 w-4 text-pink-600" />
                             </div>
                             <p className="text-2xl font-bold text-pink-600 mt-2">
-                                S/ {(detalle.monto_cierre_declarado || 0).toFixed(2)}
+                                S/ {(detalle.monto_cierre_real_efectivo || 0).toFixed(2)}
                             </p>
                         </CardContent>
                     </Card>

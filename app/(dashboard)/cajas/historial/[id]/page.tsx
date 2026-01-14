@@ -7,9 +7,9 @@ import { getDetalleTurnoCerrado } from '@/lib/actions/cajas'
 export default async function DetalleTurnoPage({
   params
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const { id } = await Promise.resolve(params)
+  const { id } = await params
 
   let turno
   try {

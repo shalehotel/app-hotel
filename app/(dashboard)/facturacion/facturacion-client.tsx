@@ -5,6 +5,7 @@ import { getHistorialComprobantes } from '@/lib/actions/comprobantes'
 import { DataTable } from '@/components/tables/data-table'
 import { comprobantesColumns, type Comprobante } from './columns'
 import { ComprobanteDetailSheet } from '@/components/facturacion/comprobante-detail-sheet'
+import { ReservationDetailSheet } from '@/components/reservas/reservation-detail-sheet'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import {
@@ -32,6 +33,10 @@ export function FacturacionClient() {
   const [filtroEstado, setFiltroEstado] = useState<'TODOS' | 'PENDIENTE' | 'ACEPTADO' | 'RECHAZADO' | 'ANULADO'>('TODOS')
   const [selectedComprobanteId, setSelectedComprobanteId] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  
+  // Sheet para ver reserva
+  const [selectedReservaId, setSelectedReservaId] = useState<string | null>(null)
+  const [reservaSheetOpen, setReservaSheetOpen] = useState(false)
 
   useEffect(() => {
     cargarComprobantes()
@@ -57,6 +62,11 @@ export function FacturacionClient() {
     setSheetOpen(true)
   }
 
+  function handleVerReserva(reservaId: string) {
+    setSelectedReservaId(reservaId)
+    setReservaSheetOpen(true)
+  }
+
   function handleDescargarPDF(comprobanteId: string) {
     // TODO: Implementar descarga de PDF
     console.log('Descargar PDF:', comprobanteId)
@@ -80,10 +90,11 @@ export function FacturacionClient() {
       <DataTable
         columns={comprobantesColumns}
         data={comprobantes}
-        searchKey="numero_completo"
-        searchPlaceholder="Buscar por comprobante, cliente..."
+        searchKey="comprobante"
+        searchPlaceholder="Buscar por comprobante o fecha..."
         meta={{
           onVerDetalle: handleVerDetalle,
+          onVerReserva: handleVerReserva,
           onDescargarPDF: handleDescargarPDF,
           onAnular: handleAnular,
         }}
@@ -148,11 +159,27 @@ export function FacturacionClient() {
         }
       />
 
+      {/* Sheet de detalle de comprobante */}
       {selectedComprobanteId && (
         <ComprobanteDetailSheet
           comprobanteId={selectedComprobanteId}
           open={sheetOpen}
           onOpenChange={setSheetOpen}
+        />
+      )}
+
+      {/* Sheet de detalle de reserva */}
+      {selectedReservaId && (
+        <ReservationDetailSheet
+          reservaId={selectedReservaId}
+          open={reservaSheetOpen}
+          onOpenChange={(open) => {
+            setReservaSheetOpen(open)
+            if (!open) {
+              setSelectedReservaId(null)
+            }
+          }}
+          onUpdate={() => {}}
         />
       )}
     </>

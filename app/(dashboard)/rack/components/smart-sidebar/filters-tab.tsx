@@ -52,13 +52,13 @@ export function FiltersTab({ filters, onFilterChange, habitaciones }: Props) {
   const activeFiltersCount = Object.values(filters).filter(v => v !== 'all').length
 
   return (
-    <div className="space-y-6 px-1">
+    <div className="space-y-5">
       {/* Header Minimalista */}
-      <div className="flex items-center justify-between pb-2 border-b">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Filtros</span>
+          <span className="text-sm font-semibold">Filtros Activos</span>
           {activeFiltersCount > 0 && (
-            <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px] h-5">
+            <Badge variant="secondary" className="rounded-full h-5 w-5 p-0 flex items-center justify-center text-[10px] font-medium">
               {activeFiltersCount}
             </Badge>
           )}
@@ -68,10 +68,9 @@ export function FiltersTab({ filters, onFilterChange, habitaciones }: Props) {
             variant="ghost" 
             size="sm" 
             onClick={handleReset} 
-            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+            className="h-7 px-2 text-xs"
           >
-            Limpiar
-            <FilterX className="ml-1 h-3 w-3" />
+            <FilterX className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>
@@ -94,29 +93,31 @@ export function FiltersTab({ filters, onFilterChange, habitaciones }: Props) {
           </ToggleGroup>
         </div>
 
-        {/* Estado de Limpieza - Toggle Group */}
+        {/* Estado de Limpieza - Grid Vertical */}
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Limpieza</Label>
           <ToggleGroup 
             type="single" 
             value={filters.estadoLimpieza} 
             onValueChange={(v) => v && updateFilter('estadoLimpieza', v)}
-            className="flex-wrap justify-start gap-2"
+            className="grid grid-cols-2 gap-2 w-full"
             variant="outline"
             size="sm"
           >
-            <ToggleGroupItem value="all" className="px-3">Todas</ToggleGroupItem>
-            <ToggleGroupItem value="LIMPIA" className="px-3 data-[state=on]:bg-blue-100 data-[state=on]:text-blue-700 data-[state=on]:border-blue-200 dark:data-[state=on]:bg-blue-900/20 dark:data-[state=on]:text-blue-400">Limpias</ToggleGroupItem>
-            <ToggleGroupItem value="SUCIA" className="px-3 data-[state=on]:bg-amber-100 data-[state=on]:text-amber-700 data-[state=on]:border-amber-200 dark:data-[state=on]:bg-amber-900/20 dark:data-[state=on]:text-amber-400">Sucias</ToggleGroupItem>
-            <ToggleGroupItem value="EN_LIMPIEZA" className="px-3 data-[state=on]:bg-indigo-100 data-[state=on]:text-indigo-700 data-[state=on]:border-indigo-200 dark:data-[state=on]:bg-indigo-900/20 dark:data-[state=on]:text-indigo-400">Limpiando</ToggleGroupItem>
+            <ToggleGroupItem value="all" className="w-full">Todas</ToggleGroupItem>
+            <ToggleGroupItem value="LIMPIA" className="w-full data-[state=on]:bg-blue-100 data-[state=on]:text-blue-700 data-[state=on]:border-blue-200 dark:data-[state=on]:bg-blue-900/20 dark:data-[state=on]:text-blue-400">Limpias</ToggleGroupItem>
+            <ToggleGroupItem value="SUCIA" className="w-full data-[state=on]:bg-amber-100 data-[state=on]:text-amber-700 data-[state=on]:border-amber-200 dark:data-[state=on]:bg-amber-900/20 dark:data-[state=on]:text-amber-400">Sucias</ToggleGroupItem>
+            <ToggleGroupItem value="EN_LIMPIEZA" className="w-full data-[state=on]:bg-indigo-100 data-[state=on]:text-indigo-700 data-[state=on]:border-indigo-200 dark:data-[state=on]:bg-indigo-900/20 dark:data-[state=on]:text-indigo-400">Limpiando</ToggleGroupItem>
           </ToggleGroup>
         </div>
 
+        <Separator className="my-1" />
+
         {/* Selects Grid */}
-        <div className="grid grid-cols-1 gap-4">
+        <div className="space-y-4">
           {/* Tipo */}
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Tipo de Habitación</Label>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Tipo</Label>
             <Select value={filters.tipoId} onValueChange={(v) => updateFilter('tipoId', v)}>
               <SelectTrigger className="h-9 w-full">
                 <SelectValue placeholder="Todos los tipos" />
@@ -131,7 +132,7 @@ export function FiltersTab({ filters, onFilterChange, habitaciones }: Props) {
           </div>
 
           {/* Categoría */}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Categoría</Label>
             <Select value={filters.categoriaId} onValueChange={(v) => updateFilter('categoriaId', v)}>
               <SelectTrigger className="h-9 w-full">
@@ -147,7 +148,7 @@ export function FiltersTab({ filters, onFilterChange, habitaciones }: Props) {
           </div>
 
           {/* Estado Servicio */}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Estado Servicio</Label>
             <Select value={filters.estadoServicio} onValueChange={(v) => updateFilter('estadoServicio', v)}>
               <SelectTrigger className="h-9 w-full">

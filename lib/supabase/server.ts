@@ -14,7 +14,7 @@ export async function createClient() {
                 getAll() {
                     return cookieStore.getAll()
                 },
-                setAll(cookiesToSet) {
+                setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
                     try {
                         cookiesToSet.forEach(({ name, value, options }) =>
                             cookieStore.set(name, value, options)
@@ -57,7 +57,7 @@ export async function createAdminClient() {
         .from('usuarios')
         .select('rol')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
     if (error || !usuario || usuario.rol !== 'ADMIN') {
         logger.warn('Intento de acceso a admin client sin permisos', {

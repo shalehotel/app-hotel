@@ -5,13 +5,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { getMovimientosTurno, type TurnoActivo } from '@/lib/actions/cajas'
-import { getResumenMovimientos } from '@/lib/actions/movimientos'
+import { getMovimientosByTurno, getResumenMovimientos } from '@/lib/actions/movimientos'
 import { CerrarCajaDialog } from '@/components/cajas/cerrar-caja-dialog'
 import { ModalMovimiento } from './modal-movimiento'
 import { DollarSign, Clock, Lock, TrendingUp, TrendingDown, Plus, Minus } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
+
+type TurnoActivo = {
+  id: string
+  caja_id: string
+  caja_nombre: string
+  fecha_apertura: string
+  monto_apertura_efectivo: number
+  monto_apertura_usd?: number
+  total_efectivo?: number
+  total_tarjeta?: number
+  total_transferencia?: number
+  total_yape?: number
+}
 
 type Props = {
   turno: TurnoActivo
@@ -28,7 +40,7 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
   const cargarMovimientos = async () => {
     setLoadingMovimientos(true)
     const [resultMovimientos, resultResumen] = await Promise.all([
-      getMovimientosTurno(turno.id),
+      getMovimientosByTurno(turno.id),
       getResumenMovimientos(turno.id)
     ])
 
@@ -73,7 +85,7 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
             </Badge>
           </div>
           <CardDescription className="text-xs">
-            {turno.caja.nombre}
+            {turno.caja_nombre}
           </CardDescription>
         </CardHeader>
 
@@ -92,7 +104,7 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
 
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Apertura PEN:</span>
-              <span className="font-medium">S/ {turno.monto_apertura.toFixed(2)}</span>
+              <span className="font-medium">S/ {turno.monto_apertura_efectivo.toFixed(2)}</span>
             </div>
 
             {turno.monto_apertura_usd && turno.monto_apertura_usd > 0 && (

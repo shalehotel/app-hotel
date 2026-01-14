@@ -27,7 +27,7 @@ export async function verificarEsAdmin() {
     .from('usuarios')
     .select('id, rol')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!usuario || usuario.rol !== 'ADMIN') {
     throw new Error('No tienes permisos para realizar esta acción')
@@ -93,7 +93,7 @@ export async function getUsuarioActual() {
     .from('usuarios')
     .select('*')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (error) {
     logger.error('Error al obtener usuario actual', { action: 'getUsuarioActual', originalError: getErrorMessage(error) })

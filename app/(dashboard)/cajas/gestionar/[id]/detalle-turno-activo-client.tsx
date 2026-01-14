@@ -42,7 +42,7 @@ type TurnoActivo = {
         caja_nombre: string
         usuario_nombre: string
         fecha_apertura: string
-        monto_apertura: number
+        monto_apertura_efectivo: number
     }
     estadisticas: {
         total_esperado_pen: number
@@ -120,7 +120,7 @@ export function DetalleTurnoActivoClient({ turnoId, turnoInicial }: Props) {
                             <Flag className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <p className="text-2xl font-bold mt-2">
-                            S/ {turno.turno.monto_apertura.toFixed(2)}
+                            S/ {turno.turno.monto_apertura_efectivo.toFixed(2)}
                         </p>
                     </CardContent>
                 </Card>

@@ -108,7 +108,7 @@ export function TurnoDetailSheet({ turnoId, open, onClose }: Props) {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-muted/20 rounded-lg border">
                     <p className="text-xs text-muted-foreground mb-1">Saldo Inicial</p>
-                    <p className="text-xl font-semibold">S/ {detalle.turno.monto_apertura.toFixed(2)}</p>
+                    <p className="text-xl font-semibold">S/ {detalle.turno.monto_apertura_efectivo.toFixed(2)}</p>
                   </div>
                   
                   <div className="p-3 bg-muted/20 rounded-lg border">

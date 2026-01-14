@@ -24,9 +24,9 @@ import Link from 'next/link'
 type TurnoHistorial = {
   id: string
   fecha_cierre: string | null
-  monto_apertura: number
-  monto_cierre_sistema: number | null
-  monto_cierre_declarado: number | null
+  monto_apertura_efectivo: number
+  monto_cierre_teorico_efectivo: number | null
+  monto_cierre_real_efectivo: number | null
   caja: { nombre: string }
   usuario: { nombres: string; apellidos: string }
 }
@@ -56,7 +56,7 @@ export function HistorialCierresClient() {
   }, [filtros.solo_descuadres])
 
   const getEstadoCuadreInfo = (turno: TurnoHistorial) => {
-    const diferencia = (turno.monto_cierre_declarado || 0) - (turno.monto_cierre_sistema || 0)
+    const diferencia = (turno.monto_cierre_real_efectivo || 0) - (turno.monto_cierre_teorico_efectivo || 0)
     const tolerancia = 0.50
 
     if (Math.abs(diferencia) <= tolerancia) {
@@ -146,7 +146,7 @@ export function HistorialCierresClient() {
               <TableBody>
                 {turnos.map((turno) => {
                   const info = getEstadoCuadreInfo(turno)
-                  const ventas = (turno.monto_cierre_sistema || 0) - turno.monto_apertura
+                  const ventas = (turno.monto_cierre_teorico_efectivo || 0) - turno.monto_apertura_efectivo
 
                   return (
                     <TableRow key={turno.id} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
@@ -183,7 +183,7 @@ export function HistorialCierresClient() {
 
                       {/* Inicial */}
                       <TableCell className="text-right py-4 font-medium text-gray-600">
-                        S/ {turno.monto_apertura.toFixed(2)}
+                        S/ {turno.monto_apertura_efectivo.toFixed(2)}
                       </TableCell>
 
                       {/* Ventas */}
@@ -193,7 +193,7 @@ export function HistorialCierresClient() {
 
                       {/* Final */}
                       <TableCell className="text-right py-4 font-bold text-gray-900 dark:text-white">
-                        S/ {(turno.monto_cierre_sistema || 0).toFixed(2)}
+                        S/ {(turno.monto_cierre_teorico_efectivo || 0).toFixed(2)}
                       </TableCell>
 
                       {/* Estado */}

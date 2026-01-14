@@ -89,17 +89,28 @@ export async function getUser() {
     }
 
     // Obtener datos completos del usuario
+    // Usamos maybeSingle() en lugar de single() para evitar error 406
+    // cuando el usuario no existe en la tabla public.usuarios
     const { data: usuario, error } = await supabase
         .from('usuarios')
         .select('*')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
     if (error) {
         logger.error('Error al obtener usuario de BD', {
             action: 'getUser',
             userId: user.id,
             originalError: getErrorMessage(error),
+        })
+        return null
+    }
+
+    // Si no existe en tabla usuarios, devolver datos mínimos para no bloquear
+    if (!usuario) {
+        logger.warn('Usuario autenticado pero no existe en tabla usuarios', {
+            action: 'getUser',
+            userId: user.id,
         })
         return null
     }

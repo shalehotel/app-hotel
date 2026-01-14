@@ -217,7 +217,6 @@ export function NewReservationDialog({
                   <StepConfirmacion
                     habitacion={habitacion}
                     formData={formData}
-                    updateFormData={updateFormData}
                     totalNoches={totalNoches}
                     totalEstimado={totalEstimado}
                     onSuccess={(reservaId, codigo, esCheckin) => {
@@ -225,7 +224,6 @@ export function NewReservationDialog({
                       setSuccessData({ id: reservaId, codigo, esCheckin })
                     }}
                     onClose={handleClose}
-                    onPaymentRequest={() => {}} // Ya no se usa desde aquí directamente
                   />
                 )}
               </div>

@@ -133,6 +133,53 @@ export function ComprobanteDetailSheet({ comprobanteId, open, onOpenChange }: Co
 
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
 
+             {/* Trazabilidad */}
+             <div>
+                <h3 className="font-semibold text-lg mb-3">Trazabilidad</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                   {comprobante.metodo_pago && (
+                      <div>
+                         <p className="text-xs text-muted-foreground">Método de Pago</p>
+                         <p className="font-medium">{comprobante.metodo_pago}</p>
+                      </div>
+                   )}
+                   {comprobante.contexto && (
+                      <div>
+                         <p className="text-xs text-muted-foreground">Contexto</p>
+                         <p className="font-medium capitalize">{comprobante.contexto.replace('_', ' ')}</p>
+                      </div>
+                   )}
+                   {comprobante.serie && (
+                      <div>
+                         <p className="text-xs text-muted-foreground">Serie</p>
+                         <p className="font-mono font-medium">{comprobante.serie}</p>
+                      </div>
+                   )}
+                   {comprobante.caja_nombre && (
+                      <div>
+                         <p className="text-xs text-muted-foreground">Caja</p>
+                         <p className="font-medium">{comprobante.caja_nombre}</p>
+                      </div>
+                   )}
+                   {comprobante.emisor_nombre && (
+                      <div>
+                         <p className="text-xs text-muted-foreground">Emitido por</p>
+                         <p className="font-medium">{comprobante.emisor_nombre}</p>
+                      </div>
+                   )}
+                   {comprobante.reserva_id && comprobante.codigo_reserva && (
+                      <div className="col-span-2">
+                         <p className="text-xs text-muted-foreground mb-1">Vinculado a Reserva</p>
+                         <Badge variant="outline" className="font-mono">
+                            {comprobante.codigo_reserva}
+                         </Badge>
+                      </div>
+                   )}
+                </div>
+             </div>
+
+             <Separator />
+
              {/* Cliente */}
              <div>
                 <h3 className="font-semibold text-lg mb-3">Cliente</h3>
@@ -199,6 +246,18 @@ export function ComprobanteDetailSheet({ comprobanteId, open, onOpenChange }: Co
                 </div>
              </div>
 
+             {/* Emisor (Hotel) */}
+             {comprobante.emisor_razon_social && (
+                <div>
+                   <h3 className="font-semibold text-sm mb-2 text-muted-foreground">Emisor</h3>
+                   <div className="text-xs space-y-1 text-muted-foreground">
+                      <p className="font-medium text-foreground">{comprobante.emisor_razon_social}</p>
+                      <p>RUC: {comprobante.emisor_nro_doc}</p>
+                      {comprobante.emisor_direccion && <p>📍 {comprobante.emisor_direccion}</p>}
+                   </div>
+                </div>
+             )}
+
              {/* Datos Adicionales (Hash) */}
              {comprobante.hash_cpe && (
                 <div className="pt-2">
@@ -208,6 +267,19 @@ export function ComprobanteDetailSheet({ comprobanteId, open, onOpenChange }: Co
                    </p>
                 </div>
              )}
+             
+             {/* Metadatos de auditoría */}
+             <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground space-y-1">
+                   <p>ID Interno: <span className="font-mono">{comprobante.id.substring(0, 8)}</span></p>
+                   {comprobante.created_at && (
+                      <p>Creado: {format(new Date(comprobante.created_at), "dd MMM yyyy HH:mm", { locale: es })}</p>
+                   )}
+                   {comprobante.observaciones && (
+                      <p className="pt-2 text-foreground">Nota: {comprobante.observaciones}</p>
+                   )}
+                </div>
+             </div>
 
           </div>
 

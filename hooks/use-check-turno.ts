@@ -43,14 +43,25 @@ export function useCheckTurno(): CheckTurnoResult {
 
       setUserId(user.id)
 
-      // Obtener rol del usuario
-      const { data: usuario } = await supabase
+      // Obtener rol del usuario (si no existe en tabla usuarios, asumimos que no requiere turno)
+      const { data: usuario, error: usuarioError } = await supabase
         .from('usuarios')
         .select('rol')
         .eq('id', user.id)
         .single()
 
-      const esRecepcion = usuario?.rol === 'RECEPCION'
+      // Si el usuario no existe en la tabla usuarios, no requiere turno
+      // Esto evita que la app se pare por usuarios nuevos
+      if (usuarioError || !usuario) {
+        console.warn('Usuario no encontrado en tabla usuarios, asumiendo ADMIN')
+        setRequired(false)
+        setHasActiveTurno(true) // No bloquear acceso
+        setTurno(null)
+        setLoading(false)
+        return
+      }
+
+      const esRecepcion = usuario.rol === 'RECEPCION'
       setRequired(esRecepcion)
 
       // Intentar obtener turno activo
