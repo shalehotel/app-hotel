@@ -31,12 +31,14 @@ import {
   AreaChart,
   Bar,
   BarChart,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  Legend
+  Legend,
+  TooltipProps
 } from 'recharts'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -56,6 +58,35 @@ import {
   getResumenFacturacion
 } from '@/lib/actions/dashboard'
 import { DevolucionesPendientesAlert } from '@/components/dashboard/devoluciones-pendientes-alert'
+
+// Custom Tooltip para gráficos - Moderno y Minimalista
+const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="rounded-md border bg-popover px-3 py-1.5 text-sm shadow-none">
+        <p className="font-medium text-foreground mb-1">{label}</p>
+        {payload.map((entry, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <div
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: entry.color }}
+            />
+            <span className="text-muted-foreground capitalize">
+              {entry.name}:
+            </span>
+            <span className="font-medium">
+              {entry.name === 'Ocupación'
+                ? `${entry.value}%`
+                : `S/ ${new Intl.NumberFormat('es-PE').format(entry.value as number)}`
+              }
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return null
+}
 
 type Props = {
   metrics: DashboardMetrics
@@ -201,19 +232,19 @@ export function DashboardClient({
             >
               <ToggleGroupItem
                 value="mes"
-                className="text-xs px-3 h-7 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
+                className="text-xs px-3 h-7 data-[state=on]:bg-background data-[state=on]:shadow-none rounded-md"
               >
                 Este mes
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="anterior"
-                className="text-xs px-3 h-7 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
+                className="text-xs px-3 h-7 data-[state=on]:bg-background data-[state=on]:shadow-none rounded-md"
               >
                 Anterior
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="trimestre"
-                className="text-xs px-3 h-7 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
+                className="text-xs px-3 h-7 data-[state=on]:bg-background data-[state=on]:shadow-none rounded-md"
               >
                 3 meses
               </ToggleGroupItem>
@@ -221,7 +252,7 @@ export function DashboardClient({
                 <PopoverTrigger asChild>
                   <ToggleGroupItem
                     value="custom"
-                    className="text-xs px-3 h-7 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
+                    className="text-xs px-3 h-7 data-[state=on]:bg-background data-[state=on]:shadow-none rounded-md"
                   >
                     <CalendarIcon className="h-3 w-3 mr-1" />
                     {filterMode === 'custom' ? customLabel : 'Rango'}
@@ -264,25 +295,25 @@ export function DashboardClient({
         {/* KPIs Principales */}
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {/* Ingresos del Período */}
-          <Card>
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Ingresos del Período</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatMoney(metrics.ingresos_periodo)}</div>
+              <div className="text-2xl font-bold tracking-tight">{formatMoney(metrics.ingresos_periodo)}</div>
               <div className="flex items-center text-xs text-muted-foreground mt-1">
                 {metrics.crecimiento_ingresos >= 0 ? (
                   <>
-                    <ArrowUpRight className="mr-1 h-3 w-3 text-green-500" />
-                    <span className="text-green-500 font-medium">
+                    <ArrowUpRight className="mr-1 h-3 w-3 text-emerald-600" />
+                    <span className="text-emerald-600 font-medium">
                       +{metrics.crecimiento_ingresos}%
                     </span>
                   </>
                 ) : (
                   <>
-                    <ArrowDownRight className="mr-1 h-3 w-3 text-red-500" />
-                    <span className="text-red-500 font-medium">
+                    <ArrowDownRight className="mr-1 h-3 w-3 text-rose-600" />
+                    <span className="text-rose-600 font-medium">
                       {metrics.crecimiento_ingresos}%
                     </span>
                   </>
@@ -293,13 +324,13 @@ export function DashboardClient({
           </Card>
 
           {/* Ocupación */}
-          <Card>
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Ocupación Actual</CardTitle>
               <Hotel className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{metrics.tasa_ocupacion}%</div>
+              <div className="text-2xl font-bold tracking-tight">{metrics.tasa_ocupacion}%</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {metrics.habitaciones_ocupadas} de {metrics.habitaciones_totales} habitaciones
               </p>
@@ -307,7 +338,7 @@ export function DashboardClient({
           </Card>
 
           {/* ADR */}
-          <Card>
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-1.5">
                 <CardTitle className="text-sm font-medium">ADR</CardTitle>
@@ -315,7 +346,7 @@ export function DashboardClient({
                   <TooltipTrigger asChild>
                     <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
+                  <TooltipContent className="max-w-xs rounded-sm border shadow-none">
                     <p className="text-xs font-semibold mb-1">Average Daily Rate</p>
                     <p className="text-xs">Tarifa promedio por noche vendida.</p>
                   </TooltipContent>
@@ -324,7 +355,7 @@ export function DashboardClient({
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatMoney(metrics.adr)}</div>
+              <div className="text-2xl font-bold tracking-tight">{formatMoney(metrics.adr)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 Por noche vendida
               </p>
@@ -332,7 +363,7 @@ export function DashboardClient({
           </Card>
 
           {/* RevPAR */}
-          <Card>
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-1.5">
                 <CardTitle className="text-sm font-medium">RevPAR</CardTitle>
@@ -340,7 +371,7 @@ export function DashboardClient({
                   <TooltipTrigger asChild>
                     <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
+                  <TooltipContent className="max-w-xs rounded-sm border shadow-none">
                     <p className="text-xs font-semibold mb-1">Revenue Per Available Room</p>
                     <p className="text-xs">Ingreso por habitación disponible.</p>
                   </TooltipContent>
@@ -349,7 +380,7 @@ export function DashboardClient({
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatMoney(metrics.revpar)}</div>
+              <div className="text-2xl font-bold tracking-tight">{formatMoney(metrics.revpar)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 Ingreso por hab. disponible
               </p>
@@ -360,13 +391,13 @@ export function DashboardClient({
         {/* Segunda Fila de KPIs */}
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {/* Ingresos del Día */}
-          <Card>
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Ingresos Hoy</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatMoney(metrics.ingresos_hoy)}</div>
+              <div className="text-2xl font-bold tracking-tight">{formatMoney(metrics.ingresos_hoy)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 Pagos recibidos hoy
               </p>
@@ -374,13 +405,13 @@ export function DashboardClient({
           </Card>
 
           {/* Por Cobrar */}
-          <Card>
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Por Cobrar</CardTitle>
               <AlertCircle className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
+              <div className="text-2xl font-bold text-orange-600 tracking-tight">
                 {formatMoney(metrics.total_por_cobrar)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -390,31 +421,31 @@ export function DashboardClient({
           </Card>
 
           {/* Actividad del Día */}
-          <Card>
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Actividad Hoy</CardTitle>
               <CalendarIcon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-green-600">{metrics.checkins_hoy}</span>
+                <span className="text-2xl font-bold text-emerald-600 tracking-tight">{metrics.checkins_hoy}</span>
                 <span className="text-sm text-muted-foreground">Check-ins</span>
               </div>
               <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-xl font-bold text-blue-600">{metrics.checkouts_hoy}</span>
+                <span className="text-xl font-bold text-blue-600 tracking-tight">{metrics.checkouts_hoy}</span>
                 <span className="text-xs text-muted-foreground">Check-outs</span>
               </div>
             </CardContent>
           </Card>
 
           {/* Reservas Futuras */}
-          <Card>
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Pipeline</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{metrics.reservas_futuras}</div>
+              <div className="text-2xl font-bold tracking-tight">{metrics.reservas_futuras}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 Reservas confirmadas
               </p>
@@ -425,119 +456,168 @@ export function DashboardClient({
         {/* Gráficas */}
         <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
           {/* Tendencia de Ingresos */}
-          <Card className="col-span-1 lg:col-span-2">
+          <Card className="col-span-1 lg:col-span-2 rounded-md border shadow-none">
             <CardHeader>
               <CardTitle>Tendencia de Ingresos</CardTitle>
               <CardDescription>Ingresos diarios y ocupación</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={tendencia}>
-                  <defs>
-                    <linearGradient id="colorIngresos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis
-                    dataKey="fecha"
-                    className="text-xs"
-                    tick={{ fontSize: 10 }}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    className="text-xs"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(value) => `S/ ${value}`}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    className="text-xs"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(value) => `${value}%`}
-                  />
-                  <RechartsTooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                    formatter={(value: any, name: string) => {
-                      if (name === 'ingresos') return [formatMoney(value), 'Ingresos']
-                      return [`${value}%`, 'Ocupación']
-                    }}
-                  />
-                  <Legend />
-                  <Area
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="ingresos"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    fill="url(#colorIngresos)"
-                    name="Ingresos"
-                  />
-                  <Area
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="ocupacion"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    fill="none"
-                    strokeDasharray="5 5"
-                    name="Ocupación %"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <div className="h-[300px] w-full">
+                {tendencia.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    <p>No hay datos para el período seleccionado</p>
+                  </div>
+                ) : (() => {
+                  // Transformar datos: forzar ingresos >= 0 para visualización correcta
+                  const tendenciaVisual = tendencia.map(d => ({
+                    ...d,
+                    ingresosVisual: Math.max(0, d.ingresos),
+                    ingresosReal: d.ingresos // Mantener valor real para tooltip
+                  }))
+                  return (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={tendenciaVisual} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f1f5f9" />
+                        <XAxis
+                          dataKey="fecha"
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: '#64748b', fontSize: 11 }}
+                          tickMargin={8}
+                          interval={tendencia.length > 15 ? Math.floor(tendencia.length / 10) : 0}
+                          minTickGap={30}
+                        />
+                        <YAxis
+                          yAxisId="left"
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: '#64748b', fontSize: 11 }}
+                          tickFormatter={(value) => `S/ ${value.toLocaleString()}`}
+                          width={70}
+                          domain={[0, 'dataMax']}
+                        />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: '#3b82f6', fontSize: 11 }}
+                          tickFormatter={(value) => `${value}%`}
+                          domain={[0, 100]}
+                          width={45}
+                        />
+                        <RechartsTooltip
+                          content={<CustomTooltip />}
+                          cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                        />
+                        <Legend
+                          iconType="circle"
+                          wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
+                        />
+                        <Area
+                          yAxisId="left"
+                          type="monotone"
+                          dataKey="ingresosVisual"
+                          name="Ingresos"
+                          stroke="#0f172a"
+                          fill="#e2e8f0"
+                          strokeWidth={2}
+                          activeDot={{ r: 4, strokeWidth: 0 }}
+                          baseValue={0}
+                        />
+                        <Area
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="ocupacion"
+                          name="Ocupación"
+                          stroke="#3b82f6"
+                          fill="rgba(59, 130, 246, 0.1)"
+                          strokeWidth={2}
+                          activeDot={{ r: 4, strokeWidth: 0 }}
+                          baseValue={0}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )
+                })()}
+              </div>
             </CardContent>
           </Card>
 
           {/* Ingresos por Método de Pago */}
-          <Card>
+          <Card className="rounded-md border shadow-none">
             <CardHeader>
               <CardTitle>Ingresos por Método de Pago</CardTitle>
               <CardDescription>Distribución de pagos</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={ingresosPorMetodoPago}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis
-                    dataKey="metodo"
-                    className="text-xs"
-                    tick={{ fontSize: 10 }}
-                  />
-                  <YAxis
-                    className="text-xs"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(value) => `S/ ${value}`}
-                  />
-                  <RechartsTooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                    formatter={(value: any, name: string, props: any) => [
-                      formatMoney(value),
-                      `${props.payload.transacciones} transacciones (${props.payload.porcentaje}%)`
-                    ]}
-                  />
-                  <Bar
-                    dataKey="monto"
-                    fill="hsl(var(--primary))"
-                    radius={[8, 8, 0, 0]}
-                    name="Ingresos"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="h-[300px] w-full">
+                {ingresosPorMetodoPago.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    <p>No hay pagos en el período seleccionado</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={ingresosPorMetodoPago}
+                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                      layout="horizontal"
+                    >
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="metodo"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#64748b', fontSize: 10 }}
+                        tickMargin={8}
+                        interval={0}
+                        tickFormatter={(value) => {
+                          // Acortar nombres largos
+                          const nameMap: Record<string, string> = {
+                            'DEVOLUCION_EFECTIVO': 'Dev. Efect.',
+                            'DEVOLUCION_PENDIENTE': 'Dev. Pend.',
+                            'TRANSFERENCIA': 'Transfer.',
+                            'EFECTIVO': 'Efectivo',
+                            'TARJETA': 'Tarjeta',
+                            'YAPE': 'Yape',
+                            'PLIN': 'Plin'
+                          }
+                          return nameMap[value] || value
+                        }}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#64748b', fontSize: 11 }}
+                        tickFormatter={(value) => `S/ ${value.toLocaleString()}`}
+                        width={70}
+                      />
+                      <RechartsTooltip
+                        content={<CustomTooltip />}
+                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                      />
+                      <Bar
+                        dataKey="monto"
+                        name="Ingresos"
+                        radius={[4, 4, 0, 0]}
+                      >
+                        {/* Colorear barras según valor positivo/negativo */}
+                        {ingresosPorMetodoPago.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={entry.monto < 0 ? '#ef4444' : '#0f172a'}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
             </CardContent>
           </Card>
 
           {/* Resumen Facturación SUNAT */}
-          <Card>
+          <Card className="rounded-md border shadow-none">
             <CardHeader>
               <CardTitle>Resumen de Facturación</CardTitle>
               <CardDescription>Comprobantes emitidos</CardDescription>

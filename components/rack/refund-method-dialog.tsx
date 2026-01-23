@@ -17,7 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Banknote, CreditCard, Wallet, AlertTriangle, Loader2, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type MetodoDevolucion = 'EFECTIVO' | 'METODO_ORIGINAL'
+export type MetodoDevolucion = 'EFECTIVO' | 'YAPE' | 'PLIN' | 'TRANSFERENCIA' | 'PENDIENTE'
 
 type Props = {
     open: boolean
@@ -33,17 +33,38 @@ type Props = {
 const METODOS = [
     {
         id: 'EFECTIVO' as MetodoDevolucion,
-        label: 'Devolución en Efectivo',
-        description: 'Se descuenta de la caja física inmediatamente',
+        label: 'Efectivo',
+        description: 'Entrega inmediata en caja (cliente presente)',
         icon: Banknote,
         color: 'text-green-600',
     },
     {
-        id: 'METODO_ORIGINAL' as MetodoDevolucion,
-        label: 'Devolución al Método Original',
-        description: 'Se devuelve al mismo medio con que pagó (tarjeta/transferencia)',
+        id: 'YAPE' as MetodoDevolucion,
+        label: 'Yape',
+        description: 'Transferencia al Yape del cliente',
+        icon: Wallet,
+        color: 'text-purple-600',
+    },
+    {
+        id: 'PLIN' as MetodoDevolucion,
+        label: 'Plin',
+        description: 'Transferencia al Plin del cliente',
+        icon: Wallet,
+        color: 'text-cyan-600',
+    },
+    {
+        id: 'TRANSFERENCIA' as MetodoDevolucion,
+        label: 'Transferencia Bancaria',
+        description: 'Transferencia a cuenta bancaria del cliente',
         icon: CreditCard,
         color: 'text-blue-600',
+    },
+    {
+        id: 'PENDIENTE' as MetodoDevolucion,
+        label: 'Pendiente',
+        description: 'Queda registrado para devolver cuando el cliente vuelva',
+        icon: AlertTriangle,
+        color: 'text-amber-600',
     },
 ]
 

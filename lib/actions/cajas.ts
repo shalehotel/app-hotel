@@ -492,6 +492,7 @@ export interface MovimientoCaja {
   monto: number
   motivo: string
   comprobante_referencia: string | null
+  metodo_pago: string | null
   usuario_nombre: string
   created_at: string
 }
@@ -758,6 +759,7 @@ export async function getTurnoActivo(userId?: string): Promise<DetalleTurno | nu
       monto: m.monto,
       motivo: m.motivo,
       comprobante_referencia: m.comprobante_referencia,
+      metodo_pago: m.metodo_pago,
       usuario_nombre: `${m.usuarios.nombres} ${m.usuarios.apellidos || ''}`.trim(),
       created_at: m.created_at,
     })),
@@ -955,6 +957,7 @@ export async function getDetalleTurnoCerrado(turnoId: string): Promise<DetalleTu
       monto: m.monto,
       motivo: m.motivo,
       comprobante_referencia: m.comprobante_referencia,
+      metodo_pago: m.metodo_pago,
       usuario_nombre: `${m.usuarios.nombres} ${m.usuarios.apellidos || ''}`.trim(),
       created_at: m.created_at,
     })),
@@ -1085,6 +1088,7 @@ export async function getDetalleTurnoActivo(turnoId: string): Promise<DetalleTur
       monto: m.monto,
       motivo: m.motivo,
       comprobante_referencia: m.comprobante_referencia,
+      metodo_pago: m.metodo_pago,
       usuario_nombre: `${m.usuarios.nombres} ${m.usuarios.apellidos || ''}`.trim(),
       created_at: m.created_at,
     })),
@@ -1300,6 +1304,7 @@ export async function registrarMovimiento(input: {
   monto: number
   motivo: string
   comprobante_referencia?: string
+  metodo_pago?: string
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
@@ -1330,6 +1335,7 @@ export async function registrarMovimiento(input: {
       monto: input.monto,
       motivo: input.motivo,
       comprobante_referencia: input.comprobante_referencia,
+      metodo_pago: input.metodo_pago,
     })
 
   if (error) {

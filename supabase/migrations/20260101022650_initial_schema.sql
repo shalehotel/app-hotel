@@ -174,6 +174,7 @@ CREATE TABLE public.caja_movimientos (
     motivo text NOT NULL CHECK (char_length(motivo) >= 5),
     comprobante_referencia text,
     evidencia_url text,
+    metodo_pago text,
     created_at timestamptz DEFAULT now()
 );
 CREATE INDEX idx_movimientos_turno ON public.caja_movimientos(caja_turno_id);

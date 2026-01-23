@@ -343,7 +343,7 @@ import { emitirNotaCreditoParcial } from '@/lib/actions/comprobantes'
 import { registrarMovimiento } from '@/lib/actions/cajas'
 
 // Tipo para método de devolución
-export type MetodoDevolucion = 'EFECTIVO' | 'METODO_ORIGINAL'
+export type MetodoDevolucion = 'EFECTIVO' | 'YAPE' | 'PLIN' | 'TRANSFERENCIA' | 'PENDIENTE'
 
 export async function acortarEstadia(
     reservaId: string,
@@ -476,7 +476,8 @@ export async function acortarEstadia(
                     moneda: reserva.moneda_pactada || 'PEN',
                     monto: montoDevolucion,
                     motivo: `Devolución reserva ${reserva.codigo_reserva} (Acortamiento)`,
-                    comprobante_referencia: reserva.codigo_reserva
+                    comprobante_referencia: reserva.codigo_reserva,
+                    metodo_pago: 'EFECTIVO'
                 })
 
                 if (resultadoCaja.success) {
@@ -486,11 +487,20 @@ export async function acortarEstadia(
                 }
                 break
 
+            case 'YAPE':
+                mensajeExtra += ' Devolución realizada por Yape.'
+                break
 
+            case 'PLIN':
+                mensajeExtra += ' Devolución realizada por Plin.'
+                break
 
-            case 'METODO_ORIGINAL':
-                // Se registra como egreso pendiente (el dinero volverá por otro medio)
-                mensajeExtra += ' Devolución pendiente al método de pago original.'
+            case 'TRANSFERENCIA':
+                mensajeExtra += ' Devolución realizada por transferencia bancaria.'
+                break
+
+            case 'PENDIENTE':
+                mensajeExtra += ' Devolución registrada como pendiente.'
                 break
         }
 
@@ -502,7 +512,7 @@ export async function acortarEstadia(
                     reserva_id: reservaId,
                     caja_turno_id: turnoActivo.id,
                     comprobante_id: null,
-                    metodo_pago: metodoDevolucion === 'EFECTIVO' ? 'DEVOLUCION_EFECTIVO' : 'DEVOLUCION_PENDIENTE',
+                    metodo_pago: `DEVOLUCION_${metodoDevolucion}`,
                     moneda_pago: reserva.moneda_pactada || 'PEN',
                     monto: -montoDevolucion, // NEGATIVO
                     tipo_cambio_pago: 1.0,

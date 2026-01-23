@@ -370,38 +370,58 @@ export function DetalleTurnoClient({ turnoId, turnoInicial }: Props) {
                   <TableHead className="w-20">Hora</TableHead>
                   <TableHead className="w-28">Tipo</TableHead>
                   <TableHead>Descripción</TableHead>
+                  <TableHead className="w-24">Método</TableHead>
                   <TableHead>Referencia</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {turno.movimientos.map((mov) => (
-                  <TableRow key={mov.id}>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(mov.created_at), 'HH:mm', { locale: es })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={mov.tipo === 'INGRESO'
-                          ? 'bg-green-100 text-green-700 border-green-200'
-                          : 'bg-red-100 text-red-700 border-red-200'
-                        }
-                      >
-                        {mov.tipo === 'INGRESO' ? '→' : '←'} {mov.tipo}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <RenderMotivo motivo={mov.motivo} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {mov.comprobante_referencia || 'N/A'}
-                    </TableCell>
-                    <TableCell className={`text-right font-medium ${mov.tipo === 'INGRESO' ? 'text-green-600' : 'text-red-600'}`}>
-                      {mov.tipo === 'INGRESO' ? '+' : '-'} S/ {mov.monto.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {turno.movimientos.map((mov) => {
+                  // Formatear método de pago para mostrar
+                  const formatMetodo = (metodo: string | null) => {
+                    if (!metodo) return '-'
+                    const metodos: Record<string, string> = {
+                      'EFECTIVO': 'Efectivo',
+                      'YAPE': 'Yape',
+                      'PLIN': 'Plin',
+                      'TRANSFERENCIA': 'Transferencia',
+                      'TARJETA': 'Tarjeta',
+                      'PENDIENTE': 'Pendiente'
+                    }
+                    return metodos[metodo] || metodo
+                  }
+
+                  return (
+                    <TableRow key={mov.id}>
+                      <TableCell className="text-muted-foreground">
+                        {format(new Date(mov.created_at), 'HH:mm', { locale: es })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={mov.tipo === 'INGRESO'
+                            ? 'bg-green-100 text-green-700 border-green-200'
+                            : 'bg-red-100 text-red-700 border-red-200'
+                          }
+                        >
+                          {mov.tipo === 'INGRESO' ? '→' : '←'} {mov.tipo}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <RenderMotivo motivo={mov.motivo} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatMetodo(mov.metodo_pago)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {mov.comprobante_referencia || 'N/A'}
+                      </TableCell>
+                      <TableCell className={`text-right font-medium ${mov.tipo === 'INGRESO' ? 'text-green-600' : 'text-red-600'}`}>
+                        {mov.tipo === 'INGRESO' ? '+' : '-'} S/ {mov.monto.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           )}
