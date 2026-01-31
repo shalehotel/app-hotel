@@ -2,10 +2,12 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { requireOperador } from '@/lib/auth/permissions'
 
 // Schema para buscar huésped
 export async function buscarHuespedPorDocumento(numDoc: string, tipoDoc: string = 'DNI') {
     try {
+        await requireOperador()
         const supabase = await createClient()
 
         const { data, error } = await supabase
@@ -41,6 +43,7 @@ const huespedSchema = z.object({
 
 export async function crearOActualizarHuesped(data: any) {
     try {
+        await requireOperador()
         const validated = huespedSchema.parse(data)
         const supabase = await createClient()
 
@@ -113,6 +116,7 @@ const checkInSchema = z.object({
 
 export async function crearCheckIn(data: any) {
     try {
+        await requireOperador()
         const validated = checkInSchema.parse(data)
         const supabase = await createClient()
 
@@ -258,6 +262,7 @@ export async function getHabitacionesDisponibles() {
 // REALIZAR CHECK-IN (Cambio de estado RESERVADA → CHECKED_IN)
 // ========================================
 export async function realizarCheckin(reserva_id: string) {
+    await requireOperador()
     const supabase = await createClient()
 
     try {

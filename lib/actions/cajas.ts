@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { calcularReconciliacionCaja } from '@/lib/utils/finanzas'
 
 // =============================================
 // TIPOS
@@ -681,6 +682,7 @@ export async function getTurnoActivo(userId?: string): Promise<DetalleTurno | nu
         monto,
         motivo,
         comprobante_referencia,
+        metodo_pago,
         created_at,
         usuarios!caja_movimientos_usuario_id_fkey(nombres, apellidos)
       `)
@@ -716,8 +718,19 @@ export async function getTurnoActivo(userId?: string): Promise<DetalleTurno | nu
   }
 
   // --- LÓGICA DE DESGLOSE DE MÉTODOS DE PAGO Y RECONCILIACIÓN ---
+  // FILTRO CRÍTICO: Restar los egresos digitales de los "movimientos calculados"
+  // para evitar que el helper piense que son salidas manuales de efectivo.
+  const totalEgresosDigitales = movimientos
+    .filter((m: any) => m.tipo === 'EGRESO' && m.metodo_pago && m.metodo_pago !== 'EFECTIVO')
+    .reduce((sum: number, m: any) => sum + (m.moneda === 'USD' ? 0 : m.monto), 0)
+
+  const estadisticasParaConciliacion = {
+    ...estadisticas,
+    total_egresos_pen: estadisticas.total_egresos_pen - totalEgresosDigitales
+  }
+
   // Usar helper centralizado para consistencia obsesiva
-  const { desglose } = calcularReconciliacionCaja(pagos || [], estadisticas)
+  const { desglose } = calcularReconciliacionCaja(pagos || [], estadisticasParaConciliacion)
   // -------------------------------------------------------------
 
   const flujo_neto_pen = estadisticas.total_ingresos_pen - estadisticas.total_egresos_pen
@@ -885,6 +898,7 @@ export async function getDetalleTurnoCerrado(turnoId: string): Promise<DetalleTu
         monto,
         motivo,
         comprobante_referencia,
+        metodo_pago,
         created_at,
         usuarios!caja_movimientos_usuario_id_fkey(nombres, apellidos)
       `)
@@ -917,8 +931,18 @@ export async function getDetalleTurnoCerrado(turnoId: string): Promise<DetalleTu
     total_egresos_usd: 0,
   }
 
+  // FILTRO CRÍTICO: Restar egresos digitales para conciliación correcta
+  const totalEgresosDigitales = movimientos
+    .filter((m: any) => m.tipo === 'EGRESO' && m.metodo_pago && m.metodo_pago !== 'EFECTIVO')
+    .reduce((sum: number, m: any) => sum + (m.moneda === 'USD' ? 0 : m.monto), 0)
+
+  const estadisticasParaConciliacion = {
+    ...estadisticas,
+    total_egresos_pen: estadisticas.total_egresos_pen - totalEgresosDigitales
+  }
+
   // Usar helper centralizado para consistencia obsesiva
-  const { desglose } = calcularReconciliacionCaja(pagos || [], estadisticas)
+  const { desglose } = calcularReconciliacionCaja(pagos || [], estadisticasParaConciliacion)
 
   const flujo_neto_pen = estadisticas.total_ingresos_pen - estadisticas.total_egresos_pen
   const flujo_neto_usd = estadisticas.total_ingresos_usd - estadisticas.total_egresos_usd
@@ -1022,6 +1046,7 @@ export async function getDetalleTurnoActivo(turnoId: string): Promise<DetalleTur
       monto,
       motivo,
       comprobante_referencia,
+      metodo_pago,
       created_at,
       usuarios!caja_movimientos_usuario_id_fkey(nombres, apellidos)
     `)
@@ -1053,8 +1078,18 @@ export async function getDetalleTurnoActivo(turnoId: string): Promise<DetalleTur
     .select('metodo_pago, monto, moneda_pago, tipo_cambio_pago')
     .eq('caja_turno_id', turno.id)
 
+  // FILTRO CRÍTICO: Restar egresos digitales para conciliación correcta
+  const totalEgresosDigitales = movimientos
+    .filter((m: any) => m.tipo === 'EGRESO' && m.metodo_pago && m.metodo_pago !== 'EFECTIVO')
+    .reduce((sum: number, m: any) => sum + (m.moneda === 'USD' ? 0 : m.monto), 0)
+
+  const estadisticasParaConciliacion = {
+    ...estadisticas,
+    total_egresos_pen: estadisticas.total_egresos_pen - totalEgresosDigitales
+  }
+
   // Usar helper centralizado para consistencia obsesiva
-  const { desglose } = calcularReconciliacionCaja(pagos || [], estadisticas)
+  const { desglose } = calcularReconciliacionCaja(pagos || [], estadisticasParaConciliacion)
 
 
 
@@ -1189,6 +1224,74 @@ export async function cerrarCaja(input: {
   revalidatePath('/cajas')
   revalidatePath('/cajas/historial')
   return { success: true }
+}
+
+/**
+ * Cerrar caja ENTERPRISE (con RPC atómico y validación de descuadres)
+ * Usa validar_y_cerrar_caja RPC para garantizar consistencia
+ */
+export async function cerrarCajaAtomico(input: {
+  turno_id: string
+  monto_declarado_pen: number
+  monto_declarado_usd: number
+  limite_descuadre?: number // Por defecto: S/ 10
+}): Promise<{
+  success: boolean
+  error?: string
+  requiere_autorizacion?: boolean
+  descuadre_pen?: number
+  descuadre_usd?: number
+  efectivo_teorico_pen?: number
+  efectivo_teorico_usd?: number
+}> {
+  const supabase = await createClient()
+
+  // Verificar que el turno pertenece al usuario o es admin
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'No autenticado' }
+
+  const detalleTurno = await getTurnoActivo()
+  if (!detalleTurno || detalleTurno.turno.id !== input.turno_id) {
+    return { success: false, error: 'Turno no encontrado o no es tuyo' }
+  }
+
+  // Llamar RPC atómico
+  const { data: resultado, error: rpcError } = await supabase.rpc('validar_y_cerrar_caja', {
+    p_turno_id: input.turno_id,
+    p_efectivo_declarado_pen: input.monto_declarado_pen,
+    p_efectivo_declarado_usd: input.monto_declarado_usd,
+    p_limite_descuadre: input.limite_descuadre || 10.00
+  })
+
+  if (rpcError) {
+    console.error('Error RPC validar_y_cerrar_caja:', rpcError)
+    return { success: false, error: `Error en cierre: ${rpcError.message}` }
+  }
+
+  if (!resultado?.success) {
+    return { success: false, error: resultado?.error || 'Error desconocido en cierre' }
+  }
+
+  // Si requiere autorización, notificar
+  if (resultado.requiere_autorizacion) {
+    console.warn('Cierre de caja requiere autorización - Descuadre detectado:', {
+      turnoId: input.turno_id,
+      descuadrePen: resultado.descuadre_pen,
+      descuadreUsd: resultado.descuadre_usd
+    })
+  }
+
+  revalidatePath('/cajas')
+  revalidatePath('/cajas/historial')
+
+  return {
+    success: true,
+    requiere_autorizacion: resultado.requiere_autorizacion,
+    descuadre_pen: resultado.descuadre_pen,
+    descuadre_usd: resultado.descuadre_usd,
+    efectivo_teorico_pen: resultado.efectivo_teorico_pen,
+    efectivo_teorico_usd: resultado.efectivo_teorico_usd
+  }
 }
 
 /**
@@ -1349,77 +1452,7 @@ export async function registrarMovimiento(input: {
   return { success: true }
 }
 
-/**
- * Helper crucial para mantener consistencia "obsesivamente correcta" en toda la app.
- * Centraliza la lógica de desglose de métodos de pago y reconciliación de efectivo vs movimientos.
- */
-function calcularReconciliacionCaja(pagos: any[], estadisticas: any) {
-  const desglose = {
-    efectivo: 0,
-    tarjeta: 0,
-    billetera: 0,
-    transferencia: 0,
-    otros: 0
-  }
 
-  let totalPagosPositivos = 0
-  let totalPagosNegativosEfectivo = 0
-  let totalGeneral = 0
-
-  if (pagos) {
-    pagos.forEach(p => {
-      // Normalizar todo a PEN para el desglose visual principal
-      const montoEnPen = p.moneda_pago === 'USD' ? p.monto * (p.tipo_cambio_pago || 1) : p.monto
-      totalGeneral += montoEnPen
-
-      // Acumular para lógica de conciliación
-      if (montoEnPen > 0) {
-        totalPagosPositivos += montoEnPen
-      } else if (p.metodo_pago === 'DEVOLUCION_EFECTIVO') {
-        totalPagosNegativosEfectivo += Math.abs(montoEnPen)
-      }
-
-      switch (p.metodo_pago) {
-        case 'EFECTIVO':
-          desglose.efectivo += montoEnPen;
-          break;
-        case 'DEVOLUCION_EFECTIVO':
-          desglose.efectivo += montoEnPen; // Resta del efectivo (monto es negativo)
-          break;
-        case 'TARJETA': desglose.tarjeta += montoEnPen; break;
-        case 'YAPE':
-        case 'PLIN': desglose.billetera += montoEnPen; break;
-        case 'TRANSFERENCIA': desglose.transferencia += montoEnPen; break;
-        default: desglose.otros += montoEnPen;
-      }
-    })
-  }
-
-  // A. Ingresos Manuales
-  const totalIngresosCaja = estadisticas.total_ingresos_pen
-  let manualIngreso = 0
-  if (totalIngresosCaja > totalPagosPositivos) {
-    manualIngreso = totalIngresosCaja - totalPagosPositivos
-    desglose.efectivo += manualIngreso
-  }
-
-  // B. Egresos Manuales
-  const totalEgresosCaja = estadisticas.total_egresos_pen
-  let manualEgreso = 0
-  if (totalEgresosCaja > totalPagosNegativosEfectivo) {
-    manualEgreso = totalEgresosCaja - totalPagosNegativosEfectivo
-    desglose.efectivo -= manualEgreso
-  }
-
-  return {
-    desglose,
-    totalGeneral,
-    manualIngreso,
-    manualEgreso,
-    totalPagosPositivos,
-    totalPagosNegativosEfectivo
-  }
-}
 
 /**
  * Obtener devoluciones pendientes de procesar
@@ -1428,6 +1461,7 @@ function calcularReconciliacionCaja(pagos: any[], estadisticas: any) {
 export async function getDevolucionesPendientes() {
   const supabase = await createClient()
 
+  // Corregido: La relación huespedes es a través de reserva_huespedes y no existe nombre_completo
   const { data: devoluciones, error } = await supabase
     .from('pagos')
     .select(`
@@ -1438,7 +1472,9 @@ export async function getDevolucionesPendientes() {
       reserva:reservas(
         id,
         codigo_reserva,
-        huesped:huespedes(nombre_completo)
+        reserva_huespedes(
+          huesped:huespedes(nombres, apellidos)
+        )
       )
     `)
     .eq('metodo_pago', 'DEVOLUCION_PENDIENTE')
@@ -1449,41 +1485,114 @@ export async function getDevolucionesPendientes() {
     return []
   }
 
-  return devoluciones || []
+  // Mapeamos para que coincida con lo que espera el frontend (Devolucion type)
+  // Devolviendo { reserva: { huesped: { nombre_completo } } }
+  return (devoluciones || []).map((pago: any) => {
+    // Tomamos el primer huesped asociado (generalmente el titular o único)
+    const huespedData = pago.reserva?.reserva_huespedes?.[0]?.huesped
+    const nombreCompleto = huespedData
+      ? `${huespedData.nombres} ${huespedData.apellidos}`.trim()
+      : 'Huésped'
+
+    return {
+      id: pago.id,
+      monto: pago.monto,
+      fecha_pago: pago.fecha_pago,
+      nota: pago.nota,
+      reserva: pago.reserva ? {
+        codigo_reserva: pago.reserva.codigo_reserva,
+        huesped: {
+          nombre_completo: nombreCompleto
+        }
+      } : null
+    }
+  })
 }
+
+import { emitirNotaCreditoParcial } from '@/lib/actions/comprobantes'
 
 /**
  * Marcar una devolución pendiente como procesada
- * Actualiza el método de pago de DEVOLUCION_PENDIENTE al método real usado (ej: YAPE)
+ * Usa RPC atómico que actualiza el método de pago y registra egreso de caja si es EFECTIVO
+ * ADEMÁS: Emite la Nota de Crédito diferida si corresponde.
  */
 export async function marcarDevolucionProcesada(pagoId: string, metodoReal: string, notaAdicional?: string) {
   const supabase = await createClient()
 
-  // Obtener nota actual
-  // Obtener nota actual y turno
-  const { data: pago } = await supabase.from('pagos').select('nota, caja_turno_id').eq('id', pagoId).single()
-  const nuevaNota = `${pago?.nota || ''} - Procesado con ${metodoReal} ${notaAdicional ? `(${notaAdicional})` : ''}`
-
-  const { error } = await supabase
+  // 1. Obtener datos del pago ANTES de procesarlo (para saber reserva y monto)
+  const { data: pagoOriginal } = await supabase
     .from('pagos')
-    .update({
-      metodo_pago: metodoReal,
-      nota: nuevaNota,
-      fecha_pago: new Date().toISOString() // Actualizamos fecha al momento real del pago
-    })
+    .select('reserva_id, monto, moneda_pago, nota')
     .eq('id', pagoId)
-    .eq('metodo_pago', 'DEVOLUCION_PENDIENTE')
+    .single()
+
+  // 2. Llamar RPC atómico que maneja todo en una transacción (actualiza pago, crea movimiento)
+  const { data: resultado, error } = await supabase.rpc('marcar_devolucion_procesada', {
+    p_pago_id: pagoId,
+    p_metodo_real: metodoReal,
+    p_nota_adicional: notaAdicional || null
+  })
 
   if (error) {
+    console.error('Error en RPC marcar_devolucion_procesada:', error)
     return { success: false, error: error.message }
+  }
+
+  if (resultado && !resultado.success) {
+    return { success: false, error: resultado.error || 'Error al procesar devolución' }
+  }
+
+  // 3. Lógica Fiscal Diferida: Emitir Nota de Crédito si corresponde
+  // Si el pago era una devolución (monto negativo) y se procesó exitosamente
+  if (pagoOriginal && pagoOriginal.monto < 0) {
+    const montoAbs = Math.abs(pagoOriginal.monto)
+
+    // Buscar si existe un comprobante válido para emitirle NC
+    const { data: comprobantes } = await supabase
+      .from('comprobantes')
+      .select('id, numero, serie, total_venta')
+      .eq('reserva_id', pagoOriginal.reserva_id)
+      .in('estado_sunat', ['ACEPTADO', 'PENDIENTE'])
+      .in('tipo_comprobante', ['BOLETA', 'FACTURA'])
+      .order('total_venta', { ascending: false })
+      .limit(1)
+
+    const comprobante = comprobantes?.[0]
+
+    // Si hay comprobante y cubre el monto
+    if (comprobante && comprobante.total_venta >= montoAbs) {
+      // Emitir NC
+      // Priorizar la nota original guardada (ej: "Devolución por acortamiento...")
+      const motivoNC = (pagoOriginal.nota && !pagoOriginal.nota.includes('PENDIENTE'))
+        ? pagoOriginal.nota
+        : `Devolución diferida completada (${metodoReal})`
+
+      const resultadoNC = await emitirNotaCreditoParcial({
+        comprobante_original_id: comprobante.id,
+        monto_devolucion: montoAbs,
+        motivo: motivoNC,
+        dias_devueltos: 0, // No sabemos los días exactos aquí, usamos 0 para descripción genérica
+        tipo_nota_credito: 9 // Ajuste de monto
+      })
+
+      // VINCULAR PAGO A LA NC (Para que en Facturación salga el método de pago correcto)
+      if (resultadoNC.success && resultadoNC.notaCredito) {
+        await supabase
+          .from('pagos')
+          .update({ comprobante_id: resultadoNC.notaCredito.id })
+          .eq('id', pagoId)
+      }
+    }
   }
 
   revalidatePath('/')
   revalidatePath('/cajas')
-  if (pago?.caja_turno_id) {
-    revalidatePath(`/cajas/gestionar/${pago.caja_turno_id}`)
+  revalidatePath('/dashboard')
+
+  return {
+    success: true,
+    movimiento_caja_id: resultado?.movimiento_caja_id
   }
-  return { success: true }
 }
 
 /**

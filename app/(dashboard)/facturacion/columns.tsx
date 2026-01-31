@@ -46,7 +46,8 @@ const formatCurrency = (amount: number, currency: string = 'PEN') => {
 export const comprobantesColumns: ColumnDef<Comprobante>[] = [
   {
     id: 'comprobante',
-    accessorFn: (row) => `${row.numero_completo} ${format(new Date(row.fecha_emision), 'dd/MM/yyyy HH:mm', { locale: es })}`,
+    // Incluimos datos del cliente en el accessor para que el filtro global funcione
+    accessorFn: (row) => `${row.numero_completo} ${format(new Date(row.fecha_emision), 'dd/MM/yyyy HH:mm', { locale: es })} ${row.cliente_nombre} ${row.cliente_doc}`,
     header: 'Comprobante',
     cell: ({ row }) => {
       const comprobante = row.original

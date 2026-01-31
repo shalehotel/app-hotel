@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, CheckCircle, Clock } from 'lucide-react'
+import { Loader2, CheckCircle, Clock, ArrowLeft } from 'lucide-react'
 import { crearReservaDesdeRack } from '@/lib/actions/rack'
 import type { RackHabitacion } from '@/lib/actions/rack'
 
@@ -16,6 +16,7 @@ type Props = {
   totalEstimado: number
   onSuccess: (reservaId: string, codigo: string, esCheckin: boolean) => void
   onClose: () => void
+  onBack?: () => void
 }
 
 export function StepConfirmacion({
@@ -24,7 +25,8 @@ export function StepConfirmacion({
   totalNoches,
   totalEstimado,
   onSuccess,
-  onClose
+  onClose,
+  onBack
 }: Props) {
   const [guardando, setGuardando] = useState(false)
   const [tipoAccion, setTipoAccion] = useState<'reserva' | 'checkin' | null>(null)
@@ -51,7 +53,7 @@ export function StepConfirmacion({
 
       // Éxito: Pasar datos al padre para mostrar StepExito
       onSuccess(result.data.id, result.data.codigo_reserva, accion === 'checkin')
-      
+
     } catch (error: any) {
       console.error('Error creating reservation:', error)
       alert(error?.message || 'Error al crear la reserva')
@@ -66,7 +68,7 @@ export function StepConfirmacion({
       {/* Resumen */}
       <div className="space-y-3">
         <h3 className="font-semibold">Resumen de la Reserva</h3>
-        
+
         <div className="bg-muted rounded-lg p-4 space-y-3">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Habitación:</span>
@@ -123,12 +125,13 @@ export function StepConfirmacion({
         </div>
       </div>
 
-      {/* Botones de Acción */}
-      <div className="space-y-3 pt-4 border-t">
+      {/* Botones de Acción - Diseño Unificado Wizard */}
+      {/* Botones de Confirmación (Integrados en contenido) */}
+      <div className="space-y-3">
         <Button
+          variant="outline"
           className="w-full"
           size="lg"
-          variant="outline"
           onClick={() => handleSubmit('reserva')}
           disabled={guardando}
         >
@@ -137,7 +140,7 @@ export function StepConfirmacion({
           ) : (
             <Clock className="mr-2 h-4 w-4" />
           )}
-          Solo Reservar (Sin Check-in)
+          Solo Reservar
         </Button>
 
         <Button
@@ -153,14 +156,17 @@ export function StepConfirmacion({
           )}
           Confirmar Check-in
         </Button>
+      </div>
 
+      {/* Navegación - Footer Consistente (Igual a Steps 1 y 2) */}
+      <div className="flex items-center justify-between mt-6 pt-6 border-t">
         <Button
           variant="ghost"
-          className="w-full"
-          onClick={onClose}
+          onClick={onBack}
           disabled={guardando}
         >
-          Cancelar
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Atrás
         </Button>
       </div>
     </div>

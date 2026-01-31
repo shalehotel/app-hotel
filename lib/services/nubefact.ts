@@ -195,6 +195,59 @@ export async function enviarComprobanteNubefact(
   try {
     const config = await getNubefactConfig()
 
+    const hotelConfig = await getHotelConfig()
+    const esAmazonia = hotelConfig.es_exonerado_igv
+
+    // Si es Amazonía, forzamos la lógica de exoneración
+    let total_gravada = input.total_gravada
+    let total_exonerada = input.total_exonerada
+    const total_igv = esAmazonia ? 0 : input.total_igv
+
+    if (esAmazonia) {
+      // CORRECCIÓN IMPORTANTE:
+      // En Amazonía, el precio final (Total) se mantiene (ej: 118), pero todo se vuelve Exonerado.
+      // Antes: 100 Base + 18 IGV = 118 Total
+      // Ahora: 118 Base Exonerada + 0 IGV = 118 Total
+      // Por tanto, la Base Exonerada debe ser igual al TOTAL, no a la antigua Base Gravada.
+      total_exonerada = input.total
+      total_gravada = 0
+    }
+
+    // Construir items con lógica Amazonía
+    const itemsProcesados = input.items.map(item => {
+      let tipo_igv_final = item.tipo_de_igv
+      let igv_final = item.igv
+      let valor_unitario_final = item.valor_unitario
+      let subtotal_final = item.subtotal
+
+      if (esAmazonia) {
+        // CORRECCIÓN: Según Doc Nubefact V1, el código para Exonerado - Operación Onerosa es 8.
+        // El código 20 corresponde a Inafecto - Transferencia Gratuita (Tributo 9996), lo que causaba el error con la leyenda Selva.
+        // Al usar 8, Nubefact genera Tributo 9997 (Exonerado), que sí es compatible con Amazonía.
+        tipo_igv_final = 8
+        igv_final = 0
+
+        // CORRECCIÓN EN ITEMS:
+        // El Valor Unitario (sin impuesto) pasa a ser igual al Precio Unitario (con impuesto 0)
+        // El Subtotal (sin impuesto) pasa a ser igual al Total (con impuesto 0)
+        valor_unitario_final = item.precio_unitario
+        subtotal_final = item.total
+      }
+
+      return {
+        unidad_de_medida: item.unidad_de_medida,
+        codigo: item.codigo,
+        descripcion: item.descripcion,
+        cantidad: item.cantidad,
+        valor_unitario: valor_unitario_final,
+        precio_unitario: item.precio_unitario,
+        subtotal: subtotal_final,
+        tipo_de_igv: tipo_igv_final,
+        igv: igv_final,
+        total: item.total
+      }
+    })
+
     // Construir payload según especificación NubeFact
     const payload = {
       operacion: 'generar_comprobante',
@@ -218,30 +271,23 @@ export async function enviarComprobanteNubefact(
       tipo_de_cambio: input.tipo_cambio,
 
       // Montos
-      porcentaje_de_igv: input.porcentaje_igv,
-      total_gravada: input.total_gravada,
-      total_exonerada: input.total_exonerada,
+      porcentaje_de_igv: esAmazonia ? 0 : input.porcentaje_igv,
+      total_gravada: total_gravada,
+      total_exonerada: total_exonerada,
       total_inafecta: 0,
-      total_igv: input.total_igv,
+      total_igv: total_igv,
       total: input.total,
 
       // Flags de envío
       enviar_automaticamente_a_la_sunat: true,
       enviar_automaticamente_al_cliente: false,
 
+      // Flags Amazonía
+      bienes_region_selva: esAmazonia,
+      servicios_region_selva: esAmazonia,
+
       // Items
-      items: input.items.map(item => ({
-        unidad_de_medida: item.unidad_de_medida,
-        codigo: item.codigo,
-        descripcion: item.descripcion,
-        cantidad: item.cantidad,
-        valor_unitario: item.valor_unitario,
-        precio_unitario: item.precio_unitario,
-        subtotal: item.subtotal,
-        tipo_de_igv: item.tipo_de_igv,
-        igv: item.igv,
-        total: item.total
-      }))
+      items: itemsProcesados
     }
 
     // ---------------------------------------------------------

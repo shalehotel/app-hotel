@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Save, Clock, Building2, Mail, Phone, Globe, Receipt, Pencil, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { isValidRUC } from '@/lib/utils/validation'
 import { updateHotelConfig } from '@/lib/actions/configuracion'
 import type { HotelConfig } from '@/lib/actions/configuracion'
 
@@ -41,29 +42,9 @@ export function ConfiguracionGeneralForm({ initialData }: Props) {
   })
 
   // Validación de RUC peruano (11 dígitos con dígito verificador)
-  function validarRUC(ruc: string): { valido: boolean; error?: string } {
+  function validarFormularioRUC(ruc: string): { valido: boolean; error?: string } {
     if (!ruc) return { valido: false, error: 'RUC es requerido' }
-    if (!/^\d{11}$/.test(ruc)) {
-      return { valido: false, error: 'RUC debe tener 11 dígitos' }
-    }
-    const prefijosValidos = ['10', '15', '17', '20']
-    if (!prefijosValidos.some(p => ruc.startsWith(p))) {
-      return { valido: false, error: 'RUC debe iniciar con 10, 15, 17 o 20' }
-    }
-    // Algoritmo de dígito verificador SUNAT (módulo 11)
-    const factores = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
-    let suma = 0
-    for (let i = 0; i < 10; i++) {
-      suma += parseInt(ruc[i]) * factores[i]
-    }
-    // Fórmula correcta: (11 - (suma % 11)) % 11, si es 10 se usa 0
-    const resto = suma % 11
-    let digitoVerificador = 11 - resto
-    if (digitoVerificador >= 10) digitoVerificador = digitoVerificador - 10
-
-    if (parseInt(ruc[10]) !== digitoVerificador) {
-      return { valido: false, error: 'Dígito verificador de RUC inválido' }
-    }
+    if (!isValidRUC(ruc)) return { valido: false, error: 'RUC inválido (Verifique dígitos y formato)' }
     return { valido: true }
   }
 
@@ -76,7 +57,7 @@ export function ConfiguracionGeneralForm({ initialData }: Props) {
 
     // Validar RUC si facturación está activa
     if (formData.facturacion_activa) {
-      const rucValidation = validarRUC(formData.ruc)
+      const rucValidation = validarFormularioRUC(formData.ruc)
       if (!rucValidation.valido) {
         toast.error(rucValidation.error)
         return

@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { cobrarYFacturar } from '@/lib/actions/pagos'
 import { getSeriesDisponibles } from '@/lib/actions/comprobantes'
 import { differenceInCalendarDays } from 'date-fns'
+import { getDocumentError, isValidDNI, isValidRUC } from '@/lib/utils/validation'
 
 type Props = {
   open: boolean
@@ -139,6 +140,16 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
       }
       if (!clienteNombre) {
         toast.error('La Razón Social es obligatoria para factura')
+        return
+      }
+      if (!isValidRUC(clienteDoc)) {
+        toast.error('El RUC ingresado no es válido')
+        return
+      }
+    } else {
+      // Validación DNI si aplica (longitud 8)
+      if (clienteDoc.length === 8 && !isValidDNI(clienteDoc)) {
+        toast.error('El DNI ingresado no es válido')
         return
       }
     }
@@ -337,7 +348,13 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
                 onChange={(e) => setClienteDoc(e.target.value)}
                 placeholder={tipoComprobante === 'FACTURA' ? '20...' : 'Documento'}
                 maxLength={tipoComprobante === 'FACTURA' ? 11 : 20}
+                className={getDocumentError(tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI', clienteDoc) ? 'border-red-500' : ''}
               />
+              {getDocumentError(tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI', clienteDoc) && (
+                <p className="text-[10px] text-red-500 font-medium mt-1">
+                  {getDocumentError(tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI', clienteDoc)}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

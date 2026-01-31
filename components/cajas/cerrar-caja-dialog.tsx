@@ -182,82 +182,40 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
 
               {usarDesglose ? (
                 /* Calculadora de billetes */
-                <Tabs defaultValue="pen" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="pen">🇵🇪 Soles (PEN)</TabsTrigger>
-                    <TabsTrigger value="usd">🇺🇸 Dólares (USD)</TabsTrigger>
-                  </TabsList>
-
-                  {/* Tab Soles */}
-                  <TabsContent value="pen" className="space-y-4">
-                    <div className="rounded-lg border p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">Cuenta tus billetes y monedas</p>
-                        <p className="text-lg font-bold text-primary">
-                          Total: S/ {totalDesglosePEN.toFixed(2)}
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        {DENOMINACIONES_PEN.map((denom) => (
-                          <div key={denom} className="flex items-center gap-2">
-                            <Label className="w-16 text-xs font-medium">S/ {denom}</Label>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={desglosePEN[denom] || ''}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value) || 0
-                                setDesglosePEN(prev => ({ ...prev, [denom]: val }))
-                              }}
-                              className="text-xs h-8 w-16"
-                              placeholder="0"
-                              disabled={loading}
-                            />
-                            <span className="text-xs text-muted-foreground w-20 text-right">
-                              = S/ {((desglosePEN[denom] || 0) * denom).toFixed(2)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                /* Calculadora de billetes */
+                <div className="space-y-4">
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Cuenta tus billetes y monedas</p>
+                      <p className="text-lg font-bold text-primary">
+                        Total: S/ {totalDesglosePEN.toFixed(2)}
+                      </p>
                     </div>
-                  </TabsContent>
-
-                  {/* Tab Dólares */}
-                  <TabsContent value="usd" className="space-y-4">
-                    <div className="rounded-lg border p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">Cuenta tus billetes</p>
-                        <p className="text-lg font-bold text-primary">
-                          Total: $ {totalDesgloseUSD.toFixed(2)}
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        {DENOMINACIONES_USD.map((denom) => (
-                          <div key={denom} className="flex items-center gap-2">
-                            <Label className="w-16 text-xs font-medium">$ {denom}</Label>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={desgloseUSD[denom] || ''}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value) || 0
-                                setDesgloseUSD(prev => ({ ...prev, [denom]: val }))
-                              }}
-                              className="text-xs h-8 w-16"
-                              placeholder="0"
-                              disabled={loading}
-                            />
-                            <span className="text-xs text-muted-foreground w-20 text-right">
-                              = $ {((desgloseUSD[denom] || 0) * denom).toFixed(2)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {DENOMINACIONES_PEN.map((denom) => (
+                        <div key={denom} className="flex items-center gap-2">
+                          <Label className="w-16 text-xs font-medium">S/ {denom}</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={desglosePEN[denom] || ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0
+                              setDesglosePEN(prev => ({ ...prev, [denom]: val }))
+                            }}
+                            className="text-xs h-8 w-16"
+                            placeholder="0"
+                            disabled={loading}
+                          />
+                          <span className="text-xs text-muted-foreground w-20 text-right">
+                            = S/ {((desglosePEN[denom] || 0) * denom).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  </TabsContent>
-                </Tabs>
+                  </div>
+                </div>
               ) : (
                 /* Monto directo */
                 <div className="space-y-4">
@@ -275,20 +233,6 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
                       className="text-lg"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="monto_usd">Dinero Contado (Dólares)</Label>
-                    <Input
-                      id="monto_usd"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={montoDirectoUsd}
-                      onChange={(e) => setMontoDirectoUsd(e.target.value)}
-                      disabled={loading}
-                      className="text-lg"
-                    />
-                  </div>
                 </div>
               )}
 
@@ -298,9 +242,6 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="text-2xl font-bold">S/ {montoDeclaradoPen.toFixed(2)}</p>
-                    {montoDeclaradoUsd > 0 && (
-                      <p className="text-lg text-muted-foreground">$ {montoDeclaradoUsd.toFixed(2)}</p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -327,10 +268,10 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       {/* Confirmación simple sin revelar diferencias */}
-      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+      < AlertDialog open={showConfirm} onOpenChange={setShowConfirm} >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Confirmar cierre de turno?</AlertDialogTitle>
@@ -338,9 +279,6 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
               <div className="space-y-2">
                 <p>Vas a cerrar tu turno declarando:</p>
                 <p className="font-bold text-lg">S/ {montoDeclaradoPen.toFixed(2)}</p>
-                {montoDeclaradoUsd > 0 && (
-                  <p className="font-bold">$ {montoDeclaradoUsd.toFixed(2)}</p>
-                )}
                 <p className="text-sm text-muted-foreground mt-2">Esta acción no se puede deshacer.</p>
               </div>
             </AlertDialogDescription>
@@ -354,7 +292,7 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog >
     </>
   )
 }

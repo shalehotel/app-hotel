@@ -4,11 +4,13 @@ import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/logger'
 import { getErrorMessage } from '@/lib/errors'
 import { esTransicionValida } from '@/lib/utils/validaciones-reservas'
+import { requireOperador } from '@/lib/auth/permissions'
 
 // ========================================
 // CANCELAR RESERVA
 // ========================================
 export async function cancelarReserva(reservaId: string, motivo?: string) {
+  await requireOperador()
   const supabase = await createClient()
 
   try {

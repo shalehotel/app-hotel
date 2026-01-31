@@ -41,28 +41,31 @@ const navItems = [
     title: 'Dashboard Ejecutivo',
     url: '/',
     icon: LayoutDashboard,
-    adminOnly: true, // Solo para ADMIN
+    roles: ['ADMIN'], // Solo ADMIN
   },
   {
     title: 'Rack',
     url: '/rack',
     icon: Bed,
+    roles: ['ADMIN', 'RECEPCION'],
   },
   {
     title: 'Limpieza',
     url: '/limpieza',
     icon: Sparkles,
+    roles: ['ADMIN', 'RECEPCION', 'HOUSEKEEPING'],
   },
-
   {
     title: 'Historial de Reservas',
     url: '/reservas',
     icon: Calendar,
+    roles: ['ADMIN', 'RECEPCION'],
   },
   {
     title: 'Huéspedes',
     url: '/huespedes',
     icon: UserCircle,
+    roles: ['ADMIN', 'RECEPCION'],
     items: [
       {
         title: 'Directorio',
@@ -78,11 +81,13 @@ const navItems = [
     title: 'Facturación',
     url: '/facturacion',
     icon: Receipt,
+    roles: ['ADMIN', 'RECEPCION'],
   },
   {
     title: 'Gestión de Cajas',
     url: '/cajas',
     icon: Wallet,
+    roles: ['ADMIN', 'RECEPCION'],
     items: [
       {
         title: 'Cajas y Turnos',
@@ -91,7 +96,7 @@ const navItems = [
       {
         title: 'Retiros Administrativos',
         url: '/cajas/retiros-administrativos',
-        adminOnly: true,
+        roles: ['ADMIN'], // Sub-item restringido
       },
     ],
   },
@@ -99,6 +104,7 @@ const navItems = [
     title: 'Configuración',
     url: '/configuracion',
     icon: Settings,
+    roles: ['ADMIN'],
     items: [
       {
         title: 'General',
@@ -143,22 +149,28 @@ export function AppSidebar({
 
   // Filtrar items según rol
   const filteredNavItems = React.useMemo(() => {
-    const isAdmin = user?.rol === 'ADMIN'
+    if (!user?.rol) return []
 
     return navItems
       .filter(item => {
-        // Ocultar items de nivel superior que son adminOnly
-        if ((item as any).adminOnly && !isAdmin) return false
-        // Ocultar completamente el grupo Configuración si no es admin
-        if (item.title === 'Configuración' && !isAdmin) return false
+        // Verificar si el rol del usuario está permitido para este item
+        if (item.roles && !item.roles.includes(user.rol as any)) {
+          return false
+        }
         return true
       })
       .map(item => {
-        // Si tiene subitems, filtrar los que son adminOnly
-        if (item.items && !isAdmin) {
+        // Si tiene subitems, filtrar también sus subitems
+        if (item.items) {
           return {
             ...item,
-            items: item.items.filter((subitem: any) => !subitem.adminOnly)
+            items: item.items.filter((subitem: any) => {
+              // Si el subitem tiene roles definidos, verificar
+              if (subitem.roles && !subitem.roles.includes(user.rol as any)) {
+                return false
+              }
+              return true
+            })
           }
         }
         return item
@@ -184,7 +196,7 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         <NavMain items={filteredNavItems} />
 
         {/* Widget de Turno Activo */}

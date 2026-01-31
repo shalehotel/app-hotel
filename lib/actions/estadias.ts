@@ -372,9 +372,14 @@ export async function acortarEstadia(
         return { success: false, error: 'Reserva no encontrada' }
     }
 
-    // Validar que la nueva fecha sea anterior a la actual
-    if (new Date(nuevaFechaSalida) >= new Date(reserva.fecha_salida)) {
-        return { success: false, error: 'Para acortar, la nueva fecha debe ser anterior a la actual' }
+    // Validar que la nueva fecha sea anterior a la actual (Comparación Robusta YYYY-MM-DD)
+    // Usamos new Date() y split para asegurar consistencia
+    const fechaSalidaActualStr = new Date(reserva.fecha_salida).toISOString().split('T')[0]
+    const nuevaFechaSalidaStr = new Date(nuevaFechaSalida).toISOString().split('T')[0]
+
+    // Si la nueva fecha no es menor estrictamente, error
+    if (nuevaFechaSalidaStr >= fechaSalidaActualStr) {
+        return { success: false, error: `Para acortar, la nueva fecha (${nuevaFechaSalidaStr}) debe ser anterior a la actual (${fechaSalidaActualStr})` }
     }
 
     // Validar que no sea antes de la fecha de entrada
@@ -393,7 +398,7 @@ export async function acortarEstadia(
     let mensajeExtra = ''
 
     // 3. Lógica Fiscal: Intentar emitir Nota de Crédito PRIMERO (Atomicidad Lógica)
-    if (resumen.resumen.requiereNotaCredito && montoDevolucion > 0) {
+    if (resumen.resumen.requiereNotaCredito && montoDevolucion > 0 && metodoDevolucion !== 'PENDIENTE') {
 
         // Buscar EL MEJOR comprobante original válido (ACEPTADO o PENDIENTE)
         // Priorizamos el de mayor monto para asegurar que cubra la devolución
@@ -419,7 +424,7 @@ export async function acortarEstadia(
             const resultadoNC = await emitirNotaCreditoParcial({
                 comprobante_original_id: comprobante.id,
                 monto_devolucion: montoDevolucion,
-                motivo: `Acortamiento de estadía (${diasDevueltos} días menos)`,
+                motivo: `Devolución por acortamiento de estadía (${diasDevueltos} noches)`,
                 dias_devueltos: diasDevueltos,
                 tipo_nota_credito: 9 // Tipo 09: Ajuste de montos / Disminución de valor
             })
@@ -432,110 +437,80 @@ export async function acortarEstadia(
         }
     }
 
-    // 4. Actualizar fecha de salida en BD (Solo si la NC pasó o no era necesaria)
-    // IMPORTANTE: Guardamos a las 12:00 UTC para evitar que zonas horarias negativas (como UTC-5)
-    // desplacen la fecha al día anterior (ej: 00:00Z -> 19:00 día previo).
-    const { error: updateError } = await supabase
-        .from('reservas')
-        .update({ fecha_salida: `${nuevaFechaSalida}T12:00:00Z` })
-        .eq('id', reservaId)
+    // 4. (PASO ELIMINADO) La actualización de fecha se delega a la RPC para evitar conflictos de idempotencia.
+    // Antes actualizábamos aquí, y la RPC detectaba que ya estaba actualizada y no hacía nada (no registraba el pago).
+    // Ahora pasamos directo a la RPC.
 
-    if (updateError) {
-        logger.error('Error al actualizar fecha de salida', {
-            action: 'acortarEstadia',
-            reservaId,
-            originalError: getErrorMessage(updateError)
-        })
-        return { success: false, error: 'Error crítico: Se emitió NC pero falló la actualización de fecha.' }
-    }
-
-    // 5. Lógica Financiera según método de devolución seleccionado
+    // 5. Procesar devolución de forma ATÓMICA usando RPC
+    // Esto registra el pago negativo y el egreso de caja (si es efectivo) en una sola transacción
     if (montoDevolucion > 0) {
-        // Primero obtener un turno activo (el campo caja_turno_id es NOT NULL)
+        // Obtener turno activo
         const { data: turnoActivo } = await supabase
             .from('caja_turnos')
-            .select('id')
+            .select('id, usuario_id')
             .eq('estado', 'ABIERTA')
             .limit(1)
             .maybeSingle()
 
-        if (!turnoActivo) {
-            logger.warn('No hay turno activo para registrar movimientos', {
+        // Llamar RPC atómico
+        const { data: resultadoRPC, error: rpcError } = await supabase.rpc('procesar_devolucion_atomica', {
+            p_reserva_id: reservaId,
+            p_nueva_fecha_salida: nuevaFechaSalida,
+            p_monto_devolucion: montoDevolucion,
+            p_metodo_devolucion: metodoDevolucion,
+            p_dias_devueltos: diasDevueltos,
+            p_emitir_nc: false, // La NC ya se emitió arriba
+            p_turno_id: turnoActivo?.id || null,
+            p_usuario_id: turnoActivo?.usuario_id || null
+        })
+
+        if (rpcError) {
+            logger.error('Error en RPC procesar_devolucion_atomica', {
                 action: 'acortarEstadia',
-                reservaId
+                reservaId,
+                originalError: getErrorMessage(rpcError)
             })
+            return { success: false, error: 'Error al procesar la devolución: ' + rpcError.message }
         }
 
-        // Manejar según método de devolución
+        if (resultadoRPC && !resultadoRPC.success) {
+            return { success: false, error: resultadoRPC.error || 'Error en el procesamiento de devolución' }
+        }
+
+        // Si es diferido (PENDIENTE), guardamos la razón exacta en la nota del pago
+        // para que luego, al procesarlo, la Nota de Crédito salga con esta descripción.
+        if (metodoDevolucion === 'PENDIENTE' && resultadoRPC.pago_id) {
+            await supabase.from('pagos').update({
+                nota: `Devolución por acortamiento de estadía (${diasDevueltos} días menos)`
+            }).eq('id', resultadoRPC.pago_id)
+        }
+
+        // Mensaje según método
         switch (metodoDevolucion) {
             case 'EFECTIVO':
-                // Registrar EGRESO en caja_movimientos
-                const resultadoCaja = await registrarMovimiento({
-                    tipo: 'EGRESO',
-                    categoria: 'DEVOLUCION',
-                    moneda: reserva.moneda_pactada || 'PEN',
-                    monto: montoDevolucion,
-                    motivo: `Devolución reserva ${reserva.codigo_reserva} (Acortamiento)`,
-                    comprobante_referencia: reserva.codigo_reserva,
-                    metodo_pago: 'EFECTIVO'
-                })
-
-                if (resultadoCaja.success) {
-                    mensajeExtra += ' Dinero en efectivo descontado de caja.'
-                } else {
-                    mensajeExtra += ' Advertencia: Error al descontar de caja (verifique turno).'
-                }
+                mensajeExtra += ' Dinero en efectivo descontado de caja.'
                 break
-
             case 'YAPE':
                 mensajeExtra += ' Devolución realizada por Yape.'
                 break
-
             case 'PLIN':
                 mensajeExtra += ' Devolución realizada por Plin.'
                 break
-
             case 'TRANSFERENCIA':
                 mensajeExtra += ' Devolución realizada por transferencia bancaria.'
                 break
-
             case 'PENDIENTE':
                 mensajeExtra += ' Devolución registrada como pendiente.'
                 break
         }
 
-        // Siempre registrar pago negativo para ajuste de saldo de reserva
-        if (turnoActivo) {
-            const { error: pagoNegativoError } = await supabase
-                .from('pagos')
-                .insert({
-                    reserva_id: reservaId,
-                    caja_turno_id: turnoActivo.id,
-                    comprobante_id: null,
-                    metodo_pago: `DEVOLUCION_${metodoDevolucion}`,
-                    moneda_pago: reserva.moneda_pactada || 'PEN',
-                    monto: -montoDevolucion, // NEGATIVO
-                    tipo_cambio_pago: 1.0,
-                    referencia_pago: null,
-                    nota: `Devolución NC (${metodoDevolucion}) - Acortamiento ${diasDevueltos} noche(s)`,
-                    fecha_pago: new Date().toISOString()
-                })
-
-            if (pagoNegativoError) {
-                logger.warn('No se pudo registrar pago negativo', {
-                    action: 'acortarEstadia',
-                    reservaId,
-                    originalError: getErrorMessage(pagoNegativoError)
-                })
-            } else {
-                logger.info('Pago negativo registrado', {
-                    action: 'acortarEstadia',
-                    reservaId,
-                    monto: -montoDevolucion,
-                    metodo: metodoDevolucion
-                })
-            }
-        }
+        logger.info('Devolución procesada atómicamente', {
+            action: 'acortarEstadia',
+            reservaId,
+            monto: montoDevolucion,
+            metodo: metodoDevolucion,
+            rpcResult: resultadoRPC
+        })
     }
 
     // 6. Revalidar rutas
@@ -596,6 +571,8 @@ export async function redimensionarEstadia(
         const resultado = await acortarEstadia(reservaId, nuevaFechaSalida, metodoDevolucion || 'EFECTIVO')
         return { ...resultado, tipo: 'acortamiento' }
     } else {
-        return { success: false, error: 'La nueva fecha es igual a la actual' }
+        // IDEMPOTENCIA: Si la fecha ya es la solicitada, asumimos éxito (probablemente retry del cliente o doble click)
+        logger.info('Solicitud de cambio a misma fecha (Idempotencia)', { reservaId, fecha: newStr })
+        return { success: true, mensaje: 'La reserva ya tiene configurada esta fecha de salida.' }
     }
 }

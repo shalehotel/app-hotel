@@ -120,7 +120,7 @@ export function FacturacionClient() {
         columns={comprobantesColumns}
         data={comprobantes}
         searchKey="comprobante"
-        searchPlaceholder="Buscar por comprobante o fecha..."
+        searchPlaceholder="Buscar recibo, cliente o fecha..."
         meta={{
           onVerDetalle: handleVerDetalle,
           onVerReserva: handleVerReserva,

@@ -19,6 +19,8 @@ import type { HuespedConRelacion } from '@/lib/actions/huespedes'
 import { NacionalidadCombobox } from '@/components/custom/nacionalidad-combobox'
 import { DepartamentoCombobox } from '@/components/custom/departamento-combobox'
 import { buscarHuespedPorDocumento } from '@/lib/actions/checkin'
+import { generateUUID } from '@/lib/utils/random'
+import { getDocumentError } from '@/lib/utils/validation'
 
 interface HuespedFormData {
   id: string // ID temporal para el formulario
@@ -99,7 +101,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
   const [huespedes, setHuespedes] = useState<HuespedFormData[]>(
     initialData || [
       {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         nombres: '',
         apellidos: '',
         tipo_documento: 'DNI',
@@ -167,7 +169,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
     setHuespedes([
       ...huespedes,
       {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         nombres: '',
         apellidos: '',
         tipo_documento: 'DNI',
@@ -229,12 +231,21 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
       }
     }
 
-    // Validar documentos únicos
+    // Validar documentos únicos y formato
     const documentos = huespedes.map((h) => h.numero_documento)
     const duplicados = documentos.filter((d, i) => documentos.indexOf(d) !== i)
     if (duplicados.length > 0) {
       toast.error('No puede haber documentos duplicados')
       return false
+    }
+
+    // Validar formato de documentos
+    for (const h of huespedes) {
+      const docError = getDocumentError(h.tipo_documento, h.numero_documento)
+      if (docError) {
+        toast.error(`Error en ${h.es_titular ? 'Titular' : 'Acompañante'}: ${docError}`)
+        return false
+      }
     }
 
     return true
@@ -349,6 +360,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                     onBlur={() => buscarHuesped(titular.id, titular.tipo_documento, titular.numero_documento)}
                     placeholder="Ingrese documento y presione Tab para buscar"
                     required
+                    className={getDocumentError(titular.tipo_documento, titular.numero_documento) ? 'border-red-500' : ''}
                   />
                   {buscando[titular.id] && (
                     <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
@@ -357,6 +369,11 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                     <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-green-500" />
                   )}
                 </div>
+                {getDocumentError(titular.tipo_documento, titular.numero_documento) && (
+                  <p className="text-[10px] text-red-500 font-medium mt-1">
+                    {getDocumentError(titular.tipo_documento, titular.numero_documento)}
+                  </p>
+                )}
                 {titular.es_existente && (
                   <Badge variant="secondary" className="mt-1 text-xs">
                     <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -523,6 +540,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                         onBlur={() => buscarHuesped(acomp.id, acomp.tipo_documento, acomp.numero_documento)}
                         placeholder="Tab para buscar"
                         required
+                        className={getDocumentError(acomp.tipo_documento, acomp.numero_documento) ? 'border-red-500' : ''}
                       />
                       {buscando[acomp.id] && (
                         <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
@@ -531,6 +549,11 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                         <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-green-500" />
                       )}
                     </div>
+                    {getDocumentError(acomp.tipo_documento, acomp.numero_documento) && (
+                      <p className="text-[10px] text-red-500 font-medium mt-1">
+                        {getDocumentError(acomp.tipo_documento, acomp.numero_documento)}
+                      </p>
+                    )}
                     {acomp.es_existente && (
                       <Badge variant="secondary" className="mt-1 text-xs">
                         <CheckCircle2 className="h-3 w-3 mr-1" />

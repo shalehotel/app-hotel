@@ -34,7 +34,7 @@ type FormData = {
   fecha_entrada: Date
   fecha_salida: Date
   precio_pactado: number
-  
+
   // Step 2: Huésped
   huesped_id: string | null // Si existe en BD
   tipo_documento: string
@@ -45,7 +45,7 @@ type FormData = {
   telefono: string
   nacionalidad: string
   fecha_nacimiento: string
-  
+
   // Step 3: Pago (Checkbox solo para UI logic)
   registrar_pago: boolean
   metodo_pago: string | null
@@ -62,8 +62,8 @@ type PaymentData = {
   titular_numero_doc: string
   habitacion_numero: string
   precio_pactado: number
-  fecha_entrada?: string
-  fecha_salida?: string
+  fecha_entrada: string
+  fecha_salida: string
 }
 
 type SuccessData = {
@@ -72,18 +72,18 @@ type SuccessData = {
   esCheckin: boolean
 }
 
-export function NewReservationDialog({ 
-  open, 
-  onOpenChange, 
-  habitacion, 
+export function NewReservationDialog({
+  open,
+  onOpenChange,
+  habitacion,
   fechaInicial,
   fechaFinal,
-  onSuccess 
+  onSuccess
 }: Props) {
   const [currentStep, setCurrentStep] = useState(1)
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null)
   const [successData, setSuccessData] = useState<SuccessData | null>(null)
-  
+
   // Calcular fecha_salida: 
   // Si hay fechaFinal (rango seleccionado), es la última noche. Sumamos 1 día para el checkout.
   // Si solo hay fechaInicial, sumamos 1 día para que sea una estadía de 1 noche.
@@ -91,13 +91,13 @@ export function NewReservationDialog({
     const base = fechaFinal || fechaInicial
     return addDays(base, 1)
   }
-  
+
   const [formData, setFormData] = useState<FormData>({
     tarifa_id: null,
     fecha_entrada: fechaInicial,
     fecha_salida: calcularFechaSalida(),
     precio_pactado: 0,
-    
+
     huesped_id: null,
     tipo_documento: 'DNI',
     numero_documento: '',
@@ -107,7 +107,7 @@ export function NewReservationDialog({
     telefono: '',
     nacionalidad: 'PE',
     fecha_nacimiento: '',
-    
+
     registrar_pago: false,
     metodo_pago: null,
     numero_operacion: null,
@@ -139,10 +139,10 @@ export function NewReservationDialog({
       titular_numero_doc: titular.numero_documento,
       habitacion_numero: habitacion.numero,
       precio_pactado: formData.precio_pactado,
-      fecha_entrada: formData.fecha_entrada.toISOString(),
-      fecha_salida: formData.fecha_salida.toISOString()
+      fecha_entrada: formData.fecha_entrada?.toISOString() || '',
+      fecha_salida: formData.fecha_salida?.toISOString() || ''
     })
-    
+
     // NO cerramos el sheet aquí para que el diálogo de pago pueda renderizarse encima
     // Si cerramos el sheet, este componente se desmonta y paymentData se pierde.
   }
@@ -161,10 +161,10 @@ export function NewReservationDialog({
     <>
       <Sheet open={open} onOpenChange={handleClose}>
         <SheetContent className="w-full sm:max-w-2xl flex flex-col">
-          
+
           {/* MODO ÉXITO */}
           {successData ? (
-            <StepExito 
+            <StepExito
               reservaId={successData.id}
               codigoReserva={successData.codigo}
               esCheckIn={successData.esCheckin}
@@ -191,9 +191,8 @@ export function NewReservationDialog({
                 {[1, 2, 3].map((step) => (
                   <div
                     key={step}
-                    className={`flex-1 h-2 rounded ${
-                      step <= currentStep ? 'bg-primary' : 'bg-muted'
-                    }`}
+                    className={`flex-1 h-2 rounded ${step <= currentStep ? 'bg-primary' : 'bg-muted'
+                      }`}
                   />
                 ))}
               </div>
@@ -228,6 +227,7 @@ export function NewReservationDialog({
                       setSuccessData({ id: reservaId, codigo, esCheckin })
                     }}
                     onClose={handleClose}
+                    onBack={() => setCurrentStep(2)}
                   />
                 )}
               </div>
@@ -237,7 +237,7 @@ export function NewReservationDialog({
                 <div className="flex items-center justify-between mt-6 pt-6 border-t">
                   {currentStep > 1 ? (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       onClick={() => setCurrentStep(prev => prev - 1)}
                     >
                       <ArrowLeft className="mr-2 h-4 w-4" />

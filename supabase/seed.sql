@@ -189,9 +189,16 @@ FROM public.cajas c
 WHERE c.nombre = 'Caja Principal'
 ON CONFLICT (serie, tipo_comprobante) DO NOTHING;
 
--- Series para Notas de Crédito Boleta (Nubefact: BBB1)
+-- Series para Notas de Crédito (Nubefact: Misma serie que el origen "BBB1" o "FFF1")
+-- NOTA: Ahora es seguro porque la constraint es (tipo, serie, numero)
 INSERT INTO public.series_comprobante (caja_id, tipo_comprobante, serie, correlativo_actual)
 SELECT c.id, 'NOTA_CREDITO', 'BBB1', 0
+FROM public.cajas c
+WHERE c.nombre = 'Caja Principal'
+ON CONFLICT (serie, tipo_comprobante) DO NOTHING;
+
+INSERT INTO public.series_comprobante (caja_id, tipo_comprobante, serie, correlativo_actual)
+SELECT c.id, 'NOTA_CREDITO', 'FFF1', 0
 FROM public.cajas c
 WHERE c.nombre = 'Caja Principal'
 ON CONFLICT (serie, tipo_comprobante) DO NOTHING;

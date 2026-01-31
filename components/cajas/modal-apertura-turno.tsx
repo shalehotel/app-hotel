@@ -243,143 +243,72 @@ export function ModalAperturaTurno({
               </Select>
             </div>
 
-            {/* Tabs para PEN y USD */}
-            <Tabs defaultValue="pen" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="pen">Soles (S/)</TabsTrigger>
-                <TabsTrigger value="usd">Dólares ($)</TabsTrigger>
-              </TabsList>
-
-              {/* Tab Soles */}
-              <TabsContent value="pen" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="monto_apertura_pen">
-                    Monto de Apertura (Soles) <span className="text-red-500">*</span>
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="monto_apertura_pen"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="50.00"
-                      {...register('monto_apertura_pen', {
-                        required: 'El monto es obligatorio',
-                        min: { value: 0, message: 'Debe ser mayor o igual a 0' },
-                        valueAsNumber: true
-                      })}
-                      disabled={loading}
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setValue('monto_apertura_pen', totalDesglosePEN)}
-                    >
-                      Usar Desglose
-                    </Button>
-                  </div>
-                  {errors.monto_apertura_pen && (
-                    <p className="text-sm text-red-500">{errors.monto_apertura_pen.message}</p>
-                  )}
+            {/* Monto de Apertura (Soles) */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="monto_apertura_pen">
+                  Monto de Apertura (Soles) <span className="text-red-500">*</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="monto_apertura_pen"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="50.00"
+                    {...register('monto_apertura_pen', {
+                      required: 'El monto es obligatorio',
+                      min: { value: 0, message: 'Debe ser mayor o igual a 0' },
+                      valueAsNumber: true
+                    })}
+                    disabled={loading}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setValue('monto_apertura_pen', totalDesglosePEN)}
+                  >
+                    Usar Desglose
+                  </Button>
                 </div>
+                {errors.monto_apertura_pen && (
+                  <p className="text-sm text-red-500">{errors.monto_apertura_pen.message}</p>
+                )}
+              </div>
 
-                {/* Desglose de billetes/monedas PEN */}
-                <div className="rounded-lg border p-4 space-y-3">
-                  <div>
-                    <p className="text-sm font-medium">Desglose (Opcional)</p>
-                    <p className="text-xs text-muted-foreground">
-                      Cuenta tus billetes y monedas. Total: S/ {totalDesglosePEN.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {DENOMINACIONES_PEN.map((denom) => (
-                      <div key={denom} className="flex items-center gap-2">
-                        <Label className="w-16 text-xs">S/ {denom}</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={desglosePEN[denom] || 0}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value) || 0
-                            setDesglosePEN(prev => ({ ...prev, [denom]: val }))
-                          }}
-                          className="text-xs h-8"
-                          disabled={loading}
-                        />
-                        <span className="text-xs text-muted-foreground w-16">
-                          = {((desglosePEN[denom] || 0) * denom).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+              {/* Desglose de billetes/monedas PEN */}
+              <div className="rounded-lg border p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium">Desglose (Opcional)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Cuenta tus billetes y monedas. Total: S/ {totalDesglosePEN.toFixed(2)}
+                  </p>
                 </div>
-              </TabsContent>
-
-              {/* Tab Dólares */}
-              <TabsContent value="usd" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="monto_apertura_usd">
-                    Monto de Apertura (Dólares)
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="monto_apertura_usd"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      {...register('monto_apertura_usd', {
-                        min: { value: 0, message: 'Debe ser mayor o igual a 0' },
-                        valueAsNumber: true
-                      })}
-                      disabled={loading}
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setValue('monto_apertura_usd', totalDesgloseUSD)}
-                    >
-                      Usar Desglose
-                    </Button>
-                  </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {DENOMINACIONES_PEN.map((denom) => (
+                    <div key={denom} className="flex items-center gap-2">
+                      <Label className="w-16 text-xs">S/ {denom}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={desglosePEN[denom] || 0}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0
+                          setDesglosePEN(prev => ({ ...prev, [denom]: val }))
+                        }}
+                        className="text-xs h-8"
+                        disabled={loading}
+                      />
+                      <span className="text-xs text-muted-foreground w-16">
+                        = {((desglosePEN[denom] || 0) * denom).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-
-                {/* Desglose de billetes USD */}
-                <div className="rounded-lg border p-4 space-y-3">
-                  <div>
-                    <p className="text-sm font-medium">Desglose (Opcional)</p>
-                    <p className="text-xs text-muted-foreground">
-                      Cuenta tus billetes en dólares. Total: $ {totalDesgloseUSD.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {DENOMINACIONES_USD.map((denom) => (
-                      <div key={denom} className="flex items-center gap-2">
-                        <Label className="w-16 text-xs">$ {denom}</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={desgloseUSD[denom] || 0}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value) || 0
-                            setDesgloseUSD(prev => ({ ...prev, [denom]: val }))
-                          }}
-                          className="text-xs h-8"
-                          disabled={loading}
-                        />
-                        <span className="text-xs text-muted-foreground w-16">
-                          = {((desgloseUSD[denom] || 0) * denom).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
 
             {/* Resumen */}
             <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 border-blue-200 p-4">
@@ -389,8 +318,8 @@ export function ModalAperturaTurno({
                   <span className="font-semibold">S/ {montoPEN.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Apertura Dólares:</span>
-                  <span className="font-semibold">$ {montoUSD.toFixed(2)}</span>
+                  <span>Apertura Soles:</span>
+                  <span className="font-semibold">S/ {montoPEN.toFixed(2)}</span>
                 </div>
               </div>
             </div>

@@ -2,10 +2,10 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import type { 
-  TipoMovimiento, 
-  MonedaMovimiento, 
-  CategoriaMovimiento 
+import type {
+  TipoMovimiento,
+  MonedaMovimiento,
+  CategoriaMovimiento
 } from '@/lib/utils/movimientos'
 
 // =============================================
@@ -43,7 +43,7 @@ export type ResumenMovimientos = {
   cantidad_movimientos: number
 }
 
-type Result<T = any> = 
+type Result<T = any> =
   | { success: true; data: T }
   | { success: false; error: string }
 
@@ -304,6 +304,78 @@ export async function deleteMovimiento(
     return { success: true, data: undefined }
   } catch (error: any) {
     console.error('Error al eliminar movimiento:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * ENTERPRISE: Anular un movimiento (soft delete)
+ * No borra físicamente sino que marca como anulado para mantener trazabilidad
+ * Requiere turno abierto y ser dueño del movimiento
+ */
+export async function anularMovimiento(
+  movimientoId: string,
+  motivo: string
+): Promise<Result<void>> {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { success: false, error: 'No autenticado' }
+    }
+
+    if (!motivo || motivo.trim().length < 5) {
+      return { success: false, error: 'Debe proporcionar un motivo de anulación (mínimo 5 caracteres)' }
+    }
+
+    // Verificar movimiento y permisos
+    const { data: movimiento, error: movError } = await supabase
+      .from('caja_movimientos')
+      .select(`
+        id,
+        usuario_id,
+        anulado,
+        caja_turno_id,
+        caja_turnos!caja_turno_id(estado)
+      `)
+      .eq('id', movimientoId)
+      .single()
+
+    if (movError || !movimiento) {
+      return { success: false, error: 'Movimiento no encontrado' }
+    }
+
+    if (movimiento.anulado) {
+      return { success: false, error: 'Este movimiento ya fue anulado' }
+    }
+
+    if (movimiento.usuario_id !== user.id) {
+      return { success: false, error: 'Solo puedes anular tus propios movimientos' }
+    }
+
+    if ((movimiento as any).caja_turnos.estado !== 'ABIERTA') {
+      return { success: false, error: 'No puedes anular movimientos de un turno cerrado' }
+    }
+
+    // Soft delete: marcar como anulado
+    const { error: updateError } = await supabase
+      .from('caja_movimientos')
+      .update({
+        anulado: true,
+        anulado_por: user.id,
+        anulado_motivo: motivo.trim(),
+        anulado_at: new Date().toISOString()
+      })
+      .eq('id', movimientoId)
+
+    if (updateError) throw updateError
+
+    revalidatePath('/cajas')
+
+    return { success: true, data: undefined }
+  } catch (error: any) {
+    console.error('Error al anular movimiento:', error)
     return { success: false, error: error.message }
   }
 }

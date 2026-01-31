@@ -954,7 +954,7 @@ export async function emitirNotaCreditoParcial(input: EmitirNotaCreditoInput) {
       })
     } catch (ncError: any) {
       console.error('Error al crear NC:', ncError)
-      return { success: false, error: 'Error al registrar Nota de Crédito en base de datos' }
+      return { success: false, error: `Error DB al crear Nota de Crédito: ${ncError.message}` }
     }
 
     // 7. Crear detalle de la NC

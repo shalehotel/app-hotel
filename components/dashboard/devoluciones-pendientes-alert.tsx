@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertTriangle, CheckCircle, Wallet } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Wallet, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { marcarDevolucionProcesada } from '@/lib/actions/cajas'
 import { toast } from 'sonner'
 import {
@@ -32,11 +33,32 @@ type Devolucion = {
     } | null
 }
 
+// Calcular días pendiente y nivel de urgencia
+function calcularUrgencia(fechaPago: string) {
+    const dias = Math.floor((Date.now() - new Date(fechaPago).getTime()) / (1000 * 60 * 60 * 24))
+    let nivel: 'normal' | 'urgente' | 'critico' = 'normal'
+    let color = 'bg-green-100 text-green-800'
+
+    if (dias >= 7) {
+        nivel = 'critico'
+        color = 'bg-red-100 text-red-800'
+    } else if (dias >= 3) {
+        nivel = 'urgente'
+        color = 'bg-amber-100 text-amber-800'
+    }
+
+    return { dias, nivel, color }
+}
+
 export function DevolucionesPendientesAlert({ devoluciones }: { devoluciones: Devolucion[] }) {
     const router = useRouter()
-    const [procesandoId, setProcesandoId] = useState<string | null>(null)
 
     if (!devoluciones || devoluciones.length === 0) return null
+
+    // Ordenar por urgencia (más antiguas primero)
+    const devolucionesOrdenadas = [...devoluciones].sort(
+        (a, b) => new Date(a.fecha_pago).getTime() - new Date(b.fecha_pago).getTime()
+    )
 
     return (
         <Card className="border-amber-200 bg-amber-50 mb-6">
@@ -48,29 +70,38 @@ export function DevolucionesPendientesAlert({ devoluciones }: { devoluciones: De
             </CardHeader>
             <CardContent>
                 <div className="space-y-4">
-                    {devoluciones.map((dev) => (
-                        <div key={dev.id} className="bg-white p-3 rounded-lg border border-amber-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                            <div>
-                                <p className="font-medium text-amber-900">
-                                    Reserva: {dev.reserva?.codigo_reserva} - {dev.reserva?.huesped?.nombre_completo || 'Huésped'}
-                                </p>
-                                <p className="text-sm text-amber-700">
-                                    Monto a devolver: <span className="font-bold">S/ {Math.abs(dev.monto).toFixed(2)}</span>
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    {new Date(dev.fecha_pago).toLocaleString()}
-                                </p>
-                            </div>
+                    {devolucionesOrdenadas.map((dev) => {
+                        const urgencia = calcularUrgencia(dev.fecha_pago)
+                        return (
+                            <div key={dev.id} className="bg-white p-3 rounded-lg border border-amber-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <p className="font-medium text-amber-900">
+                                            Reserva: {dev.reserva?.codigo_reserva} - {dev.reserva?.huesped?.nombre_completo || 'Huésped'}
+                                        </p>
+                                        <Badge className={urgencia.color}>
+                                            <Clock className="h-3 w-3 mr-1" />
+                                            {urgencia.dias}d
+                                        </Badge>
+                                    </div>
+                                    <p className="text-sm text-amber-700">
+                                        Monto a devolver: <span className="font-bold">S/ {Math.abs(dev.monto).toFixed(2)}</span>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Registrado: {new Date(dev.fecha_pago).toLocaleString()}
+                                    </p>
+                                </div>
 
-                            <ProcesarDevolucionDialog
-                                devolucion={dev}
-                                onProcesado={() => {
-                                    toast.success('Devolución marcada como procesada')
-                                    router.refresh()
-                                }}
-                            />
-                        </div>
-                    ))}
+                                <ProcesarDevolucionDialog
+                                    devolucion={dev}
+                                    onProcesado={() => {
+                                        toast.success('Devolución marcada como procesada')
+                                        router.refresh()
+                                    }}
+                                />
+                            </div>
+                        )
+                    })}
                 </div>
             </CardContent>
         </Card>

@@ -7,6 +7,7 @@ import { enviarComprobanteNubefact } from '@/lib/services/nubefact'
 import { calcularTotalReserva } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import { getErrorMessage } from '@/lib/errors'
+import { requireOperador } from '@/lib/auth/permissions'
 
 // ========================================
 // TYPES
@@ -72,9 +73,234 @@ async function getTurnoActivo(usuario_id: string): Promise<string | null> {
 }
 
 // ========================================
+// FUNCIÓN ENTERPRISE: COBRAR Y FACTURAR (ATÓMICO)
+// Usa RPC transaccional para garantizar ACID
+// ========================================
+export async function cobrarYFacturarAtomico(input: CobrarYFacturarInput) {
+  await requireOperador()
+  const supabase = await createClient()
+
+  try {
+    // 1. Validar Usuario y Turno
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Usuario no autenticado')
+
+    let cajaTurnoId = input.caja_turno_id
+    if (!cajaTurnoId) {
+      const turnoActivo = await getTurnoActivo(user.id)
+      if (!turnoActivo) throw new Error('No hay turno de caja abierto. Debes abrir caja para cobrar.')
+      cajaTurnoId = turnoActivo
+    }
+
+    // 2. Validar Reserva
+    const { data: reserva, error: reservaError } = await supabase
+      .from('reservas')
+      .select('id, codigo_reserva')
+      .eq('id', input.reserva_id)
+      .single()
+
+    if (reservaError || !reserva) throw new Error('Reserva no encontrada')
+
+    // 3. Validar que la serie existe
+    const { data: serieValida, error: serieError } = await supabase
+      .from('series_comprobante')
+      .select('id, tipo_comprobante')
+      .eq('serie', input.serie)
+      .eq('tipo_comprobante', input.tipo_comprobante)
+      .single()
+
+    if (serieError || !serieValida) {
+      throw new Error(`La serie ${input.serie} no existe para el tipo ${input.tipo_comprobante}`)
+    }
+
+    // 4. Obtener configuración y calcular IGV
+    const config = await getHotelConfig()
+    if (!config.facturacion_activa) {
+      throw new Error('La facturación electrónica no está activada')
+    }
+    if (!config.ruc || config.ruc === '20000000001') {
+      throw new Error('Debe configurar un RUC válido antes de emitir comprobantes')
+    }
+
+    const TASA_IGV = (config.tasa_igv || 18.00) / 100
+    const ES_EXONERADO = config.es_exonerado_igv
+
+    let op_gravadas = 0
+    let op_exoneradas = 0
+    let monto_igv = 0
+    let total_venta = 0
+
+    for (const item of input.items) {
+      total_venta += item.subtotal
+      const codigoAfectacion = ES_EXONERADO ? '20' : (item.codigo_afectacion_igv || '10')
+      if (codigoAfectacion === '10') {
+        const base = item.subtotal / (1 + TASA_IGV)
+        op_gravadas += base
+        monto_igv += (item.subtotal - base)
+      } else {
+        op_exoneradas += item.subtotal
+      }
+    }
+
+    // 5. Generar idempotency key para prevenir duplicados
+    const idempotencyKey = `${input.reserva_id}-${Date.now()}`
+
+    // 6. LLAMAR RPC ATÓMICO (todo en una transacción)
+    const { data: resultado, error: rpcError } = await supabase.rpc('registrar_cobro_completo', {
+      p_turno_caja_id: cajaTurnoId,
+      p_reserva_id: input.reserva_id,
+      p_tipo_comprobante: input.tipo_comprobante,
+      p_serie: input.serie,
+      p_receptor_tipo_doc: input.cliente_tipo_doc,
+      p_receptor_nro_doc: input.cliente_numero_doc,
+      p_receptor_razon_social: input.cliente_nombre,
+      p_receptor_direccion: input.cliente_direccion || '',
+      p_moneda: input.moneda,
+      p_tipo_cambio: input.tipo_cambio || 1.0,
+      p_op_gravadas: Number(op_gravadas.toFixed(2)),
+      p_op_exoneradas: Number(op_exoneradas.toFixed(2)),
+      p_monto_igv: Number(monto_igv.toFixed(2)),
+      p_total_venta: Number(total_venta.toFixed(2)),
+      p_metodo_pago: input.metodo_pago,
+      p_monto_pago: input.monto,
+      p_referencia_pago: input.referencia_pago || '',
+      p_nota: input.nota || '',
+      p_idempotency_key: idempotencyKey,
+      p_usuario_id: user.id
+    })
+
+    if (rpcError) {
+      logger.error('Error en RPC registrar_cobro_completo', {
+        action: 'cobrarYFacturarAtomico',
+        reservaId: input.reserva_id,
+        originalError: rpcError.message
+      })
+      throw new Error(`Error en transacción: ${rpcError.message}`)
+    }
+
+    if (!resultado?.success) {
+      throw new Error(resultado?.error || 'Error desconocido en RPC')
+    }
+
+    // Si fue duplicado, retornar sin enviar a NubeFact
+    if (resultado.duplicado) {
+      logger.info('Operación duplicada detectada (idempotencia)', {
+        action: 'cobrarYFacturarAtomico',
+        pagoId: resultado.pago_id
+      })
+      return { success: true, message: 'Operación ya procesada', duplicado: true }
+    }
+
+    // 7. Insertar detalles del comprobante
+    const detallesToInsert = input.items.map(item => ({
+      comprobante_id: resultado.comprobante_id,
+      descripcion: item.descripcion,
+      cantidad: item.cantidad,
+      precio_unitario: item.precio_unitario,
+      subtotal: item.subtotal,
+      codigo_afectacion_igv: ES_EXONERADO ? '20' : (item.codigo_afectacion_igv || '10')
+    }))
+
+    await supabase.from('comprobante_detalles').insert(detallesToInsert)
+
+    // 8. Enviar a NubeFact
+    try {
+      const hoy = new Date()
+      const fechaFormateada = `${String(hoy.getDate()).padStart(2, '0')}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${hoy.getFullYear()}`
+
+      const respuestaNubefact = await enviarComprobanteNubefact({
+        tipo_comprobante: input.tipo_comprobante,
+        serie: input.serie,
+        numero: resultado.correlativo,
+        cliente_tipo_documento: input.cliente_tipo_doc,
+        cliente_numero_documento: input.cliente_numero_doc,
+        cliente_denominacion: input.cliente_nombre,
+        cliente_direccion: input.cliente_direccion,
+        fecha_emision: fechaFormateada,
+        moneda: input.moneda,
+        tipo_cambio: input.tipo_cambio || 1.0,
+        porcentaje_igv: config.tasa_igv || 18,
+        total_gravada: op_gravadas,
+        total_exonerada: op_exoneradas,
+        total_igv: monto_igv,
+        total: total_venta,
+        items: input.items.map(item => {
+          const esExonerado = ES_EXONERADO || item.codigo_afectacion_igv === '20'
+          const tasaIgv = esExonerado ? 0 : TASA_IGV
+          const valorUnitario = item.precio_unitario / (1 + tasaIgv)
+          const subtotalItem = valorUnitario * item.cantidad
+          const igvLinea = subtotalItem * tasaIgv
+          const totalLinea = subtotalItem + igvLinea
+
+          return {
+            unidad_de_medida: 'ZZ',
+            codigo: '90101501',
+            descripcion: item.descripcion,
+            cantidad: item.cantidad,
+            valor_unitario: Number(valorUnitario.toFixed(10)),
+            precio_unitario: Number(item.precio_unitario.toFixed(2)),
+            subtotal: Number(subtotalItem.toFixed(2)),
+            tipo_de_igv: esExonerado ? 8 : 1,
+            igv: Number(igvLinea.toFixed(2)),
+            total: Number(totalLinea.toFixed(2))
+          }
+        })
+      })
+
+      const estadoFinal = respuestaNubefact.success
+        ? (respuestaNubefact.aceptada_por_sunat ? 'ACEPTADO' : 'PENDIENTE')
+        : 'RECHAZADO'
+
+      await supabase
+        .from('comprobantes')
+        .update({
+          estado_sunat: estadoFinal,
+          hash_cpe: respuestaNubefact.hash,
+          xml_url: respuestaNubefact.enlace,
+          cdr_url: respuestaNubefact.enlace_del_cdr,
+          pdf_url: respuestaNubefact.enlace_pdf,
+          observaciones: respuestaNubefact.mensaje || respuestaNubefact.errors
+        })
+        .eq('id', resultado.comprobante_id)
+
+    } catch (nubefactError) {
+      logger.warn('Error NubeFact (comprobante PENDIENTE)', {
+        action: 'cobrarYFacturarAtomico',
+        comprobanteId: resultado.comprobante_id,
+        error: getErrorMessage(nubefactError)
+      })
+    }
+
+    revalidatePath('/rack')
+    revalidatePath('/reservas')
+    revalidatePath('/ocupaciones')
+    revalidatePath(`/reservas/${input.reserva_id}`)
+
+    return {
+      success: true,
+      comprobante_id: resultado.comprobante_id,
+      numero_completo: resultado.numero_completo,
+      message: 'Cobro registrado y comprobante emitido (transacción ACID)'
+    }
+
+  } catch (error: unknown) {
+    logger.error('Error en cobrarYFacturarAtomico', {
+      action: 'cobrarYFacturarAtomico',
+      reservaId: input.reserva_id,
+      originalError: getErrorMessage(error)
+    })
+    return {
+      success: false,
+      error: getErrorMessage(error) || 'Error desconocido al procesar el cobro'
+    }
+  }
+}
+
+// ========================================
 // FUNCIÓN PRINCIPAL: COBRAR Y FACTURAR
 // ========================================
 export async function cobrarYFacturar(input: CobrarYFacturarInput) {
+  await requireOperador()
   const supabase = await createClient()
 
   try {
@@ -256,8 +482,9 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
         categoria: 'OTRO', // Usamos OTRO o podríamos definir COBRO_SERVICIO
         moneda: input.moneda,
         monto: input.monto,
-        motivo: `Cobro Reserva ${reserva.codigo_reserva} - ${input.metodo_pago}`,
-        comprobante_referencia: `${comprobante.serie}-${comprobante.numero}`
+        motivo: `Cobro Reserva ${reserva.codigo_reserva}`,
+        comprobante_referencia: `${comprobante.serie}-${comprobante.numero}`,
+        metodo_pago: input.metodo_pago
       })
 
     if (movError) {

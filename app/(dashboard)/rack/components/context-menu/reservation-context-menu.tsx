@@ -317,8 +317,7 @@ export function ReservationContextMenu({ children, reserva, onUpdate, updateHabi
         onUpdate()
 
         const metodoLabel = metodo === 'EFECTIVO' ? 'en efectivo' :
-          metodo === 'CREDITO_FAVOR' ? 'como crédito a favor' :
-            'pendiente al método original'
+          'pendiente al método original'
 
         toast.success(`Estadía reducida ${Math.abs(resumenCambio.diferenciaDias)} noche(s)`, {
           description: `✅ NC emitida por S/${Math.abs(resumenCambio.diferenciaMonto).toFixed(2)}. Devolución ${metodoLabel}.`
@@ -554,11 +553,20 @@ export function ReservationContextMenu({ children, reserva, onUpdate, updateHabi
                 <Button
                   variant="outline"
                   onClick={calcularCambio}
-                  disabled={procesando || !nuevaFechaSalida}
+                  disabled={
+                    procesando ||
+                    !nuevaFechaSalida ||
+                    nuevaFechaSalida === reserva.fecha_salida.split('T')[0]
+                  }
                 >
                   {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Calcular'}
                 </Button>
               </div>
+              {nuevaFechaSalida === reserva.fecha_salida.split('T')[0] && (
+                <p className="text-xs text-muted-foreground">
+                  Selecciona una fecha diferente a la actual para calcular el cambio.
+                </p>
+              )}
             </div>
 
             {/* Resumen del cambio */}
