@@ -41,6 +41,7 @@ export type NubefactResponse = {
   hash?: string          // Hash CPE
   codigo_sunat?: string  // Código respuesta SUNAT
   aceptada_por_sunat?: boolean
+  es_error_red?: boolean // Nuevo flag para reintentos
 }
 
 export type NubefactAnulacionResponse = {
@@ -415,8 +416,10 @@ export async function enviarComprobanteNubefact(
     return {
       success: false,
       errors: error.message,
-      mensaje: 'Error de conexión con NubeFact'
-    }
+      mensaje: 'Error de conexión con NubeFact',
+      // Flag especial para indicar que es reintentable (no es rechazo fiscal)
+      es_error_red: true
+    } as any // Use cast to avoid type conflicts if type not fully updated yet
   }
 }
 

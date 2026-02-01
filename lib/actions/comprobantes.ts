@@ -609,6 +609,14 @@ export async function getDetalleComprobante(comprobante_id: string) {
         habitaciones (
           numero,
           piso
+        ),
+        reserva_huespedes (
+           es_titular,
+           huespedes (
+             nombres,
+             apellidos,
+             telefono
+           )
         )
       )
     `)
@@ -648,6 +656,20 @@ export async function getDetalleComprobante(comprobante_id: string) {
     reserva_id: comprobante.reservas?.id || null,
     codigo_reserva: comprobante.reservas?.codigo_reserva || null,
     habitacion_numero: comprobante.reservas?.habitaciones?.numero || null,
+
+    // Contacto (para WhatsApp)
+    // Buscamos el titular en el array de reserva_huespedes, o el primero que tenga telefono
+    cliente_telefono: (() => {
+      if (!comprobante.reservas?.reserva_huespedes) return null
+
+      // Intentar buscar titular
+      const titular = comprobante.reservas.reserva_huespedes.find((rh: any) => rh.es_titular)?.huespedes
+      if (titular?.telefono) return titular.telefono
+
+      // Si no hay titular o no tiene fono, buscar cualquiera
+      const algunHuesped = comprobante.reservas.reserva_huespedes.find((rh: any) => rh.huespedes?.telefono)?.huespedes
+      return algunHuesped?.telefono || null
+    })(),
 
     // Emisor (desde turno)
     emisor_nombre: comprobante.caja_turnos?.usuarios
@@ -1260,3 +1282,279 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
   }
 }
 
+
+// ========================================
+// CORREGIR COMPROBANTE RECHAZADO (Replicación)
+// ========================================
+export async function corregirComprobanteRechazado(
+  comprobanteId: string,
+  nuevoCliente: {
+    tipo_doc: string
+    numero_doc: string
+    nombre: string
+    direccion: string
+  }
+) {
+  const supabase = await createClient()
+
+  try {
+    // 1. Obtener comprobante original y validarlo
+    const { data: original, error: origError } = await supabase
+      .from('comprobantes')
+      .select(`
+        *,
+        detalles:comprobante_detalles(*)
+      `)
+      .eq('id', comprobanteId)
+      .single()
+
+    if (origError || !original) throw new Error('Comprobante original no encontrado')
+
+    if (original.estado_sunat !== 'RECHAZADO') {
+      throw new Error('Solo se pueden corregir comprobantes RECHAZADOS por SUNAT')
+    }
+
+    // 2. Obtener Turno Activo (para la nueva emisión)
+    // Usamos el turno activo del usuario actual, no el original (que podría estar cerrado)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Usuario no autenticado')
+
+    const { data: turnoActivo } = await supabase
+      .from('caja_turnos')
+      .select('id')
+      .eq('usuario_id', user.id)
+      .eq('estado', 'ABIERTA')
+      .maybeSingle()
+
+    if (!turnoActivo) throw new Error('Debes tener una caja abierta para re-emitir el comprobante')
+
+    // 3. Crear NUEVO Comprobante (F001-24) usando datos del anterior + correcciones
+    const nuevoComprobante = await insertarComprobanteAtomico({
+      serie: original.serie,
+      tipo_comprobante: original.tipo_comprobante,
+      turno_caja_id: turnoActivo.id,
+      reserva_id: original.reserva_id,
+      receptor_tipo_doc: nuevoCliente.tipo_doc,
+      receptor_nro_doc: nuevoCliente.numero_doc,
+      receptor_razon_social: nuevoCliente.nombre,
+      receptor_direccion: nuevoCliente.direccion,
+      moneda: original.moneda,
+      tipo_cambio: original.tipo_cambio,
+      op_gravadas: original.op_gravadas,
+      op_exoneradas: original.op_exoneradas,
+      monto_igv: original.monto_igv,
+      total_venta: original.total_venta
+    })
+
+    // 4. Copiar Detalles
+    const detallesInsert = original.detalles.map((d: any) => ({
+      comprobante_id: nuevoComprobante.id,
+      descripcion: d.descripcion,
+      cantidad: d.cantidad,
+      precio_unitario: d.precio_unitario,
+      subtotal: d.subtotal,
+      codigo_afectacion_igv: d.codigo_afectacion_igv
+    }))
+
+    const { error: detError } = await supabase
+      .from('comprobante_detalles')
+      .insert(detallesInsert)
+
+    if (detError) throw new Error('Error copiando detalles')
+
+    // 5. MIGRAR PAGOS (Critical Step)
+    // Movemos los pagos que apuntaban al muerto (F001-23) al vivo (F001-24)
+    const { error: moveError } = await supabase
+      .from('pagos')
+      .update({ comprobante_id: nuevoComprobante.id })
+      .eq('comprobante_id', comprobanteId)
+
+    if (moveError) throw new Error('Error migrando pagos al nuevo comprobante')
+
+    // 6. Enviar a NubeFact
+    // Reconstruimos payload para nubefact
+    const config = await getHotelConfig()
+    const TASA_IGV = (config.tasa_igv || 18.00) / 100
+
+    // Preparar items para nubefact
+    const itemsNubefact = original.detalles.map((d: any) => {
+      // Recalcular valores unitarios base
+      const esExonerado = d.codigo_afectacion_igv === '20'
+      const tasa = esExonerado ? 0 : TASA_IGV
+      const valorUnitario = d.precio_unitario / (1 + tasa)
+      const igvLinea = (valorUnitario * d.cantidad) * tasa
+
+      return {
+        unidad_de_medida: 'ZZ',
+        codigo: '90101501',
+        descripcion: d.descripcion,
+        cantidad: d.cantidad,
+        valor_unitario: Number(valorUnitario.toFixed(10)),
+        precio_unitario: Number(d.precio_unitario.toFixed(2)),
+        subtotal: Number((valorUnitario * d.cantidad).toFixed(2)),
+        tipo_de_igv: esExonerado ? 8 : 1,
+        igv: Number(igvLinea.toFixed(2)),
+        total: Number(d.subtotal.toFixed(2))
+      }
+    })
+
+    const fechaHoy = new Date()
+    const fechaFormateada = `${String(fechaHoy.getDate()).padStart(2, '0')}-${String(fechaHoy.getMonth() + 1).padStart(2, '0')}-${fechaHoy.getFullYear()}`
+
+    const respuestaNubefact = await enviarComprobanteNubefact({
+      tipo_comprobante: original.tipo_comprobante,
+      serie: original.serie,
+      numero: nuevoComprobante.numero,
+      cliente_tipo_documento: nuevoCliente.tipo_doc,
+      cliente_numero_documento: nuevoCliente.numero_doc,
+      cliente_denominacion: nuevoCliente.nombre,
+      cliente_direccion: nuevoCliente.direccion,
+      fecha_emision: fechaFormateada,
+      moneda: original.moneda,
+      tipo_cambio: original.tipo_cambio,
+      porcentaje_igv: (config.tasa_igv || 18),
+      total_gravada: original.op_gravadas,
+      total_exonerada: original.op_exoneradas,
+      total_igv: original.monto_igv,
+      total: original.total_venta,
+      items: itemsNubefact
+    })
+
+    // 7. Actualizar Estado Nuevo Comprobante
+    if (respuestaNubefact.success) {
+      const estadoFinal = respuestaNubefact.aceptada_por_sunat ? 'ACEPTADO' : 'PENDIENTE'
+      await supabase.from('comprobantes').update({
+        estado_sunat: estadoFinal,
+        hash_cpe: respuestaNubefact.hash,
+        xml_url: respuestaNubefact.enlace,
+        cdr_url: respuestaNubefact.enlace_del_cdr,
+        pdf_url: respuestaNubefact.enlace_pdf,
+        external_id: respuestaNubefact.enlace_pdf,
+        observaciones: respuestaNubefact.mensaje
+      }).eq('id', nuevoComprobante.id)
+    } else {
+      await supabase.from('comprobantes').update({
+        estado_sunat: 'RECHAZADO',
+        observaciones: respuestaNubefact.errors || respuestaNubefact.mensaje
+      }).eq('id', nuevoComprobante.id)
+    }
+
+    revalidatePath('/facturacion')
+    return { success: true, nuevoComprobante }
+
+  } catch (error: any) {
+    console.error('Error corrigiendo comprobante:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+// ========================================
+// REINTENTAR ENVÍO (Mismo Correlativo)
+// ========================================
+export async function reintentarEnvio(comprobanteId: string) {
+  const supabase = await createClient()
+
+  try {
+    // 1. Obtener comprobante original
+    const { data: original, error: origError } = await supabase
+      .from('comprobantes')
+      .select(`
+        *,
+        detalles:comprobante_detalles(*)
+      `)
+      .eq('id', comprobanteId)
+      .single()
+
+    if (origError || !original) throw new Error('Comprobante no encontrado')
+
+    // Solo permitimos reintentar si NO está aceptado ni anulado
+    // PENDIENTE o RECHAZADO (pero si es Rechazo Fiscal, Nubefact volverá a rechazar, 
+    // pero si fue Error de Red falsamente marcado como rechazo, esto lo salva).
+    if (original.estado_sunat === 'ACEPTADO') {
+      throw new Error('El comprobante ya fue ACEPTADO por SUNAT')
+    }
+
+    // 2. Reconstruir Payload Nubefact
+    const config = await getHotelConfig()
+    const TASA_IGV = (config.tasa_igv || 18.00) / 100
+
+    const itemsNubefact = original.detalles.map((d: any) => {
+      const esExonerado = d.codigo_afectacion_igv === '20'
+      const tasa = esExonerado ? 0 : TASA_IGV
+      const valorUnitario = d.precio_unitario / (1 + tasa)
+      const igvLinea = (valorUnitario * d.cantidad) * tasa
+
+      return {
+        unidad_de_medida: 'ZZ',
+        codigo: '90101501',
+        descripcion: d.descripcion,
+        cantidad: d.cantidad,
+        valor_unitario: Number(valorUnitario.toFixed(10)),
+        precio_unitario: Number(d.precio_unitario.toFixed(2)),
+        subtotal: Number((valorUnitario * d.cantidad).toFixed(2)),
+        tipo_de_igv: esExonerado ? 8 : 1,
+        igv: Number(igvLinea.toFixed(2)),
+        total: Number(d.subtotal.toFixed(2))
+      }
+    })
+
+    // Usar la fecha de emisión ORIGINAL, no la de hoy (porque es el mismo documento)
+    // Nubefact pide DD-MM-YYYY
+    const fechaEmision = new Date(original.fecha_emision) // Asumimos ISO
+    // Ajuste zona horaria si fuera necesario, pero la fecha en BD suele ser UTC o Local.
+    // Para seguridad, usamos la string directa si es YYYY-MM-DD
+    const fechaFormateada = `${String(fechaEmision.getDate()).padStart(2, '0')}-${String(fechaEmision.getMonth() + 1).padStart(2, '0')}-${fechaEmision.getFullYear()}`
+
+    // 3. Reenviar
+    const respuestaNubefact = await enviarComprobanteNubefact({
+      tipo_comprobante: original.tipo_comprobante,
+      serie: original.serie,
+      numero: original.numero, // Mismo número
+      cliente_tipo_documento: original.receptor_tipo_doc,
+      cliente_numero_documento: original.receptor_nro_doc,
+      cliente_denominacion: original.receptor_razon_social,
+      cliente_direccion: original.receptor_direccion || '',
+      fecha_emision: fechaFormateada,
+      moneda: original.moneda,
+      tipo_cambio: original.tipo_cambio,
+      porcentaje_igv: (config.tasa_igv || 18),
+      total_gravada: original.op_gravadas,
+      total_exonerada: original.op_exoneradas,
+      total_igv: original.monto_igv,
+      total: original.total_venta,
+      items: itemsNubefact
+    })
+
+    // 4. Actualizar Estado
+    if (respuestaNubefact.success) {
+      const estadoFinal = respuestaNubefact.aceptada_por_sunat ? 'ACEPTADO' : 'PENDIENTE'
+      await supabase.from('comprobantes').update({
+        estado_sunat: estadoFinal,
+        hash_cpe: respuestaNubefact.hash,
+        xml_url: respuestaNubefact.enlace,
+        cdr_url: respuestaNubefact.enlace_del_cdr,
+        pdf_url: respuestaNubefact.enlace_pdf,
+        external_id: respuestaNubefact.enlace_pdf,
+        observaciones: respuestaNubefact.mensaje
+      }).eq('id', comprobanteId)
+    } else if (respuestaNubefact.es_error_red) {
+      // Seguimos en Error de Red
+      await supabase.from('comprobantes').update({
+        observaciones: `Reintento fallido (Red): ${respuestaNubefact.errors || respuestaNubefact.mensaje}`
+      }).eq('id', comprobanteId)
+    } else {
+      // Rechazo Real
+      await supabase.from('comprobantes').update({
+        estado_sunat: 'RECHAZADO',
+        observaciones: respuestaNubefact.errors || respuestaNubefact.mensaje
+      }).eq('id', comprobanteId)
+    }
+
+    revalidatePath('/facturacion')
+    return { success: true, resultado: respuestaNubefact }
+
+  } catch (error: any) {
+    console.error('Error reintentando envío:', error)
+    return { success: false, error: error.message }
+  }
+}

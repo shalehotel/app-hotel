@@ -54,6 +54,9 @@ export type CobrarYFacturarInput = {
     subtotal: number
     codigo_afectacion_igv?: string
   }>
+
+  // Idempotencia
+  idempotencyKey?: string // UUID único para evitar duplicados
 }
 
 // ========================================
@@ -339,18 +342,7 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
       throw new Error(`La serie ${input.serie} no existe para el tipo ${input.tipo_comprobante}. Verifique Configuración > Cajas`)
     }
 
-    // 4. Obtener Correlativo (Atómico)
-    const { data: correlativo, error: corrError } = await supabase
-      .rpc('obtener_siguiente_correlativo', {
-        p_serie: input.serie,
-        p_tipo: input.tipo_comprobante
-      })
-
-    if (corrError || !correlativo) {
-      console.error('Error RPC obtener_siguiente_correlativo:', corrError)
-      throw new Error(`Error al generar correlativo: ${corrError?.message || 'Error desconocido'}`)
-    }
-
+    // 4. Obtener Correlativo (Atómico) - YA NO ES NECESARIO PORQUE EL RPC LO HACE
     // 5. Calcular Totales Fiscales
     // Obtener configuración dinámica del hotel
     const config = await getHotelConfig()
@@ -390,112 +382,50 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
       }
     }
 
-    // 6. INSERTAR COMPROBANTE (Snapshot)
-    const { data: comprobante, error: compError } = await supabase
-      .from('comprobantes')
-      .insert({
-        turno_caja_id: cajaTurnoId,
-        reserva_id: input.reserva_id,
-        tipo_comprobante: input.tipo_comprobante,
-        serie: input.serie,
-        numero: correlativo,
+    // ========================================================================
+    // USAR RPC TRANSACCIONAL CON IDEMPOTENCIA
+    // ========================================================================
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('registrar_cobro_completo', {
+      p_turno_caja_id: cajaTurnoId,
+      p_reserva_id: input.reserva_id,
+      p_tipo_comprobante: input.tipo_comprobante,
+      p_serie: input.serie,
+      p_receptor_tipo_doc: input.cliente_tipo_doc,
+      p_receptor_nro_doc: input.cliente_numero_doc,
+      p_receptor_razon_social: input.cliente_nombre,
+      p_receptor_direccion: input.cliente_direccion || null,
+      p_moneda: input.moneda,
+      p_tipo_cambio: input.tipo_cambio || 1.0,
+      p_op_gravadas: op_gravadas,
+      p_op_exoneradas: op_exoneradas,
+      p_monto_igv: monto_igv,
+      p_total_venta: total_venta,
+      p_metodo_pago: input.metodo_pago,
+      p_monto_pago: input.monto,
+      p_referencia_pago: input.referencia_pago || null,
+      p_nota: input.nota || null,
+      p_idempotency_key: input.idempotencyKey || null, // ¡CLAVE IDEMPOTENCIA!
+      p_usuario_id: user.id
+    })
 
-        // Snapshot Cliente
-        receptor_tipo_doc: input.cliente_tipo_doc,
-        receptor_nro_doc: input.cliente_numero_doc,
-        receptor_razon_social: input.cliente_nombre,
-        receptor_direccion: input.cliente_direccion || null,
-
-        // Snapshot Montos
-        moneda: input.moneda,
-        tipo_cambio: input.tipo_cambio || 1.0,
-        op_gravadas,
-        op_exoneradas,
-        op_inafectas: 0,
-        monto_igv,
-        monto_icbper: 0,
-        total_venta,
-
-        estado_sunat: 'PENDIENTE',
-        fecha_emision: new Date().toISOString()
-      })
-      .select()
-      .single()
-
-    if (compError) throw new Error(`Error creando comprobante: ${compError.message}`)
-
-    // 7. INSERTAR DETALLES
-    const detallesToInsert = input.items.map(item => ({
-      comprobante_id: comprobante.id,
-      descripcion: item.descripcion,
-      cantidad: item.cantidad,
-      precio_unitario: item.precio_unitario,
-      subtotal: item.subtotal,
-      codigo_afectacion_igv: ES_EXONERADO ? '20' : (item.codigo_afectacion_igv || '10')
-    }))
-
-    const { error: detError } = await supabase
-      .from('comprobante_detalles')
-      .insert(detallesToInsert)
-
-    if (detError) {
-      // Rollback manual (eliminamos comprobante huerfano)
-      await supabase.from('comprobantes').delete().eq('id', comprobante.id)
-      throw new Error('Error guardando detalles del comprobante')
+    if (rpcError) {
+      console.error('Error RPC registrar_cobro_completo:', rpcError)
+      throw new Error(`Error procesando cobro: ${rpcError.message}`)
     }
 
-    // 8. INSERTAR PAGO (Vinculado)
-    const { error: pagoError } = await supabase
-      .from('pagos')
-      .insert({
-        reserva_id: input.reserva_id,
-        caja_turno_id: cajaTurnoId,
-        comprobante_id: comprobante.id, // ¡Vinculación clave!
-        metodo_pago: input.metodo_pago,
-        moneda_pago: input.moneda,
-        monto: input.monto,
-        tipo_cambio_pago: input.tipo_cambio || 1.0,
-        referencia_pago: input.referencia_pago,
-        nota: input.nota,
-        fecha_pago: new Date().toISOString()
-      })
-
-    if (pagoError) {
-      // Rollback crítico (ya se emitió comprobante pero falló pago)
-      logger.error('CRITICAL: Comprobante emitido sin pago', {
-        action: 'cobrarYFacturar',
-        reservaId: input.reserva_id,
-        comprobanteId: comprobante.id,
-        originalError: getErrorMessage(pagoError),
-      })
-      throw new Error('Error registrando el pago. Contacte a soporte.')
+    if (!rpcResult.success) {
+      throw new Error(rpcResult.error || 'Error desconocido en RPC')
     }
 
-    // 9. INSERTAR MOVIMIENTO DE CAJA (CRÍTICO PARA ARQUEO)
-    // Sin esto, el dinero no "aparece" en la caja
-    const { error: movError } = await supabase
-      .from('caja_movimientos')
-      .insert({
-        caja_turno_id: cajaTurnoId,
-        usuario_id: user.id,
-        tipo: 'INGRESO',
-        categoria: 'OTRO', // Usamos OTRO o podríamos definir COBRO_SERVICIO
-        moneda: input.moneda,
-        monto: input.monto,
-        motivo: `Cobro Reserva ${reserva.codigo_reserva}`,
-        comprobante_referencia: `${comprobante.serie}-${comprobante.numero}`,
-        metodo_pago: input.metodo_pago
-      })
-
-    if (movError) {
-      logger.error('CRITICAL: Pago registrado pero NO impactó caja', {
-        action: 'cobrarYFacturar',
-        reservaId: input.reserva_id,
-        cajaTurnoId: cajaTurnoId,
-        originalError: getErrorMessage(movError),
-      })
-      throw new Error(`Error crítico: El pago se registró pero NO se pudo guardar en caja. Detalle: ${movError.message}`)
+    // Recuperar datos retornados por RPC para Nubefact
+    // El RPC devuelve: { success: true, comprobante_id, pago_id, numero_completo, correlativo }
+    const comprobante = {
+      id: rpcResult.comprobante_id,
+      serie: input.serie,
+      numero: rpcResult.correlativo
     }
+
+    const correlativo = rpcResult.correlativo
 
     // 10. ENVIAR A NUBEFACT (Facturación Electrónica)
     // Esto se hace DESPUÉS de guardar todo localmente para no perder datos si Nubefact falla
@@ -574,8 +504,25 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
           comprobanteId: comprobante.id,
           hash: respuestaNubefact.hash
         })
+      } else if (respuestaNubefact.es_error_red) {
+        // ERROR DE RED: Queda PENDIENTE
+        // No marcamos como RECHAZADO para permitir reintentos con el mismo número
+        await supabase
+          .from('comprobantes')
+          .update({
+            // No cambiamos estado_sunat, queda en PENDIENTE por defecto
+            observaciones: `Error de conexión: ${respuestaNubefact.errors || respuestaNubefact.mensaje} (Pendiente de Reintento)`
+          })
+          .eq('id', comprobante.id)
+
+        logger.warn('Error de red al enviar a Nubefact (quedará PENDIENTE)', {
+          action: 'cobrarYFacturar',
+          comprobanteId: comprobante.id,
+          error: respuestaNubefact.errors
+        })
+
       } else {
-        // FALLO: Nubefact o SUNAT rechazaron explícitamente
+        // FALLO: Nubefact o SUNAT rechazaron explícitamente (RECHAZO FISCAL)
         // Marcar como rechazado
         await supabase
           .from('comprobantes')

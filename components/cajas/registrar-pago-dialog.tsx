@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -46,6 +46,14 @@ type Props = {
 
 export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: Props) {
   const [loading, setLoading] = useState(false)
+  const idempotencyKeyRef = useRef<string>('')
+
+  // Resetear clave de idempotencia al abrir/cerrar
+  useEffect(() => {
+    if (open) {
+      idempotencyKeyRef.current = crypto.randomUUID()
+    }
+  }, [open])
   const [series, setSeries] = useState<any[]>([])
 
   // Estado del Formulario
@@ -183,7 +191,13 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
           codigo_afectacion_igv: '10'
         }
 
+      // IDEMPOTENCIA: Usar la clave persistente de este intento
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = crypto.randomUUID()
+      }
+
       const result = await cobrarYFacturar({
+        idempotencyKey: idempotencyKeyRef.current,
         reserva_id: reserva.id,
         metodo_pago: metodoPago as any,
         monto: montoNum,
@@ -201,10 +215,13 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
         items: [itemComprobante]
       })
 
-      if (result.success) {
+      if (result.success && result.comprobante) {
         toast.success(`Pago registrado: ${result.comprobante.serie}-${result.comprobante.numero}`)
         onSuccess()
         onOpenChange(false)
+
+        // Abrir PDF en nueva pestaña (opcional, ya que el toast confirma)
+        // window.open(`/api/comprobantes/pdf/${result.comprobante.id}`, '_blank')
       } else {
         toast.error(result.error || 'Error al procesar el cobro')
       }

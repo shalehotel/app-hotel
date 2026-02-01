@@ -15,6 +15,7 @@ import { MoreHorizontal, Eye, FileText, Download, XCircle, Receipt, FileSpreadsh
 import { DataTableColumnHeader } from '@/components/tables/data-table-column-header'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { ComprobanteActions } from './comprobante-actions'
 
 export type Comprobante = {
   id: string
@@ -208,39 +209,7 @@ export const comprobantesColumns: ColumnDef<Comprobante>[] = [
       const comprobante = row.original
       const meta = table.options.meta as any
 
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Abrir menú</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => meta?.onVerDetalle?.(comprobante.id)}>
-              <Eye className="mr-2 h-4 w-4" />
-              Ver Detalle
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => meta?.onDescargarPDF?.(comprobante.id)}>
-              <Download className="mr-2 h-4 w-4" />
-              Descargar PDF
-            </DropdownMenuItem>
-            {(comprobante.estado_sunat === 'ACEPTADO' || comprobante.estado_sunat === 'PENDIENTE') && comprobante.tipo_comprobante !== 'NOTA_CREDITO' && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => meta?.onAnular?.(comprobante.id)}
-                  className="text-orange-600"
-                >
-                  <FileMinus className="mr-2 h-4 w-4" />
-                  Emitir Nota de Crédito
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
+      return <ComprobanteActions comprobante={comprobante} meta={meta} />
     },
   },
 ]
