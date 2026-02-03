@@ -19,6 +19,8 @@ export type HuespedData = {
   correo?: string | null
   telefono?: string | null
   fecha_nacimiento?: string | null
+  sexo?: 'M' | 'F' | null
+  notas_internas?: string | null
 }
 
 export type HuespedConRelacion = HuespedData & {
@@ -60,6 +62,8 @@ export async function upsertHuesped(data: HuespedData) {
         correo: data.correo,
         telefono: data.telefono,
         fecha_nacimiento: data.fecha_nacimiento,
+        sexo: data.sexo,
+        notas_internas: data.notas_internas
       })
       .eq('id', existing.id)
       .select()
@@ -154,6 +158,8 @@ export async function registrarHuespedesEnReserva(
         correo: huesped.correo,
         telefono: huesped.telefono,
         fecha_nacimiento: huesped.fecha_nacimiento,
+        sexo: huesped.sexo,
+        notas_internas: huesped.notas_internas,
       })
 
       if (!result.success || !result.data) {

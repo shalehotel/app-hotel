@@ -6,7 +6,7 @@ export async function middleware(request: NextRequest) {
     const { response, user } = await updateSession(request)
 
     // 2. Rutas públicas (no requieren auth)
-    const publicPaths = ['/', '/login']
+    const publicPaths = ['/', '/login', '/api/webhook-sunat']
     const isPublicPath = publicPaths.some(path =>
         request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith('/_next')
     )

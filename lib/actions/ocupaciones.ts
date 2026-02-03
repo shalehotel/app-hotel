@@ -18,6 +18,7 @@ export type OcupacionReserva = {
   precio_pactado: number
   moneda_pactada: 'PEN' | 'USD'
   huesped_presente: boolean
+  responsable_nombre?: string // Nombre del usuario que gestiona la reserva
 
   // Habitación
   habitacion_id: string
@@ -235,10 +236,10 @@ export async function getDetalleReserva(reserva_id: string) {
     throw new Error('Error al cargar detalle de reserva')
   }
 
-  // Obtener pagos
+  // Obtener pagos con método
   const { data: pagos } = await supabase
     .from('pagos')
-    .select('monto')
+    .select('monto, metodo_pago')
     .eq('reserva_id', reserva_id)
 
   // Calcular totales
@@ -249,12 +250,16 @@ export async function getDetalleReserva(reserva_id: string) {
   const salida = new Date(reserva.fecha_salida)
   const total_noches = Math.max(1, Math.floor((salida.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24)))
 
+  // Extract unique payment methods
+  const metodos_pago = [...new Set(pagos?.map(p => p.metodo_pago).filter(Boolean) || [])]
+
   return {
     ...reserva,
     total_estimado,
     total_pagado,
     saldo_pendiente,
-    total_noches
+    total_noches,
+    metodos_pago
   } as OcupacionReserva
 }
 
@@ -277,7 +282,8 @@ export async function getHuespedesDeReserva(reserva_id: string) {
         nacionalidad,
         fecha_nacimiento,
         correo,
-        telefono
+        telefono,
+        procedencia_departamento
       )
     `)
     .eq('reserva_id', reserva_id)

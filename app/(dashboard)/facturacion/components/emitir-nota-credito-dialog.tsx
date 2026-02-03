@@ -115,7 +115,7 @@ export function EmitirNotaCreditoDialog({
                 onOpenChange(false)
                 onSuccess?.()
             } else {
-                setError(resultado.error || 'Error al emitir la Nota de Crédito')
+                setError((resultado as any).error || 'Error al emitir la Nota de Crédito')
             }
         } catch (err) {
             setError('Error inesperado al procesar la solicitud')

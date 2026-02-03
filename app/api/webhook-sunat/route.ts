@@ -42,6 +42,8 @@ function isRateLimited(ip: string): boolean {
     return false
 }
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
     const startTime = Date.now()
 

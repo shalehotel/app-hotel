@@ -194,7 +194,7 @@ export async function cobrarYFacturarAtomico(input: CobrarYFacturarInput) {
       return { success: true, message: 'Operación ya procesada', duplicado: true }
     }
 
-    // 7. Insertar detalles del comprobante
+    // 7. Insertar detalles del comprobante (CRÍTICO para reenvíos/correcciones)
     const detallesToInsert = input.items.map(item => ({
       comprobante_id: resultado.comprobante_id,
       descripcion: item.descripcion,
@@ -204,9 +204,17 @@ export async function cobrarYFacturarAtomico(input: CobrarYFacturarInput) {
       codigo_afectacion_igv: ES_EXONERADO ? '20' : (item.codigo_afectacion_igv || '10')
     }))
 
-    await supabase.from('comprobante_detalles').insert(detallesToInsert)
+    const { error: detError } = await supabase.from('comprobante_detalles').insert(detallesToInsert)
+    if (detError) {
+      logger.error('Error guardando detalles del comprobante', {
+        comprobanteId: resultado.comprobante_id,
+        error: detError.message
+      })
+      // No lanzamos error porque el comprobante ya se creó
+    }
 
     // 8. Enviar a NubeFact
+
     try {
       const hoy = new Date()
       const fechaFormateada = `${String(hoy.getDate()).padStart(2, '0')}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${hoy.getFullYear()}`
@@ -427,7 +435,29 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
 
     const correlativo = rpcResult.correlativo
 
+    // ========================================================================
+    // GUARDAR DETALLES DEL COMPROBANTE (CRÍTICO para reenvíos/correcciones)
+    // ========================================================================
+    const detallesToInsert = input.items.map(item => ({
+      comprobante_id: rpcResult.comprobante_id,
+      descripcion: item.descripcion,
+      cantidad: item.cantidad,
+      precio_unitario: item.precio_unitario,
+      subtotal: item.subtotal,
+      codigo_afectacion_igv: ES_EXONERADO ? '20' : (item.codigo_afectacion_igv || '10')
+    }))
+
+    const { error: detError } = await supabase.from('comprobante_detalles').insert(detallesToInsert)
+    if (detError) {
+      logger.error('Error guardando detalles del comprobante', {
+        comprobanteId: rpcResult.comprobante_id,
+        error: detError.message
+      })
+      // No lanzamos error porque el comprobante ya se creó
+    }
+
     // 10. ENVIAR A NUBEFACT (Facturación Electrónica)
+
     // Esto se hace DESPUÉS de guardar todo localmente para no perder datos si Nubefact falla
     try {
       // Formatear fecha a DD-MM-YYYY (formato requerido por Nubefact)

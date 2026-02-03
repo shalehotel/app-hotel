@@ -17,6 +17,7 @@ export interface LibroHuespedesItem {
     dias: number            // Número de noches
     total: number           // tarifa_numero * dias
     moneda: string          // "PEN" o "USD"
+    es_titular: boolean
 }
 
 export type FiltrosLibro = {
@@ -54,6 +55,7 @@ export async function getLibroHuespedes(filtros: FiltrosLibro) {
       moneda_pactada,
       habitaciones!inner(numero),
       reserva_huespedes!inner(
+        es_titular,
         huespedes!inner(
             nombres,
             apellidos,
@@ -107,7 +109,8 @@ export async function getLibroHuespedes(filtros: FiltrosLibro) {
                 tarifa_numero: tarifaNumero,
                 dias,
                 total,
-                moneda
+                moneda,
+                es_titular: rh.es_titular
             })
         })
     })

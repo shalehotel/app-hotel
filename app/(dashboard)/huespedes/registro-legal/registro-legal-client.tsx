@@ -67,8 +67,8 @@ export function RegistroLegalClient() {
             'Fecha Ingreso': format(new Date(fila.fecha_ingreso), 'dd/MM/yyyy'),
             'Hora': format(new Date(fila.fecha_ingreso), 'HH:mm'),
             'Salida Probable': format(new Date(fila.fecha_salida), 'dd/MM/yyyy'),
-            'Tarifa': fila.tarifa_numero,    // Número para que Excel lo reconozca
-            'Total': fila.total,              // Número: tarifa × días
+            'Tarifa': fila.es_titular ? fila.tarifa_numero : '',    // Solo titular
+            'Total': fila.es_titular ? fila.total : '',              // Solo titular
             'Huésped': fila.nombre_completo,
             'Tipo Doc': fila.tipo_documento,
             'N° Doc': fila.numero_documento,
@@ -228,10 +228,10 @@ export function RegistroLegalClient() {
                                                 {format(new Date(fila.fecha_salida), 'dd/MM/yy')}
                                             </td>
                                             <td className="border border-black p-1 sm:p-1.5 text-right">
-                                                S/{fila.tarifa_numero.toFixed(2)}
+                                                {fila.es_titular ? `S/${fila.tarifa_numero.toFixed(2)}` : '-'}
                                             </td>
                                             <td className="border border-black p-1 sm:p-1.5 text-right font-medium">
-                                                S/{fila.total.toFixed(2)}
+                                                {fila.es_titular ? `S/${fila.total.toFixed(2)}` : '-'}
                                             </td>
                                             <td className="border border-black p-1 sm:p-1.5 font-medium truncate max-w-[150px] sm:max-w-[200px]">
                                                 {fila.nombre_completo}

@@ -255,16 +255,23 @@ export async function crearReservaDesdeRack(data: {
     throw new Error('Debe existir un huésped titular')
   }
 
+  // Obtener usuario actual para trazabilidad
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Usuario no autenticado')
+
   // Paso 1: Crear la reserva
   const { data: reserva, error: reservaError } = await supabase
     .from('reservas')
     .insert({
+      usuario_id: user.id, // Responsable
       habitacion_id: data.habitacion_id,
       fecha_entrada: data.fecha_entrada.toISOString(),
       fecha_salida: data.fecha_salida.toISOString(),
       precio_pactado: data.precio_pactado,
       estado: data.estado,
-      huesped_presente: data.estado === 'CHECKED_IN'
+      huesped_presente: data.estado === 'CHECKED_IN',
+      // Si es check-in directo (walk-in), registrar la hora de llegada
+      ...(data.estado === 'CHECKED_IN' && { check_in_real: new Date().toISOString() })
     })
     .select('id, codigo_reserva')
     .single()

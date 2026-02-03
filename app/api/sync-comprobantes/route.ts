@@ -19,6 +19,7 @@ import { logger } from '@/lib/logger'
  */
 
 // Tiempo máximo de ejecución (importante para serverless)
+export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // 60 segundos
 
 export async function POST(request: NextRequest) {

@@ -1314,6 +1314,45 @@ export async function corregirComprobanteRechazado(
       throw new Error('Solo se pueden corregir comprobantes RECHAZADOS por SUNAT')
     }
 
+    // VALIDACIÓN CRÍTICA: Verificar que el comprobante tiene detalles guardados
+    // Comprobantes antiguos (antes del fix de Feb 2026) pueden no tener detalles
+    if (!original.detalles || original.detalles.length === 0) {
+      // Intentar reconstruir desde la reserva
+      const { data: reserva } = await supabase
+        .from('reservas')
+        .select(`
+          tarifa_total,
+          fecha_entrada,
+          fecha_salida,
+          habitaciones:reserva_habitaciones(habitacion:habitaciones(numero, tipo:tipos_habitacion(nombre)))
+        `)
+        .eq('id', original.reserva_id)
+        .single()
+
+      if (reserva) {
+        // Reconstruir un detalle básico desde la reserva
+        const habitaciones = reserva.habitaciones?.map((rh: any) =>
+          `Hab. ${rh.habitacion?.numero} (${rh.habitacion?.tipo?.nombre})`
+        ).join(', ') || 'Alojamiento'
+
+        const fechaEntrada = new Date(reserva.fecha_entrada).toLocaleDateString('es-PE')
+        const fechaSalida = new Date(reserva.fecha_salida).toLocaleDateString('es-PE')
+
+        original.detalles = [{
+          descripcion: `${habitaciones} - ${fechaEntrada} al ${fechaSalida}`,
+          cantidad: 1,
+          precio_unitario: original.total_venta,
+          subtotal: original.total_venta,
+          codigo_afectacion_igv: original.op_exoneradas > 0 ? '20' : '10'
+        }]
+      } else {
+        throw new Error(
+          'Este comprobante fue creado antes de la actualización del sistema y no tiene detalles guardados. ' +
+          'Debe anularse manualmente en NubeFact y crear un nuevo comprobante desde la reserva.'
+        )
+      }
+    }
+
     // 2. Obtener Turno Activo (para la nueva emisión)
     // Usamos el turno activo del usuario actual, no el original (que podría estar cerrado)
     const { data: { user } } = await supabase.auth.getUser()

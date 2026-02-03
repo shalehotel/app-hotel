@@ -34,6 +34,10 @@ export function ConfiguracionGeneralForm({ initialData }: Props) {
     hora_checkin: initialData?.hora_checkin || '14:00',
     hora_checkout: initialData?.hora_checkout || '12:00',
     descripcion: initialData?.descripcion || '',
+    // Nuevos campos
+    ciudad: (initialData as any)?.ciudad || '',
+    region: (initialData as any)?.region || '',
+    terminos_condiciones: (initialData as any)?.terminos_condiciones || '',
     // Facturación
     tasa_igv: initialData?.tasa_igv ?? 18.00,
     tasa_icbper: initialData?.tasa_icbper ?? 0.50,
@@ -101,6 +105,13 @@ export function ConfiguracionGeneralForm({ initialData }: Props) {
       setSaving(false)
     }
   }
+
+  // Helper para insertar la Card legal al final del renderizado, antes de cerrar el form
+  // Buscaremos el cierre </Card> de Facturación y lo añadiremos después.
+  // Pero multi_replace funciona por chunks. Insertaré la Card al final del <form> en otro chunk?
+  // No, el return empieza en línea 111.
+  // Insertaré la Card despues de las otras cards.
+
 
   const handleCancel = () => {
     setIsEditing(false)
@@ -181,6 +192,29 @@ export function ConfiguracionGeneralForm({ initialData }: Props) {
               placeholder="Av. Principal 123, Lima"
               disabled={!isEditing || saving}
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="ciudad">Ciudad</Label>
+              <Input
+                id="ciudad"
+                value={(formData as any).ciudad}
+                onChange={(e) => updateField('ciudad', e.target.value)}
+                placeholder="Chachapoyas"
+                disabled={!isEditing || saving}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="region">Región / Departamento</Label>
+              <Input
+                id="region"
+                value={(formData as any).region}
+                onChange={(e) => updateField('region', e.target.value)}
+                placeholder="Amazonas - Perú"
+                disabled={!isEditing || saving}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -366,6 +400,37 @@ export function ConfiguracionGeneralForm({ initialData }: Props) {
         </CardContent>
       </Card>
 
+
+      {/* Documentos Legales (PDF) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Pencil className="h-5 w-5" />
+            Términos y Condiciones (PDF)
+          </CardTitle>
+          <CardDescription>
+            Texto legal que aparecerá en el pie de página de la Ficha de Registro (Kardex).
+            Se recomienda enumerar los puntos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="terminos_condiciones">Términos y Condiciones</Label>
+            <textarea
+              id="terminos_condiciones"
+              value={(formData as any).terminos_condiciones}
+              onChange={(e) => updateField('terminos_condiciones', e.target.value)}
+              placeholder="1. La hora de salida es..."
+              className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+              disabled={!isEditing || saving}
+            />
+            <p className="text-xs text-muted-foreground">
+              Este texto se mostrará tal cual en el PDF. Usa saltos de línea para separar los puntos.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Botones Flotantes (Action Bar) */}
       <div className="flex justify-end gap-3 sticky bottom-4 bg-background/80 backdrop-blur p-4 border rounded-lg shadow-lg border-t">
         {!isEditing ? (
@@ -400,6 +465,6 @@ export function ConfiguracionGeneralForm({ initialData }: Props) {
           </>
         )}
       </div>
-    </form>
+    </form >
   )
 }

@@ -6,7 +6,11 @@ import type { Database } from '@/types/database.types'
 import { logger } from '@/lib/logger'
 import { getErrorMessage } from '@/lib/errors'
 
-export type HotelConfig = Database['public']['Tables']['hotel_configuracion']['Row']
+export type HotelConfig = Database['public']['Tables']['hotel_configuracion']['Row'] & {
+  terminos_condiciones?: string | null
+  ciudad?: string | null
+  region?: string | null
+}
 
 // Valores por defecto si no hay configuración
 const DEFAULT_CONFIG: Partial<HotelConfig> = {
@@ -21,7 +25,15 @@ const DEFAULT_CONFIG: Partial<HotelConfig> = {
   facturacion_activa: false,
   hora_checkin: '14:00:00',
   hora_checkout: '12:00:00',
-  proveedor_metadata: null // Solo metadatos públicos, NUNCA secretos
+  proveedor_metadata: null,
+  terminos_condiciones: `1.- LA HORA HOTELERA CUMPLE A LAS 13 HORAS.
+2.- PROHIBIDO FUMAR EN LA HABITACIÓN SEGÚN LEY 29517
+3.- EVITAR QUE LAS LLAVES DE AGUA QUEDEN ABIERTAS Y DESCONECTAR LOS DISPOSITIVOS ELÉCTRICOS.
+4.- EL HUÉSPED ESTÁ OBLIGADO A DECLARAR EL NÚMERO EXACTO DE PERSONAS QUE UTILIZARÁN LA HABITACIÓN Y PAGAR EL IMPORTE POR PERSONAS EXTRAS. DE NO HACERLO ASÍ, LAS PERSONAS NO REGISTRADAS NO PODRÁN PASAR LA NOCHE EN EL HOTEL.
+5.- EL HOTEL NO ES RESPONSABLE POR OBJETOS OLVIDADOS EN ÁREAS PÚBLICAS DEL ESTABLECIMIENTO.
+6.- LOS HUÉSPEDES QUE PRESENTEN UNA ACTITUD AGRESIVA, AMENAZANTE O QUE FALTEN AL RESPETO YA SEA AL PERSONAL DEL HOTEL U OTROS HUÉSPEDES DEBERÁN ABANDONAR EL HOTEL DE INMEDIATO Y SERÁN DENUNCIADOS ANTE LA AUTORIDAD COMPETENTE.`,
+  ciudad: 'Chachapoyas',
+  region: 'Amazonas - Perú'
 }
 
 /**

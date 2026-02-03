@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -34,6 +35,8 @@ interface HuespedFormData {
   correo: string
   telefono: string
   fecha_nacimiento: string
+  sexo: 'M' | 'F' | ''
+  notas: string // Para parentesco o notas internas
   es_titular: boolean
   es_existente: boolean // Flag para saber si viene de la BD
 }
@@ -111,6 +114,8 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         correo: '',
         telefono: '',
         fecha_nacimiento: '',
+        sexo: '',
+        notas: '',
         es_titular: true,
         es_existente: false,
       },
@@ -144,6 +149,8 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
               correo: result.huesped.correo || '',
               telefono: result.huesped.telefono || '',
               fecha_nacimiento: result.huesped.fecha_nacimiento || '',
+              sexo: result.huesped.sexo || '',
+              notas: result.huesped.notas_internas || '',
               es_existente: true,
             }
           }
@@ -179,6 +186,8 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         correo: '',
         telefono: '',
         fecha_nacimiento: '',
+        sexo: '',
+        notas: '',
         es_titular: false,
         es_existente: false,
       },
@@ -208,9 +217,10 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
     if (onChange) {
       const huespedConRelacion = updatedHuespedes.map(h => ({
         ...h,
+        sexo: h.sexo === '' ? null : h.sexo,
         huesped_id: null
       }))
-      onChange(huespedConRelacion)
+      onChange(huespedConRelacion as any)
     }
   }
 
@@ -268,6 +278,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         correo: h.correo || null,
         telefono: h.telefono || null,
         fecha_nacimiento: h.fecha_nacimiento || null,
+        notas_internas: h.notas || null,
         es_titular: h.es_titular,
       }))
 
@@ -383,6 +394,24 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
               </div>
 
               <div>
+                <Label htmlFor="sexo-titular">Sexo (MINCETUR)</Label>
+                <Select
+                  value={titular.sexo}
+                  onValueChange={(value) =>
+                    actualizarHuesped(titular.id, 'sexo', value)
+                  }
+                >
+                  <SelectTrigger id="sexo-titular">
+                    <SelectValue placeholder="Seleccionar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="M">Masculino</SelectItem>
+                    <SelectItem value="F">Femenino</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
                 <Label htmlFor="nacionalidad-titular">Nacionalidad</Label>
                 <NacionalidadCombobox
                   value={titular.nacionalidad}
@@ -435,6 +464,21 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                   onChange={(e) =>
                     actualizarHuesped(titular.id, 'telefono', e.target.value)
                   }
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <Label htmlFor="notas-titular">
+                  Notas / Parentesco (Menores)
+                </Label>
+                <Textarea
+                  id="notas-titular"
+                  value={titular.notas}
+                  onChange={(e) =>
+                    actualizarHuesped(titular.id, 'notas', e.target.value)
+                  }
+                  placeholder="Ej: Parentesco con menor, autorización notarial, preferencias..."
+                  className="resize-none h-20"
                 />
               </div>
             </div>
@@ -563,6 +607,24 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                   </div>
 
                   <div>
+                    <Label>Sexo (MINCETUR)</Label>
+                    <Select
+                      value={acomp.sexo}
+                      onValueChange={(value) =>
+                        actualizarHuesped(acomp.id, 'sexo', value)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="M">Masculino</SelectItem>
+                        <SelectItem value="F">Femenino</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
                     <Label>Nacionalidad</Label>
                     <NacionalidadCombobox
                       value={acomp.nacionalidad}
@@ -612,6 +674,20 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                       onChange={(e) =>
                         actualizarHuesped(acomp.id, 'telefono', e.target.value)
                       }
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <Label>
+                      Notas / Parentesco (Menores)
+                    </Label>
+                    <Textarea
+                      value={acomp.notas}
+                      onChange={(e) =>
+                        actualizarHuesped(acomp.id, 'notas', e.target.value)
+                      }
+                      placeholder="Ej: Hijo del titular, viaja con autorización..."
+                      className="resize-none h-20"
                     />
                   </div>
                 </div>
