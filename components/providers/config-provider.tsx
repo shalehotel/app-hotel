@@ -12,7 +12,7 @@ export function ConfigProvider({
   initialConfig 
 }: { 
   children: React.ReactNode
-  initialConfig: HotelConfig
+  initialConfig: HotelConfig | null
 }) {
   return (
     <ConfigContext.Provider value={initialConfig}>
@@ -21,11 +21,7 @@ export function ConfigProvider({
   )
 }
 
-// Hook
+// Hook - retorna el config (puede ser null si no está configurado)
 export function useConfig() {
-  const context = useContext(ConfigContext)
-  if (!context) {
-    throw new Error('useConfig debe usarse dentro de un ConfigProvider')
-  }
-  return context
+  return useContext(ConfigContext)
 }
