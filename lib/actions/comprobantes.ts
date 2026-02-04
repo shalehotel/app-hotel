@@ -209,6 +209,9 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
 
   // 4. Obtener configuración fiscal
   const config = await getHotelConfig()
+  if (!config) {
+    throw new Error('⚠️ Configure su hotel en /configuracion antes de facturar')
+  }
 
   // Validar configuración fiscal completa
   if (!config.ruc || config.ruc === '20000000001') {

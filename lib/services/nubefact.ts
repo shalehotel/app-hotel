@@ -128,11 +128,11 @@ async function getNubefactConfig(): Promise<NubefactConfig> {
 
   // RUC puede venir de .env o de BD
   const config = await getHotelConfig()
-  const ruc = envRuc || config.ruc
+  const ruc = envRuc || config?.ruc
 
   if (!ruc || ruc === '20000000001') {
     throw new Error(
-      'Debe configurar el RUC real del hotel en Configuración'
+      '⚠️ Debe configurar el RUC del hotel en /configuracion antes de facturar'
     )
   }
 
@@ -197,6 +197,9 @@ export async function enviarComprobanteNubefact(
     const config = await getNubefactConfig()
 
     const hotelConfig = await getHotelConfig()
+    if (!hotelConfig) {
+      throw new Error('⚠️ Configure su hotel en /configuracion antes de facturar')
+    }
     const esAmazonia = hotelConfig.es_exonerado_igv
 
     // Si es Amazonía, forzamos la lógica de exoneración
