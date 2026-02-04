@@ -12,35 +12,11 @@ export type HotelConfig = Database['public']['Tables']['hotel_configuracion']['R
   region?: string | null
 }
 
-// Valores por defecto si no hay configuración
-const DEFAULT_CONFIG: Partial<HotelConfig> = {
-  ruc: '20000000001',
-  razon_social: 'MI HOTEL S.A.C.',
-  nombre_comercial: 'Mi Hotel',
-  direccion_fiscal: 'Av. Principal 123',
-  tasa_igv: 18.00,
-  tasa_icbper: 0.50,
-  moneda_principal: 'PEN',
-  es_exonerado_igv: false,
-  facturacion_activa: false,
-  hora_checkin: '14:00:00',
-  hora_checkout: '12:00:00',
-  proveedor_metadata: null,
-  terminos_condiciones: `1.- LA HORA HOTELERA CUMPLE A LAS 13 HORAS.
-2.- PROHIBIDO FUMAR EN LA HABITACIÓN SEGÚN LEY 29517
-3.- EVITAR QUE LAS LLAVES DE AGUA QUEDEN ABIERTAS Y DESCONECTAR LOS DISPOSITIVOS ELÉCTRICOS.
-4.- EL HUÉSPED ESTÁ OBLIGADO A DECLARAR EL NÚMERO EXACTO DE PERSONAS QUE UTILIZARÁN LA HABITACIÓN Y PAGAR EL IMPORTE POR PERSONAS EXTRAS. DE NO HACERLO ASÍ, LAS PERSONAS NO REGISTRADAS NO PODRÁN PASAR LA NOCHE EN EL HOTEL.
-5.- EL HOTEL NO ES RESPONSABLE POR OBJETOS OLVIDADOS EN ÁREAS PÚBLICAS DEL ESTABLECIMIENTO.
-6.- LOS HUÉSPEDES QUE PRESENTEN UNA ACTITUD AGRESIVA, AMENAZANTE O QUE FALTEN AL RESPETO YA SEA AL PERSONAL DEL HOTEL U OTROS HUÉSPEDES DEBERÁN ABANDONAR EL HOTEL DE INMEDIATO Y SERÁN DENUNCIADOS ANTE LA AUTORIDAD COMPETENTE.`,
-  ciudad: 'Chachapoyas',
-  region: 'Amazonas - Perú'
-}
-
 /**
  * Obtener la configuración actual del hotel
- * Cacheada por defecto por Next.js
+ * Retorna null si no está configurado
  */
-export async function getHotelConfig(): Promise<HotelConfig> {
+export async function getHotelConfig(): Promise<HotelConfig | null> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -50,12 +26,7 @@ export async function getHotelConfig(): Promise<HotelConfig> {
 
   if (error) {
     logger.error('Error al obtener configuración', { action: 'getHotelConfig', originalError: getErrorMessage(error) })
-    return DEFAULT_CONFIG as HotelConfig
-  }
-
-  if (!data) {
-    // Es normal la primera vez
-    return DEFAULT_CONFIG as HotelConfig
+    return null
   }
 
   return data
@@ -95,14 +66,10 @@ export async function updateHotelConfig(data: Partial<HotelConfig>) {
     }
     error = result.error
   } else {
-    // 3. INSERTAR nuevo (Primera vez)
-    const payload = {
-      ...DEFAULT_CONFIG,
-      ...data,
-    }
+    // 3. INSERTAR nuevo (Primera vez) - Usuario debe proporcionar todos los datos
     const result = await supabase
       .from('hotel_configuracion')
-      .insert(payload)
+      .insert(data)
       .select()
       .single()
     error = result.error
