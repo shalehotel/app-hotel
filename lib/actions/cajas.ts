@@ -431,8 +431,18 @@ export async function deleteCaja(id: string): Promise<Result<void>> {
  * Optimizad: Una sola query con LEFT JOIN en lugar de N+1 queries
  */
 export async function getCajasDisponibles(): Promise<Result<Caja[]>> {
+  console.log('[getCajasDisponibles] ===== INICIO =====')
   try {
     const supabase = await createClient()
+    console.log('[getCajasDisponibles] Cliente Supabase creado')
+
+    // Primero intentemos una query simple para ver si hay permisos
+    const { data: testCajas, error: testError } = await supabase
+      .from('cajas')
+      .select('*')
+      .eq('estado', true)
+    
+    console.log('[getCajasDisponibles] Test simple - cajas:', testCajas?.length, 'error:', testError)
 
     // Una sola query: cajas activas + sus turnos abiertos (si existen)
     const { data: cajasConTurnos, error } = await supabase
@@ -448,11 +458,11 @@ export async function getCajasDisponibles(): Promise<Result<Caja[]>> {
       .order('nombre')
 
     if (error) {
-      console.error('[getCajasDisponibles] Error en query Supabase:', error)
+      console.error('[getCajasDisponibles] ❌ Error en query Supabase:', error)
       throw error
     }
 
-    console.log('[getCajasDisponibles] Cajas encontradas:', cajasConTurnos?.length)
+    console.log('[getCajasDisponibles] ✅ Cajas encontradas:', cajasConTurnos?.length)
     console.log('[getCajasDisponibles] Detalle cajas:', JSON.stringify(cajasConTurnos, null, 2))
 
     // Filtrar en JavaScript: solo cajas sin turno ABIERTO
