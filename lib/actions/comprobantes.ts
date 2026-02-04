@@ -445,6 +445,9 @@ export async function reenviarComprobanteNubefact(comprobante_id: string) {
 
   // 3. Obtener configuración
   const config = await getHotelConfig()
+  if (!config) {
+    throw new Error('⚠️ Configure su hotel en /configuracion antes de generar comprobantes')
+  }
   const TASA_IGV = config.es_exonerado_igv ? 0 : (config.tasa_igv || 18) / 100
 
   // 4. Formatear fecha
@@ -888,6 +891,9 @@ export async function emitirNotaCreditoParcial(input: EmitirNotaCreditoInput) {
   try {
     // 0. Obtener configuración (para IGV)
     const config = await getHotelConfig()
+    if (!config) {
+      throw new Error('⚠️ Configure su hotel en /configuracion antes de generar notas de crédito')
+    }
     const TASA_IGV = config.es_exonerado_igv ? 0 : (config.tasa_igv || 18.00) / 100
     const CODIGO_TIPO_NC = input.tipo_nota_credito || 7
 
@@ -1537,6 +1543,9 @@ export async function corregirComprobanteRechazado(
     // 6. Enviar a NubeFact
     // Reconstruimos payload para nubefact
     const config = await getHotelConfig()
+    if (!config) {
+      throw new Error('⚠️ Configure su hotel en /configuracion antes de enviar comprobantes')
+    }
     const TASA_IGV = (config.tasa_igv || 18.00) / 100
 
     // Preparar items para nubefact
@@ -1639,6 +1648,9 @@ export async function reintentarEnvio(comprobanteId: string) {
 
     // 2. Reconstruir Payload Nubefact
     const config = await getHotelConfig()
+    if (!config) {
+      throw new Error('⚠️ Configure su hotel en /configuracion antes de reintentar envío')
+    }
     const TASA_IGV = (config.tasa_igv || 18.00) / 100
 
     const itemsNubefact = original.detalles.map((d: any) => {

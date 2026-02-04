@@ -25,7 +25,7 @@ export default async function ConfiguracionPage() {
 
         <Separator />
 
-        <ConfiguracionGeneralForm initialData={config} />
+        <ConfiguracionGeneralForm initialData={config || undefined} />
       </div>
     </>
   )

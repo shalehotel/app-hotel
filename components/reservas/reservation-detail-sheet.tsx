@@ -92,7 +92,7 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
       setReserva(detalleData)
       setHuespedes(huespedesData)
       setPagos(pagosData)
-      setHotelConfig(configData)
+      setHotelConfig(configData || null)
     } catch (error) {
       console.error('Error al cargar datos:', error)
       toast.error('Error al cargar los detalles de la reserva')

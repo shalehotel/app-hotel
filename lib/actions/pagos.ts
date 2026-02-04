@@ -118,6 +118,9 @@ export async function cobrarYFacturarAtomico(input: CobrarYFacturarInput) {
 
     // 4. Obtener configuración y calcular IGV
     const config = await getHotelConfig()
+    if (!config) {
+      throw new Error('⚠️ Configure su hotel en /configuracion antes de emitir comprobantes')
+    }
     if (!config.facturacion_activa) {
       throw new Error('La facturación electrónica no está activada')
     }
@@ -354,6 +357,9 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
     // 5. Calcular Totales Fiscales
     // Obtener configuración dinámica del hotel
     const config = await getHotelConfig()
+    if (!config) {
+      throw new Error('⚠️ Configure su hotel en /configuracion antes de emitir comprobantes')
+    }
 
     // Validar que la facturación electrónica esté activa
     if (!config.facturacion_activa) {

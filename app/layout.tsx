@@ -33,7 +33,7 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning={true}
       >
-        <ConfigProvider initialConfig={config}>
+        <ConfigProvider initialConfig={config || null}>
           {children}
           <Toaster position="top-right" richColors />
         </ConfigProvider>
