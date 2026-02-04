@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Loader2, CheckCircle, Clock, ArrowLeft } from 'lucide-react'
 import { crearReservaDesdeRack } from '@/lib/actions/rack'
-import type { RackHabitacion } from '@/lib/actions/rack'
+import type { RackHabitacion } from '@/types/rack'
 
 type Props = {
   habitacion: RackHabitacion

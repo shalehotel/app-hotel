@@ -10,7 +10,7 @@ import { AlertsTab } from './alerts-tab'
 import { FiltersTab, type FilterState } from './filters-tab'
 import { cn } from '@/lib/utils'
 import { getAlertasRack } from '@/lib/actions/rack'
-import type { RackHabitacion } from '@/lib/actions/rack'
+import type { RackHabitacion } from '@/types/rack'
 
 type Tareas = {
   checkins: any[]

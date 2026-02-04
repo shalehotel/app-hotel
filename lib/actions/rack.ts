@@ -8,9 +8,6 @@ import { calcularTotalReserva } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import { getErrorMessage } from '@/lib/errors'
 
-// Re-exportar tipos para consumidores
-export type { RackHabitacion, RackReserva, RackKPIs }
-
 // ========================================
 // OBTENER HABITACIONES PARA EL RACK
 // ========================================

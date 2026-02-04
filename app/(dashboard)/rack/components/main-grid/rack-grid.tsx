@@ -4,7 +4,7 @@ import { format, addDays, eachDayOfInterval } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { GridHeader } from './grid-header'
 import { RoomRow } from './room-row'
-import type { RackHabitacion, RackReserva } from '@/lib/actions/rack'
+import type { RackHabitacion, RackReserva } from '@/types/rack'
 
 type Props = {
   habitaciones: RackHabitacion[]

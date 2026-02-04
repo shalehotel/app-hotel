@@ -12,7 +12,7 @@ import { FilterX, CalendarIcon } from 'lucide-react'
 import { format, parse } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
-import type { RackHabitacion } from '@/lib/actions/rack'
+import type { RackHabitacion } from '@/types/rack'
 
 export type FilterState = {
   tipoId: string

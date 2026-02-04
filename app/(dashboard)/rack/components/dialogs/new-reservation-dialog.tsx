@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
-import type { RackHabitacion } from '@/lib/actions/rack'
+import type { RackHabitacion } from '@/types/rack'
 import { StepTarifa } from './steps/step-tarifa'
 import { StepHuesped } from './steps/step-huesped'
 import { StepConfirmacion } from './steps/step-confirmacion'

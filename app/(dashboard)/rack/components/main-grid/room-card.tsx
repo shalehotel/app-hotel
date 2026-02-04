@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { RoomContextMenu } from '../context-menu/room-context-menu'
 import { getRoomVisualState } from '@/lib/utils/room-status'
 import { Key, User, Sparkles, Users, LogIn, LogOut, Clock, AlertCircle } from 'lucide-react'
-import type { RackHabitacion, RackReserva } from '@/lib/actions/rack'
+import type { RackHabitacion, RackReserva } from '@/types/rack'
 import { cn } from '@/lib/utils'
 
 type Props = {

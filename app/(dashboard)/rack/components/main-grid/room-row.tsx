@@ -8,7 +8,7 @@ import { GridCell } from './grid-cell'
 import { ReservationBlock } from './reservation-block'
 import { RoomContextMenu } from '../context-menu/room-context-menu'
 import { getRoomVisualState } from '@/lib/utils/room-status'
-import type { RackHabitacion, RackReserva } from '@/lib/actions/rack'
+import type { RackHabitacion, RackReserva } from '@/types/rack'
 import { Key, User, Sparkles, Users } from 'lucide-react'
 
 type Props = {

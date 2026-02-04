@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { CalendarIcon, Loader2, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getTarifas, type Tarifa } from '@/lib/actions/tarifas'
-import type { RackHabitacion } from '@/lib/actions/rack'
+import type { RackHabitacion } from '@/types/rack'
 
 type Props = {
   habitacion: RackHabitacion
