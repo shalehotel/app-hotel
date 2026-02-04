@@ -219,11 +219,7 @@ export function DetalleTurnoActivoClient({ turnoId, turnoInicial }: Props) {
             {/* Acciones rápidas */}
             <div className="flex gap-3">
                 <RegistrarMovimientoDialog />
-                <CerrarCajaDialog
-                    turnoId={turnoId}
-                    totalEsperadoPen={turno.estadisticas.total_esperado_pen}
-                    totalEsperadoUsd={turno.estadisticas.total_esperado_usd}
-                />
+                <CerrarCajaDialog turnoId={turnoId} />
             </div>
 
             {/* Cards inferiores */}
