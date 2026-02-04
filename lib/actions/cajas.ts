@@ -447,22 +447,31 @@ export async function getCajasDisponibles(): Promise<Result<Caja[]>> {
       .eq('estado', true)
       .order('nombre')
 
-    if (error) throw error
+    if (error) {
+      console.error('[getCajasDisponibles] Error en query Supabase:', error)
+      throw error
+    }
+
+    console.log('[getCajasDisponibles] Cajas encontradas:', cajasConTurnos?.length)
+    console.log('[getCajasDisponibles] Detalle cajas:', JSON.stringify(cajasConTurnos, null, 2))
 
     // Filtrar en JavaScript: solo cajas sin turno ABIERTO
     const cajasDisponibles = (cajasConTurnos || []).filter(caja => {
       // caja_turnos es un array. Verificar si hay alguno con estado 'ABIERTA'
       const turnos = caja.caja_turnos as { id: string; estado: string }[] | null
       const tieneTurnoAbierto = turnos?.some(t => t.estado === 'ABIERTA')
+      console.log(`[getCajasDisponibles] Caja "${caja.nombre}": turnos=${turnos?.length || 0}, abierto=${tieneTurnoAbierto}`)
       return !tieneTurnoAbierto
     })
+
+    console.log('[getCajasDisponibles] Cajas disponibles después de filtrar:', cajasDisponibles.length)
 
     // Limpiar el objeto para no incluir caja_turnos en la respuesta
     const resultado: Caja[] = cajasDisponibles.map(({ caja_turnos, ...caja }) => caja as Caja)
 
     return { success: true, data: resultado }
   } catch (error: unknown) {
-    console.error('Error al obtener cajas disponibles:', error)
+    console.error('[getCajasDisponibles] Error al obtener cajas disponibles:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Error desconocido' }
   }
 }
