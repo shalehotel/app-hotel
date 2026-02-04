@@ -1255,20 +1255,34 @@ export async function cerrarCajaAtomico(input: {
     return { success: false, error: 'Turno no encontrado o no es tuyo' }
   }
 
-  // Llamar RPC atómico
+  // Llamar RPC atómico con manejo de race conditions
   const { data: resultado, error: rpcError } = await supabase.rpc('validar_y_cerrar_caja', {
     p_turno_id: input.turno_id,
     p_efectivo_declarado_pen: input.monto_declarado_pen,
-    p_efectivo_declarado_usd: input.monto_declarado_usd,
+    p_efectivo_declarado_usd: input.monto_declarado_usd || 0, // Hotel unimoneda
     p_limite_descuadre: input.limite_descuadre || 10.00
   })
 
   if (rpcError) {
     console.error('Error RPC validar_y_cerrar_caja:', rpcError)
+    // Detectar race condition específica
+    if (rpcError.message?.includes('no encontrado') || rpcError.message?.includes('not found')) {
+      return { 
+        success: false, 
+        error: '⚠️ Este turno ya fue cerrado por otro usuario. Actualiza la página.' 
+      }
+    }
     return { success: false, error: `Error en cierre: ${rpcError.message}` }
   }
 
   if (!resultado?.success) {
+    // Manejo específico de errores de race condition
+    if (resultado?.error?.includes('no encontrado') || resultado?.error?.includes('not found')) {
+      return { 
+        success: false, 
+        error: '⚠️ Este turno ya fue cerrado. Otro usuario procesó el cierre primero.' 
+      }
+    }
     return { success: false, error: resultado?.error || 'Error desconocido en cierre' }
   }
 
@@ -1296,11 +1310,12 @@ export async function cerrarCajaAtomico(input: {
 
 /**
  * Forzar cierre de caja (SOLO ADMIN)
+ * Simplificado para hotel unimoneda (solo PEN)
  */
 export async function forzarCierreCaja(input: {
   turno_id: string
   monto_declarado_pen: number
-  monto_declarado_usd: number
+  monto_declarado_usd?: number // Opcional por compatibilidad, siempre será 0
   observacion?: string
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
@@ -1340,9 +1355,9 @@ export async function forzarCierreCaja(input: {
       estado: 'CERRADA',
       fecha_cierre: new Date().toISOString(),
       monto_cierre_real_efectivo: input.monto_declarado_pen,
-      monto_cierre_real_usd: input.monto_declarado_usd,
+      monto_cierre_real_usd: 0, // Hotel unimoneda
       monto_cierre_teorico_efectivo: await calcularEfectivoLocal(supabase, input.turno_id, detalleTurno.estadisticas.total_esperado_pen),
-      monto_cierre_teorico_usd: detalleTurno.estadisticas.total_esperado_usd,
+      monto_cierre_teorico_usd: 0, // Hotel unimoneda
     })
     .eq('id', input.turno_id)
 

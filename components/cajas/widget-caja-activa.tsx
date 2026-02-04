@@ -231,11 +231,9 @@ export function WidgetCajaActiva({ turno, onTurnoCerrado }: Props) {
               Actualizar
             </Button>
 
-            {/* Diálogo de Cierre Unificado */}
+            {/* Diálogo de Cierre Ciego (sin revelar monto esperado) */}
             <CerrarCajaDialog
               turnoId={turno.id}
-              totalEsperadoPen={reportePagos?.totalEfectivoPEN || 0}
-              totalEsperadoUsd={reportePagos?.totalEfectivoUSD || 0}
               customTrigger={
                 <Button
                   variant="destructive"

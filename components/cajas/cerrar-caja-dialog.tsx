@@ -32,28 +32,23 @@ import { useTurnoContext } from '@/components/providers/turno-provider'
 
 interface Props {
   turnoId: string
-  totalEsperadoPen: number
-  totalEsperadoUsd: number
   esAdmin?: boolean
   customTrigger?: React.ReactNode
 }
 
-// Denominaciones de billetes y monedas
+// Denominaciones de billetes y monedas peruanas (HOTEL SOLO USA SOLES)
 const DENOMINACIONES_PEN = [200, 100, 50, 20, 10, 5, 2, 1, 0.50, 0.20, 0.10]
-const DENOMINACIONES_USD = [100, 50, 20, 10, 5, 1]
 
-export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, esAdmin = false, customTrigger }: Props) {
+export function CerrarCajaDialog({ turnoId, esAdmin = false, customTrigger }: Props) {
   const [open, setOpen] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // Contadores de billetes/monedas
+  // Contador de billetes/monedas (SOLO PEN)
   const [desglosePEN, setDesglosePEN] = useState<Record<number, number>>({})
-  const [desgloseUSD, setDesgloseUSD] = useState<Record<number, number>>({})
 
-  // Montos declarados directos (alternativa al desglose)
+  // Monto declarado directo (alternativa al desglose)
   const [montoDirectoPen, setMontoDirectoPen] = useState('')
-  const [montoDirectoUsd, setMontoDirectoUsd] = useState('')
   const [usarDesglose, setUsarDesglose] = useState(true)
 
   const router = useRouter()
@@ -67,11 +62,9 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
   }
 
   const totalDesglosePEN = calcularTotalDesglose(desglosePEN)
-  const totalDesgloseUSD = calcularTotalDesglose(desgloseUSD)
 
-  // Monto final declarado
+  // Monto final declarado (SOLO PEN - Hotel unimoneda)
   const montoDeclaradoPen = usarDesglose ? totalDesglosePEN : (parseFloat(montoDirectoPen) || 0)
-  const montoDeclaradoUsd = usarDesglose ? totalDesgloseUSD : (parseFloat(montoDirectoUsd) || 0)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -90,7 +83,7 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
       const input = {
         turno_id: turnoId,
         monto_declarado_pen: montoDeclaradoPen,
-        monto_declarado_usd: montoDeclaradoUsd
+        monto_declarado_usd: 0 // Hotel unimoneda (solo PEN)
       }
 
       const result = esAdmin
@@ -99,8 +92,8 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
 
       if (result.success) {
         // CIERRE CIEGO: Solo mensaje genérico, SIN mostrar diferencias
-        toast.success('Turno cerrado correctamente', {
-          description: 'El arqueo ha sido registrado.',
+        toast.success('✅ Turno cerrado correctamente', {
+          description: '🔒 El arqueo ha sido registrado. Revisa el historial para ver el resultado.',
         })
         setOpen(false)
         await refetchTurno()
@@ -124,9 +117,7 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
 
   const resetForm = () => {
     setDesglosePEN({})
-    setDesgloseUSD({})
     setMontoDirectoPen('')
-    setMontoDirectoUsd('')
     setUsarDesglose(true)
   }
 
@@ -152,7 +143,7 @@ export function CerrarCajaDialog({ turnoId, totalEsperadoPen, totalEsperadoUsd, 
                 {esAdmin ? '⚠️ Cierre Forzoso' : 'Cierre de Caja'}
               </DialogTitle>
               <DialogDescription>
-                Cuenta el dinero físico en tu caja y declara el monto total.
+                🔒 <strong>Cierre Ciego:</strong> Cuenta el dinero físico en tu caja y declara el monto exacto que contaste. El sistema verificará después.
               </DialogDescription>
             </DialogHeader>
 

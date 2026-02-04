@@ -354,8 +354,13 @@ export async function anularMovimiento(
       return { success: false, error: 'Solo puedes anular tus propios movimientos' }
     }
 
-    if ((movimiento as any).caja_turnos.estado !== 'ABIERTA') {
-      return { success: false, error: 'No puedes anular movimientos de un turno cerrado' }
+    // 🔒 BLINDAJE CRÍTICO: Prevenir fraude post-cierre
+    const turnoEstado = (movimiento as any).caja_turnos?.estado
+    if (turnoEstado !== 'ABIERTA') {
+      return { 
+        success: false, 
+        error: '⛔ PROHIBIDO: No se pueden anular movimientos de un turno cerrado. Esto podría alterar el arqueo final. Si es un error, contacta al administrador con el ID del movimiento.' 
+      }
     }
 
     // Soft delete: marcar como anulado

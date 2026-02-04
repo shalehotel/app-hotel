@@ -192,8 +192,6 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
 
         <CerrarCajaDialog
           turnoId={t.id}
-          totalEsperadoPen={saldoEfectivoReal}
-          totalEsperadoUsd={t.monto_apertura_usd || 0}
           customTrigger={
             <Button
               variant="default"

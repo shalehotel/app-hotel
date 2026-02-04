@@ -1171,11 +1171,56 @@ export async function actualizarEstadoComprobante(comprobanteId: string) {
 // Para casos donde el usuario necesita emitir una NC manualmente
 // desde la pantalla de facturación (errores, descuentos, anulaciones)
 
+/**
+ * Validar plazos SUNAT para anulación de comprobantes
+ * Tipo 1 (Anulación de operación) tiene restricciones estrictas:
+ * - Boletas: Máximo 7 días desde emisión
+ * - Facturas: Solo mes actual
+ */
+async function validarPlazoSUNAT(comprobante: any): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const diasTranscurridos = differenceInDays(new Date(), parseISO(comprobante.fecha_emision))
+    
+    if (comprobante.tipo_comprobante === 'BOLETA') {
+      if (diasTranscurridos > 7) {
+        return {
+          valid: false,
+          error: `⏰ Plazo SUNAT excedido: Esta boleta fue emitida hace ${diasTranscurridos} días. SUNAT solo permite anular boletas dentro de 7 días.`
+        }
+      }
+    }
+    
+    if (comprobante.tipo_comprobante === 'FACTURA') {
+      const fechaEmision = parseISO(comprobante.fecha_emision)
+      const mesEmision = format(fechaEmision, 'yyyy-MM')
+      const mesActual = format(new Date(), 'yyyy-MM')
+      
+      if (mesEmision !== mesActual) {
+        return {
+          valid: false,
+          error: `⏰ Plazo SUNAT excedido: Esta factura fue emitida en ${mesEmision}. SUNAT solo permite anular facturas del mes actual.`
+        }
+      }
+    }
+    
+    return { valid: true }
+  } catch (error) {
+    logger.error('Error validando plazo SUNAT', { error: getErrorMessage(error) })
+    return { valid: true } // En caso de error, permitir continuar
+  }
+}
+
 export type EmitirNotaCreditoManualInput = {
   comprobante_original_id: string
   tipo_nota_credito: number // 1, 6, 9, 10
   monto_devolucion: number
   motivo: string
+  
+  // Nuevos campos para flujo completo
+  incluye_devolucion_dinero?: boolean
+  metodo_devolucion?: 'EFECTIVO' | 'YAPE' | 'PLIN' | 'TRANSFERENCIA' | 'PENDIENTE'
+  liberar_habitacion?: boolean
+  cancelar_reserva?: boolean
 }
 
 export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInput) {
@@ -1185,7 +1230,7 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
     // 1. Validar que el comprobante original existe y es válido
     const { data: comprobanteOriginal, error: comprobanteError } = await supabase
       .from('comprobantes')
-      .select('*')
+      .select('*, reservas(id, habitacion_id, estado, moneda_pactada, codigo_reserva)')
       .eq('id', input.comprobante_original_id)
       .single()
 
@@ -1205,6 +1250,14 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
 
     if (comprobanteOriginal.estado_sunat === 'RECHAZADO') {
       return { success: false, error: 'No se puede emitir NC sobre un comprobante rechazado por SUNAT' }
+    }
+    
+    // Validar plazo SUNAT para Tipo 1 (Anulación de operación)
+    if (input.tipo_nota_credito === 1) {
+      const validacionPlazo = await validarPlazoSUNAT(comprobanteOriginal)
+      if (!validacionPlazo.valid) {
+        return { success: false, error: validacionPlazo.error }
+      }
     }
 
     // Validar monto
@@ -1235,7 +1288,7 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
       return { success: false, error: 'El motivo debe tener al menos 5 caracteres' }
     }
 
-    // 2. Usar la función existente pero con el tipo de NC especificado
+    // 2. Emitir NC en SUNAT
     const resultadoNC = await emitirNotaCreditoParcial({
       comprobante_original_id: input.comprobante_original_id,
       monto_devolucion: input.monto_devolucion,
@@ -1247,7 +1300,70 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
       return resultadoNC
     }
 
-    // 3. Si es anulación total (tipos 1 o 6), marcar comprobante original como anulado
+    // 3. Si incluye devolución de dinero, procesarla
+    if (input.incluye_devolucion_dinero && input.metodo_devolucion && comprobanteOriginal.reservas) {
+      const reserva = comprobanteOriginal.reservas
+      
+      // Obtener turno activo
+      const { data: turnoActivo } = await supabase
+        .from('caja_turnos')
+        .select('id, usuario_id')
+        .eq('estado', 'ABIERTA')
+        .limit(1)
+        .maybeSingle()
+      
+      // Procesar devolución atomícamente (crea pago negativo + egreso si es EFECTIVO)
+      const { data: resultadoRPC, error: rpcError } = await supabase.rpc('procesar_devolucion_atomica', {
+        p_reserva_id: reserva.id,
+        p_nueva_fecha_salida: null, // No cambiamos fecha en NC manual
+        p_monto_devolucion: input.monto_devolucion,
+        p_metodo_devolucion: input.metodo_devolucion,
+        p_dias_devueltos: 0,
+        p_emitir_nc: false, // Ya emitimos la NC arriba
+        p_turno_id: turnoActivo?.id || null,
+        p_usuario_id: turnoActivo?.usuario_id || null
+      })
+      
+      if (rpcError) {
+        logger.error('Error al procesar devolución en NC manual', {
+          action: 'emitirNotaCreditoManual',
+          error: getErrorMessage(rpcError)
+        })
+        // No fallar toda la operación, solo advertir
+      }
+      
+      logger.info('Devolución procesada en NC manual', {
+        monto: input.monto_devolucion,
+        metodo: input.metodo_devolucion,
+        rpcResult: resultadoRPC
+      })
+    }
+    
+    // 4. Si libera habitación
+    if (input.liberar_habitacion && comprobanteOriginal.reservas?.habitacion_id) {
+      await supabase
+        .from('habitaciones')
+        .update({ estado_ocupacion: 'LIBRE' })
+        .eq('id', comprobanteOriginal.reservas.habitacion_id)
+      
+      logger.info('Habitación liberada por NC', {
+        habitacion_id: comprobanteOriginal.reservas.habitacion_id
+      })
+    }
+    
+    // 5. Si cancela reserva
+    if (input.cancelar_reserva && comprobanteOriginal.reservas?.id) {
+      await supabase
+        .from('reservas')
+        .update({ estado: 'CANCELADA' })
+        .eq('id', comprobanteOriginal.reservas.id)
+      
+      logger.info('Reserva cancelada por NC', {
+        reserva_id: comprobanteOriginal.reservas.id
+      })
+    }
+
+    // 6. Si es anulación total (tipos 1 o 6), marcar comprobante original como anulado
     if (tiposAnulacionTotal.includes(input.tipo_nota_credito)) {
       await supabase
         .from('comprobantes')
@@ -1262,10 +1378,15 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
       action: 'emitirNotaCreditoManual',
       tipo: input.tipo_nota_credito,
       monto: input.monto_devolucion,
-      nc_numero: resultadoNC.notaCredito?.numero
+      nc_numero: resultadoNC.notaCredito?.numero,
+      incluye_devolucion: input.incluye_devolucion_dinero,
+      metodo: input.metodo_devolucion,
+      libera_habitacion: input.liberar_habitacion,
+      cancela_reserva: input.cancelar_reserva
     })
 
     revalidatePath('/facturacion')
+    revalidatePath('/rack')
 
     return {
       success: true,

@@ -616,7 +616,7 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE v_turno record; v_efectivo_teorico_pen numeric; v_efectivo_teorico_usd numeric; v_descuadre_pen numeric; v_descuadre_usd numeric; v_requiere_autorizacion boolean := false;
 BEGIN
     SELECT * INTO v_turno FROM public.caja_turnos WHERE id = p_turno_id AND estado = 'ABIERTA' FOR UPDATE;
-    IF v_turno IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'Turno no encontrado'); END IF;
+    IF v_turno IS NULL THEN RETURN jsonb_build_object('success', false, 'error', '⚠️ Turno no encontrado o ya fue cerrado por otro usuario (race condition detectada)'); END IF;
     -- Teórico efectivo: Apertura + (Pagos Efectivo) - (Movimientos Egreso Efectivo)
     v_efectivo_teorico_pen := v_turno.monto_apertura_efectivo + 
         COALESCE((SELECT SUM(monto) FROM public.pagos WHERE caja_turno_id = p_turno_id AND metodo_pago = 'EFECTIVO'), 0) -
