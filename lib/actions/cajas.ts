@@ -1744,3 +1744,109 @@ export async function getHistorialTurnos(filtros?: {
   return { success: true, data: turnos }
 }
 
+// =============================================
+// FUNCIONES DE UTILIDAD Y LIMPIEZA
+// =============================================
+
+/**
+ * Obtener turnos abiertos en el sistema
+ * Útil para diagnóstico y limpieza
+ */
+export async function getTurnosAbiertos(): Promise<Result<Array<{
+  id: string
+  caja_id: string
+  usuario_id: string
+  fecha_apertura: string
+  caja_nombre: string
+  usuario_nombre: string
+}>>> {
+  try {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('caja_turnos')
+      .select(`
+        id,
+        caja_id,
+        usuario_id,
+        fecha_apertura,
+        cajas!inner(nombre),
+        usuarios!caja_turnos_usuario_id_fkey(nombres, apellidos)
+      `)
+      .eq('estado', 'ABIERTA')
+      .order('fecha_apertura', { ascending: false })
+
+    if (error) throw error
+
+    const turnos = (data || []).map((t: any) => ({
+      id: t.id,
+      caja_id: t.caja_id,
+      usuario_id: t.usuario_id,
+      fecha_apertura: t.fecha_apertura,
+      caja_nombre: t.cajas.nombre,
+      usuario_nombre: `${t.usuarios.nombres} ${t.usuarios.apellidos || ''}`.trim()
+    }))
+
+    return { success: true, data: turnos }
+  } catch (error: any) {
+    console.error('Error al obtener turnos abiertos:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Cerrar turno de emergencia (solo ADMIN)
+ * Se usa cuando un turno quedó huérfano o necesita cerrarse forzadamente
+ */
+export async function cerrarTurnoEmergencia(turnoId: string): Promise<Result<void>> {
+  try {
+    const supabase = await createClient()
+
+    // Verificar que el usuario actual es admin
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'No autenticado' }
+
+    const { data: usuario, error: userError } = await supabase
+      .from('usuarios')
+      .select('rol')
+      .eq('user_id', user.id)
+      .single()
+
+    if (userError || !usuario || usuario.rol !== 'ADMIN') {
+      return { success: false, error: 'Solo administradores pueden cerrar turnos de emergencia' }
+    }
+
+    // Obtener datos del turno
+    const { data: turno, error: turnoError } = await supabase
+      .from('caja_turnos')
+      .select('*')
+      .eq('id', turnoId)
+      .single()
+
+    if (turnoError || !turno) {
+      return { success: false, error: 'Turno no encontrado' }
+    }
+
+    // Cerrar turno marcando montos reales = apertura (sin movimientos)
+    const { error: updateError } = await supabase
+      .from('caja_turnos')
+      .update({
+        estado: 'CERRADA',
+        fecha_cierre: new Date().toISOString(),
+        monto_cierre_teorico_efectivo: turno.monto_apertura_efectivo,
+        monto_cierre_real_efectivo: turno.monto_apertura_efectivo,
+        monto_cierre_teorico_usd: turno.monto_apertura_usd || 0,
+        monto_cierre_real_usd: turno.monto_apertura_usd || 0,
+        observaciones: 'Cerrado por emergencia - Sin movimientos registrados'
+      })
+      .eq('id', turnoId)
+
+    if (updateError) throw updateError
+
+    revalidatePath('/cajas')
+    return { success: true, data: undefined }
+  } catch (error: any) {
+    console.error('Error al cerrar turno de emergencia:', error)
+    return { success: false, error: error.message }
+  }
+}
