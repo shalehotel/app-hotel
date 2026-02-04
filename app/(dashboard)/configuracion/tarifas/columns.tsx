@@ -15,9 +15,6 @@ import { MoreHorizontal, Pencil, Trash2, Power, PowerOff } from 'lucide-react'
 import { DataTableColumnHeader } from '@/components/tables/data-table-column-header'
 import type { Tarifa } from '@/lib/actions/tarifas'
 
-// Re-exportar para otros componentes
-export type { Tarifa }
-
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat('es-PE', {
     style: 'currency',

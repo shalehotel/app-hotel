@@ -163,9 +163,6 @@ export async function calcularResumenCambio(
 // Importar constantes desde archivo separado (no se pueden exportar objetos desde 'use server')
 import { OPCIONES_LATE_CHECKOUT, type OpcionLateCheckout } from '@/lib/constants/late-checkout'
 
-// Re-exportar el tipo para que otros lo usen (los tipos SÍ se pueden re-exportar)
-export type { OpcionLateCheckout }
-
 export type ResultadoLateCheckout = {
     success: boolean
     error?: string
