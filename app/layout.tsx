@@ -25,7 +25,14 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const config = await getHotelConfig()
+  let config: any = null
+  
+  try {
+    config = await getHotelConfig()
+  } catch (error) {
+    console.error('Error loading hotel config in layout:', error)
+    // Continuar sin config - la app debe funcionar
+  }
 
   return (
     <html lang="es">
