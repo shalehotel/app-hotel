@@ -128,6 +128,17 @@ export async function cobrarYFacturarAtomico(input: CobrarYFacturarInput) {
       throw new Error('Debe configurar un RUC válido antes de emitir comprobantes')
     }
 
+    // VALIDACIÓN CRÍTICA: Formato de documentos según tipo
+    if (input.cliente_tipo_doc === 'RUC') {
+      if (!/^(10|15|17|20)\d{9}$/.test(input.cliente_numero_doc)) {
+        throw new Error('RUC inválido. Debe tener 11 dígitos y empezar con 10, 15, 17 o 20')
+      }
+    } else if (input.cliente_tipo_doc === 'DNI') {
+      if (!/^\d{8}$/.test(input.cliente_numero_doc)) {
+        throw new Error('DNI inválido. Debe tener exactamente 8 dígitos')
+      }
+    }
+
     const TASA_IGV = (config.tasa_igv || 18.00) / 100
     const ES_EXONERADO = config.es_exonerado_igv
 
@@ -146,6 +157,17 @@ export async function cobrarYFacturarAtomico(input: CobrarYFacturarInput) {
       } else {
         op_exoneradas += item.subtotal
       }
+    }
+
+    // VALIDACIÓN CRÍTICA: Boleta >700 PEN requiere RUC según normativa SUNAT
+    if (input.tipo_comprobante === 'BOLETA' && 
+        input.moneda === 'PEN' && 
+        total_venta > 700 &&
+        input.cliente_tipo_doc !== 'RUC') {
+      throw new Error(
+        'Las boletas mayores a S/ 700.00 requieren el RUC del cliente. ' +
+        'Por favor solicite el RUC o emita una FACTURA en su lugar.'
+      )
     }
 
     // 5. Generar idempotency key para prevenir duplicados

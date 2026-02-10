@@ -41,7 +41,7 @@ export default async function DashboardPage() {
   return (
     <>
       <DashboardHeader
-        breadcrumbs={[{ label: 'Dashboard Ejecutivo' }]}
+        breadcrumbs={[{ label: 'Dashboard' }]}
       />
 
       <div className="flex flex-1 flex-col gap-4 p-3 sm:p-4 md:p-8">

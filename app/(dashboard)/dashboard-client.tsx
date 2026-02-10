@@ -216,7 +216,7 @@ export function DashboardClient({
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Dashboard Ejecutivo
+              Dashboard
             </h1>
             <p className="text-sm text-muted-foreground">
               {metrics.periodo_label}

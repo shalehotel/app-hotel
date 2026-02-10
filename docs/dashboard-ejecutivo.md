@@ -1,4 +1,4 @@
-# Dashboard Ejecutivo - Sistema PMS Hotel
+# Dashboard - Sistema PMS Hotel
 
 ## 📊 Descripción
 

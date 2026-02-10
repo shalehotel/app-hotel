@@ -342,87 +342,119 @@ export async function enviarComprobanteNubefact(
       logger.debug('Payload Nubefact', { payload })
     }
 
-    const response = await fetch(config.api_url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': config.token
-      },
-      body: JSON.stringify(payload)
-    })
+    // CRÍTICO: Timeout de 30 segundos para evitar requests colgados
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
 
-    const data = await response.json()
+    try {
+      const response = await fetch(config.api_url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': config.token
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      })
+      clearTimeout(timeoutId)
 
-    if (!response.ok) {
-      logger.error('Error de NubeFact', {
-        status: response.status,
-        data
+      const data = await response.json()
+
+      if (!response.ok) {
+        logger.error('Error de NubeFact', {
+          status: response.status,
+          data
+        })
+
+        return {
+          success: false,
+          errors: data.errors || data.mensaje || 'Error desconocido de NubeFact',
+          mensaje: 'Error al enviar a SUNAT vía NubeFact'
+        }
+      }
+
+      // Respuesta exitosa (HTTP 200)
+      // PERO: Puede ser rechazada por SUNAT (regla de negocio)
+
+      const aceptada = data.aceptada_por_sunat === true
+
+      // Un rechazo real tiene un código de respuesta de SUNAT (ej: "2399") o un error SOAP explícito.
+      // Si 'aceptada_por_sunat' es false pero no hay código de error, es un estado PENDIENTE/EN COLA.
+      const tieneErrorSunat = !!(data.sunat_responsecode || data.sunat_soap_error)
+      const tieneErrorNubefact = !!(data.errors && !data.sunat_description) // Error de validación previo a SUNAT
+
+      const esRechazoReal = !aceptada && (tieneErrorSunat || tieneErrorNubefact)
+      const esPendiente = !aceptada && !esRechazoReal
+
+      logger.info('Respuesta Nubefact recibida', {
+        hash: data.hash,
+        aceptado: aceptada,
+        es_rechazo: esRechazoReal,
+        es_pendiente: esPendiente,
+        sunat_code: data.sunat_responsecode
+      })
+
+      if (esRechazoReal) {
+        // RECHAZO CONFIRMADO
+        return {
+          success: false,
+          mensaje: data.sunat_description || data.errors || 'Comprobante RECHAZADO por SUNAT',
+          errors: data.sunat_note || data.sunat_responsecode || data.errors,
+          codigo_sunat: data.sunat_responsecode
+        }
+      }
+
+      // SI ES ACEPTADA O PENDIENTE -> SUCCESS
+      // Nota: Si es pendiente, el success es true porque el envío fue exitoso, 
+      // pero el estado_sunat en BD quedará como PENDIENTE (manejado por quien llama a esta función).
+      return {
+        success: true,
+        mensaje: esPendiente ? 'Comprobante ENVIADO a SUNAT (En Proceso)' : (data.sunat_description || 'Comprobante enviado correctamente'),
+        enlace: data.enlace,
+        enlace_pdf: data.enlace_del_pdf,
+        enlace_del_cdr: data.enlace_del_cdr,
+        hash: data.codigo_hash,
+        codigo_sunat: data.sunat_responsecode,
+        aceptada_por_sunat: aceptada // Retornamos el valor real para que la BD sepa si guardar ACEPTADO o PENDIENTE
+      }
+
+    } catch (error: any) {
+      clearTimeout(timeoutId) // Limpiar timeout en caso de error
+
+      // Detectar timeout específicamente
+      if (error.name === 'AbortError') {
+        logger.error('Timeout en NubeFact', {
+          mensaje: 'La API de NubeFact no respondió en 30 segundos'
+        })
+        return {
+          success: false,
+          errors: 'Timeout: La API no respondió a tiempo',
+          mensaje: 'Nubefact no respondió en 30 segundos. Por favor, intente nuevamente.',
+          es_error_red: true
+        } as any
+      }
+
+      logger.error('Error al conectar con NubeFact', {
+        error: error.message
       })
 
       return {
         success: false,
-        errors: data.errors || data.mensaje || 'Error desconocido de NubeFact',
-        mensaje: 'Error al enviar a SUNAT vía NubeFact'
-      }
+        errors: error.message,
+        mensaje: 'Error de conexión con NubeFact',
+        // Flag especial para indicar que es reintentable (no es rechazo fiscal)
+        es_error_red: true
+      } as any // Use cast to avoid type conflicts if type not fully updated yet
     }
-
-    // Respuesta exitosa (HTTP 200)
-    // PERO: Puede ser rechazada por SUNAT (regla de negocio)
-
-    const aceptada = data.aceptada_por_sunat === true
-
-    // Un rechazo real tiene un código de respuesta de SUNAT (ej: "2399") o un error SOAP explícito.
-    // Si 'aceptada_por_sunat' es false pero no hay código de error, es un estado PENDIENTE/EN COLA.
-    const tieneErrorSunat = !!(data.sunat_responsecode || data.sunat_soap_error)
-    const tieneErrorNubefact = !!(data.errors && !data.sunat_description) // Error de validación previo a SUNAT
-
-    const esRechazoReal = !aceptada && (tieneErrorSunat || tieneErrorNubefact)
-    const esPendiente = !aceptada && !esRechazoReal
-
-    logger.info('Respuesta Nubefact recibida', {
-      hash: data.hash,
-      aceptado: aceptada,
-      es_rechazo: esRechazoReal,
-      es_pendiente: esPendiente,
-      sunat_code: data.sunat_responsecode
-    })
-
-    if (esRechazoReal) {
-      // RECHAZO CONFIRMADO
-      return {
-        success: false,
-        mensaje: data.sunat_description || data.errors || 'Comprobante RECHAZADO por SUNAT',
-        errors: data.sunat_note || data.sunat_responsecode || data.errors,
-        codigo_sunat: data.sunat_responsecode
-      }
-    }
-
-    // SI ES ACEPTADA O PENDIENTE -> SUCCESS
-    // Nota: Si es pendiente, el success es true porque el envío fue exitoso, 
-    // pero el estado_sunat en BD quedará como PENDIENTE (manejado por quien llama a esta función).
-    return {
-      success: true,
-      mensaje: esPendiente ? 'Comprobante ENVIADO a SUNAT (En Proceso)' : (data.sunat_description || 'Comprobante enviado correctamente'),
-      enlace: data.enlace,
-      enlace_pdf: data.enlace_del_pdf,
-      enlace_del_cdr: data.enlace_del_cdr,
-      hash: data.codigo_hash,
-      codigo_sunat: data.sunat_responsecode,
-      aceptada_por_sunat: aceptada // Retornamos el valor real para que la BD sepa si guardar ACEPTADO o PENDIENTE
-    }
-
   } catch (error: any) {
-    logger.error('Error al conectar con NubeFact', {
+    logger.error('Error inesperado en enviarComprobanteNubefact', {
       error: error.message
     })
-
     return {
       success: false,
       errors: error.message,
-      mensaje: 'Error de conexión con NubeFact',
-      // Flag especial para indicar que es reintentable (no es rechazo fiscal)
-      es_error_red: true
-    } as any // Use cast to avoid type conflicts if type not fully updated yet
+      mensaje: 'Error inesperado al procesar comprobante'
+    }
   }
 }
 

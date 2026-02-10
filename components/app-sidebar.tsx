@@ -15,6 +15,7 @@ import {
   History,
   UserCircle,
   Sparkles,
+  Shield,
 } from 'lucide-react'
 
 import { NavMain } from '@/components/nav-main'
@@ -38,7 +39,7 @@ import { WidgetTurnoSidebar } from '@/components/cajas/widget-turno-sidebar'
 // Datos de navegación
 const navItems = [
   {
-    title: 'Dashboard Ejecutivo',
+    title: 'Dashboard',
     url: '/',
     icon: LayoutDashboard,
     roles: ['ADMIN'], // Solo ADMIN
@@ -131,6 +132,12 @@ const navItems = [
         url: '/configuracion/series',
       },
     ],
+  },
+  {
+    title: 'Auditoría',
+    url: '/auditoria',
+    icon: Shield,
+    roles: ['ADMIN'],
   },
 ]
 

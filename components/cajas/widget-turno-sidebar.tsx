@@ -97,36 +97,15 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
             </div>
 
-            {/* Main Balance */}
-            <div className="p-5 flex flex-col items-center justify-center space-y-1 bg-background">
-              <span className="text-xs text-muted-foreground font-medium">Efectivo Disponible</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-sm font-medium text-muted-foreground">S/</span>
-                <span className="text-4xl font-bold tracking-tight text-foreground">
-                  {saldoEfectivoReal.toFixed(2)}
-                </span>
+            {/* Info del Turno - SIN MONTOS (cierre ciego) */}
+            <div className="p-5 flex flex-col items-center justify-center space-y-3 bg-background">
+              <div className="text-center">
+                <span className="text-xs text-muted-foreground font-medium block mb-1">Usuario</span>
+                <span className="text-sm font-semibold">{t.usuario_apertura_nombre}</span>
               </div>
-            </div>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 border-t bg-muted/5 divide-x">
-              <div className="p-3 flex flex-col gap-1 items-center justify-center hover:bg-muted/20 transition-colors">
-                <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
-                  <CreditCard className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-medium uppercase">Ventas</span>
-                </div>
-                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
-                  S/ {reportePagos?.totalGeneral?.toFixed(2) || '0.00'}
-                </span>
-              </div>
-              <div className="p-3 flex flex-col gap-1 items-center justify-center hover:bg-muted/20 transition-colors">
-                <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-medium uppercase">Tiempo</span>
-                </div>
-                <span className="text-sm font-medium">
-                  {tiempoActivo}
-                </span>
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" />
+                <span className="text-xs">Abierto hace {tiempoActivo}</span>
               </div>
             </div>
           </HoverCardContent>
@@ -148,43 +127,30 @@ export function WidgetTurnoSidebar({ turno, onTurnoCerrado }: Props) {
         </Badge>
       </div>
 
-      {/* Montos principales */}
-      {loadingMovimientos && !reportePagos ? (
-        <div className="text-center text-[10px] text-muted-foreground py-4">
-          <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-1" />
-          Actualizando...
-        </div>
-      ) : reportePagos && (
-        <div className="space-y-3">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Efectivo en Caja</span>
-            <span className="text-xl font-bold tracking-tight">
-              S/ {saldoEfectivoReal.toFixed(2)}
-            </span>
+      {/* Info del Turno - SIN MONTOS (cierre ciego) */}
+      <div className="space-y-3 mb-3">
+        <div className="bg-muted/30 rounded p-2.5 space-y-1.5">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Usuario</span>
+            <span className="text-xs font-semibold">{t.usuario_apertura_nombre}</span>
           </div>
-
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <div className="bg-muted/50 rounded p-2">
-              <span className="text-[10px] text-muted-foreground block">Ventas Hoy</span>
-              <span className="text-sm font-semibold block text-blue-600">
-                S/ {reportePagos.totalGeneral.toFixed(2)}
-              </span>
-            </div>
-            <div className="bg-muted/50 rounded p-2">
-              <span className="text-[10px] text-muted-foreground block">Transacciones</span>
-              <span className="text-sm font-semibold block">{reportePagos.pagos.length}</span>
-            </div>
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Serie Activa</span>
+            <span className="text-xs font-semibold">{t.serie_nombre}</span>
           </div>
-
-          <div className="text-[10px] text-muted-foreground text-right">
-            Abierto hace {tiempoActivo}
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Tiempo</span>
+            <span className="text-xs font-medium">{tiempoActivo}</span>
           </div>
         </div>
-      )}
+        <div className="text-[10px] text-muted-foreground text-center italic">
+          Los montos se mostrarán al cerrar turno
+        </div>
+      </div>
 
       <Separator className="my-3" />
 
-      {/* Botones de acción - UNIFICADOS */}
+      {/* Botones de acción */}
       <div className="space-y-2">
         <div className="[&>button]:w-full">
           <RegistrarMovimientoDialog />
