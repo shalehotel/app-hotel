@@ -233,100 +233,79 @@ export default function AuditoriaPage() {
         </div>
       )}
 
-      {/* Filtros */}
-      <Card>
-        <CardContent className="pt-4 pb-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="fecha_inicio" className="text-xs">Desde</Label>
-              <Input
-                id="fecha_inicio"
-                type="date"
-                value={filtros.fecha_inicio || ''}
-                onChange={(e) => setFiltros({ ...filtros, fecha_inicio: e.target.value })}
-                className="h-8 text-sm"
-              />
-            </div>
+      {/* Filtros - Barra Horizontal Compacta */}
+      <div className="flex flex-wrap items-center gap-2 py-2">
+        <Input
+          type="date"
+          value={filtros.fecha_inicio || ''}
+          onChange={(e) => setFiltros({ ...filtros, fecha_inicio: e.target.value })}
+          className="h-9 w-[150px]"
+        />
 
-            <div className="space-y-1">
-              <Label htmlFor="fecha_fin" className="text-xs">Hasta</Label>
-              <Input
-                id="fecha_fin"
-                type="date"
-                value={filtros.fecha_fin || ''}
-                onChange={(e) => setFiltros({ ...filtros, fecha_fin: e.target.value })}
-                className="h-8 text-sm"
-              />
-            </div>
+        <Input
+          type="date"
+          value={filtros.fecha_fin || ''}
+          onChange={(e) => setFiltros({ ...filtros, fecha_fin: e.target.value })}
+          className="h-9 w-[150px]"
+        />
 
-            <div className="space-y-1 min-w-[140px]">
-              <Label htmlFor="tabla" className="text-xs">Tabla</Label>
-              <Select
-                value={filtros.tabla || 'todas'}
-                onValueChange={(value) => setFiltros({ ...filtros, tabla: value === 'todas' ? undefined : value })}
-              >
-                <SelectTrigger id="tabla" className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas</SelectItem>
-                  {tablas.map((tabla) => (
-                    <SelectItem key={tabla} value={tabla}>
-                      {tabla}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <Select
+          value={filtros.tabla || 'todas'}
+          onValueChange={(value) => setFiltros({ ...filtros, tabla: value === 'todas' ? undefined : value })}
+        >
+          <SelectTrigger className="h-9 w-[140px]">
+            <SelectValue placeholder="Tabla" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas</SelectItem>
+            {tablas.map((tabla) => (
+              <SelectItem key={tabla} value={tabla}>
+                {tabla}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-            <div className="space-y-1 min-w-[140px]">
-              <Label htmlFor="usuario" className="text-xs">Usuario</Label>
-              <Select
-                value={filtros.usuario_id || 'todos'}
-                onValueChange={(value) => setFiltros({ ...filtros, usuario_id: value === 'todos' ? undefined : value })}
-              >
-                <SelectTrigger id="usuario" className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  {usuarios.map((usuario) => (
-                    <SelectItem key={usuario.id} value={usuario.id}>
-                      {usuario.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <Select
+          value={filtros.usuario_id || 'todos'}
+          onValueChange={(value) => setFiltros({ ...filtros, usuario_id: value === 'todos' ? undefined : value })}
+        >
+          <SelectTrigger className="h-9 w-[160px]">
+            <SelectValue placeholder="Usuario" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            {usuarios.map((usuario) => (
+              <SelectItem key={usuario.id} value={usuario.id}>
+                {usuario.nombre}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-            <div className="space-y-1 min-w-[120px]">
-              <Label htmlFor="operacion" className="text-xs">Operación</Label>
-              <Select
-                value={filtros.operacion || 'todas'}
-                onValueChange={(value) => setFiltros({ ...filtros, operacion: value === 'todas' ? undefined : value })}
-              >
-                <SelectTrigger id="operacion" className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas</SelectItem>
-                  <SelectItem value="INSERT">INSERT</SelectItem>
-                  <SelectItem value="UPDATE">UPDATE</SelectItem>
-                  <SelectItem value="DELETE">DELETE</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <Select
+          value={filtros.operacion || 'todas'}
+          onValueChange={(value) => setFiltros({ ...filtros, operacion: value === 'todas' ? undefined : value })}
+        >
+          <SelectTrigger className="h-9 w-[120px]">
+            <SelectValue placeholder="Operación" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas</SelectItem>
+            <SelectItem value="INSERT">INSERT</SelectItem>
+            <SelectItem value="UPDATE">UPDATE</SelectItem>
+            <SelectItem value="DELETE">DELETE</SelectItem>
+          </SelectContent>
+        </Select>
 
-            <Button onClick={aplicarFiltros} disabled={loading} size="sm" className="h-8">
-              <Search className="h-3.5 w-3.5 mr-1.5" />
-              Buscar
-            </Button>
-            <Button variant="outline" onClick={limpiarFiltros} size="sm" className="h-8">
-              Limpiar
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <Button onClick={aplicarFiltros} disabled={loading} size="sm" className="h-9">
+          <Search className="h-3.5 w-3.5 mr-1.5" />
+          Buscar
+        </Button>
+        <Button variant="outline" onClick={limpiarFiltros} size="sm" className="h-9">
+          Limpiar
+        </Button>
+      </div>
 
       {/* Tabla de Logs */}
       <Card>

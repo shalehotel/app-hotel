@@ -12,6 +12,7 @@ export type CheckoutInput = {
   reserva_id: string
   forzar_checkout?: boolean // Para casos excepcionales (deuda condonada)
   nota_checkout?: string
+  fecha_salida_real?: string // ISO string de la fecha/hora real de salida
 }
 
 export type CheckoutResult = {
@@ -106,7 +107,7 @@ export async function realizarCheckout(input: CheckoutInput): Promise<CheckoutRe
     .update({
       estado: 'CHECKED_OUT',
       huesped_presente: false,
-      check_out_real: new Date().toISOString()
+      check_out_real: input.fecha_salida_real || new Date().toISOString()
     })
     .eq('id', input.reserva_id)
 

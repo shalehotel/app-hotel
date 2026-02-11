@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { isToday, isSameDay, startOfDay, differenceInCalendarDays } from 'date-fns'
+import { isToday, isSameDay, startOfDay, differenceInCalendarDays, format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { GridCell } from './grid-cell'
@@ -62,6 +62,7 @@ export function RoomRow({
   // Calcular qué celdas están ocupadas por reservas
   const getReservationForCell = (dayIndex: number) => {
     const cellDay = startOfDay(days[dayIndex])
+    const firstVisibleDay = startOfDay(days[0])
 
     for (const reserva of reservas) {
       const entrada = startOfDay(new Date(reserva.fecha_entrada))
@@ -70,6 +71,12 @@ export function RoomRow({
       // Verificar si este día es el primer día de la reserva
       if (isSameDay(cellDay, entrada)) {
         const nights = differenceInCalendarDays(salida, entrada)
+        return { reserva, nights, isStart: true }
+      }
+
+      // Si la reserva empezó ANTES del rango visible y este es el primer día visible ocupado
+      if (entrada < firstVisibleDay && isSameDay(cellDay, firstVisibleDay) && cellDay < salida) {
+        const nights = differenceInCalendarDays(salida, cellDay)
         return { reserva, nights, isStart: true }
       }
 

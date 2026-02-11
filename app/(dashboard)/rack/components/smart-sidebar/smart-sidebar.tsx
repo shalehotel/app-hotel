@@ -126,7 +126,7 @@ export function SmartSidebar({ open, onClose, onReservationClick, tareas, habita
           </TabsContent>
 
           <TabsContent value="alerts" className="space-y-3 sm:space-y-4 mt-3 sm:mt-4">
-            <AlertsTab />
+            <AlertsTab onReservationClick={onReservationClick} />
           </TabsContent>
         </Tabs>
       </div>

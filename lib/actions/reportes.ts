@@ -51,6 +51,7 @@ export async function getLibroHuespedes(filtros: FiltrosLibro) {
       fecha_entrada,
       check_in_real,
       fecha_salida,
+      check_out_real,
       precio_pactado,
       moneda_pactada,
       habitaciones!inner(numero),
@@ -81,7 +82,7 @@ export async function getLibroHuespedes(filtros: FiltrosLibro) {
     reservas.forEach((reserva: any) => {
         const habitacion = reserva.habitaciones.numero
         const fechaIngreso = reserva.check_in_real || reserva.fecha_entrada
-        const fechaSalida = reserva.fecha_salida
+        const fechaSalida = reserva.check_out_real || reserva.fecha_salida  // Usar fecha real si existe
         const tarifaNumero = reserva.precio_pactado || 0
         const moneda = reserva.moneda_pactada || 'PEN'
         const tarifa = `${moneda} ${tarifaNumero}`

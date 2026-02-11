@@ -15,7 +15,11 @@ type Alerta = {
   severity: 'high' | 'medium' | 'low'
 }
 
-export function AlertsTab() {
+type Props = {
+  onReservationClick: (id: string) => void
+}
+
+export function AlertsTab({ onReservationClick }: Props) {
   const [alertas, setAlertas] = useState<Alerta[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -118,6 +122,12 @@ export function AlertsTab() {
             <div
               key={alerta.id}
               className="p-3 rounded-lg border bg-card hover:bg-accent cursor-pointer transition-colors"
+              onClick={() => {
+                // Si es una alerta relacionada con una reserva, abrir el detalle
+                if (alerta.type === 'checkout_atrasado' || alerta.type === 'sin_huespedes') {
+                  onReservationClick(alerta.id)
+                }
+              }}
             >
               <div className="flex items-start gap-2">
                 <div className="mt-0.5">

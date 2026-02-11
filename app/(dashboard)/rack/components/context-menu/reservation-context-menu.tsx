@@ -51,6 +51,7 @@ export function ReservationContextMenu({ children, reserva, onUpdate, updateHabi
   const [lateCheckoutDialogOpen, setLateCheckoutDialogOpen] = useState(false)
   const [refundDialogOpen, setRefundDialogOpen] = useState(false) // Nuevo
   const [procesando, setProcesando] = useState(false)
+  const [fechaSalidaReal, setFechaSalidaReal] = useState('')
 
   // Estados para modificar estadía
   const [nuevaFechaSalida, setNuevaFechaSalida] = useState('')
@@ -144,6 +145,8 @@ export function ReservationContextMenu({ children, reserva, onUpdate, updateHabi
 
   const iniciarCheckout = async () => {
     setProcesando(true)
+    // Inicializar con fecha/hora pactada por defecto
+    setFechaSalidaReal(format(new Date(reserva.fecha_salida), "yyyy-MM-dd'T'HH:mm"))
     try {
       const validacion = await validarCheckout(reserva.id)
       if (!validacion.puede_checkout) {
@@ -181,7 +184,8 @@ export function ReservationContextMenu({ children, reserva, onUpdate, updateHabi
     try {
       const result = await realizarCheckout({
         reserva_id: reserva.id,
-        forzar_checkout: forzar
+        forzar_checkout: forzar,
+        fecha_salida_real: fechaSalidaReal ? new Date(fechaSalidaReal).toISOString() : undefined
       })
 
       if (!result.success) {
@@ -428,8 +432,8 @@ export function ReservationContextMenu({ children, reserva, onUpdate, updateHabi
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4">
-            {forceCheckoutNeeded ? (
+          <div className="py-4 space-y-4">
+            {forceCheckoutNeeded && (
               <div className="space-y-4">
                 <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
                   El huésped tiene un saldo pendiente de <strong>S/ {deudaPendiente.toFixed(2)}</strong>.
@@ -448,11 +452,30 @@ export function ReservationContextMenu({ children, reserva, onUpdate, updateHabi
                   O puedes forzar la salida dejando la deuda:
                 </p>
               </div>
-            ) : (
-              <p className="text-sm">
+            )}
+            
+            {!forceCheckoutNeeded && (
+              <p className="text-sm mb-3">
                 ¿Confirmar check-out para {reserva.huespedes?.nombres} {reserva.huespedes?.apellidos}?
               </p>
             )}
+
+            {/* Campo para fecha/hora de salida real */}
+            <div className="space-y-2">
+              <Label htmlFor="fecha-salida-real" className="text-sm font-medium">
+                Fecha y hora real de salida
+              </Label>
+              <Input
+                id="fecha-salida-real"
+                type="datetime-local"
+                value={fechaSalidaReal}
+                onChange={(e) => setFechaSalidaReal(e.target.value)}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Por defecto: {format(new Date(reserva.fecha_salida), "dd MMM yyyy 'a las' HH:mm", { locale: es })}
+              </p>
+            </div>
           </div>
 
           <DialogFooter>

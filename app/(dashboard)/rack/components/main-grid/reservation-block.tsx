@@ -71,6 +71,10 @@ export function ReservationBlock({ reserva, nights, onClick, onUpdate, updateHab
   const tieneDeuda = saldo > 0.5 // Tolerancia de 50 céntimos
   const estaPagado = !tieneDeuda
   const tieneObservaciones = reserva.notas && reserva.notas.length > 0
+  
+  // Detectar checkout atrasado
+  const checkoutAtrasado = reserva.estado === 'CHECKED_IN' && 
+    new Date(reserva.fecha_salida) < new Date(new Date().setHours(0, 0, 0, 0))
 
   // Helper para iniciales
   const getInitials = (name: string) => {
@@ -204,6 +208,11 @@ export function ReservationBlock({ reserva, nights, onClick, onUpdate, updateHab
                   </div>
                 </div>
                 <div className="flex gap-0.5 flex-shrink-0">
+                  {checkoutAtrasado && (
+                    <div className="w-4 h-4 rounded-full bg-orange-600 border border-orange-400 flex items-center justify-center shadow-sm animate-pulse" title="Checkout atrasado">
+                      <AlertCircle className="w-3 h-3 text-white" />
+                    </div>
+                  )}
                   {tieneDeuda && (
                     <div className="w-4 h-4 rounded-full bg-red-600 border border-red-400 flex items-center justify-center shadow-sm animate-pulse" title={`Deuda: S/ ${saldo.toFixed(2)}`}>
                       <DollarSign className="w-3 h-3 text-white" />
