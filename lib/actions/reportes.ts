@@ -9,13 +9,13 @@ export interface LibroHuespedesItem {
     nombre_completo: string
     nacionalidad: string
     departamento: string
+    ciudad: string          // Ciudad de nacimiento
+    pais: string            // País de nacimiento
     tipo_documento: string
     numero_documento: string
     fecha_salida: string
-    tarifa: string          // Texto formateado: "PEN 100"
+    tarifa: string          // Texto formateado: "S/ 100.00"
     tarifa_numero: number   // Número puro: 100
-    dias: number            // Número de noches
-    total: number           // tarifa_numero * dias
     moneda: string          // "PEN" o "USD"
     es_titular: boolean
 }
@@ -85,13 +85,8 @@ export async function getLibroHuespedes(filtros: FiltrosLibro) {
         const fechaSalida = reserva.check_out_real || reserva.fecha_salida  // Usar fecha real si existe
         const tarifaNumero = reserva.precio_pactado || 0
         const moneda = reserva.moneda_pactada || 'PEN'
-        const tarifa = `${moneda} ${tarifaNumero}`
-
-        // Calcular días de estadía
-        const dias = Math.max(1, Math.ceil(
-            (new Date(fechaSalida).getTime() - new Date(fechaIngreso).getTime()) / (1000 * 60 * 60 * 24)
-        ))
-        const total = tarifaNumero * dias
+        const simboloMoneda = moneda === 'PEN' ? 'S/' : '$'
+        const tarifa = `${simboloMoneda} ${tarifaNumero.toFixed(2)}`
 
         // Por cada huésped en la reserva, una línea en el libro
         reserva.reserva_huespedes.forEach((rh: any) => {
@@ -100,16 +95,16 @@ export async function getLibroHuespedes(filtros: FiltrosLibro) {
             filas.push({
                 fecha_ingreso: fechaIngreso,
                 habitacion,
-                nombre_completo: `${h.nombres} ${h.apellidos}`.trim().toUpperCase(),
-                nacionalidad: (h.nacionalidad || 'PERUANA').toUpperCase(),
-                departamento: (h.procedencia_departamento || '-').toUpperCase(),
+                nombre_completo: `${h.nombres} ${h.apellidos}`.trim(),
+                nacionalidad: (h.nacionalidad || 'PE'),
+                departamento: (h.procedencia_departamento || ''),
+                ciudad: (h.procedencia_ciudad || h.procedencia_departamento || ''),
+                pais: 'Perú',  // Por defecto Perú, se puede expandir con tabla de países
                 tipo_documento: h.tipo_documento,
                 numero_documento: h.numero_documento,
                 fecha_salida: fechaSalida,
                 tarifa,
                 tarifa_numero: tarifaNumero,
-                dias,
-                total,
                 moneda,
                 es_titular: rh.es_titular
             })

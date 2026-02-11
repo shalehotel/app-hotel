@@ -15,10 +15,11 @@ import { format, startOfMonth, endOfMonth, setYear, setMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Printer, Search, FileText, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
 export function RegistroLegalClient() {
-    const [mes, setMes] = useState<string>(new Date().getMonth().toString())
+    const [mesInicio, setMesInicio] = useState<string>(new Date().getMonth().toString())
+    const [mesFin, setMesFin] = useState<string>(new Date().getMonth().toString())
     const [anio, setAnio] = useState<string>(new Date().getFullYear().toString())
     const [datos, setDatos] = useState<LibroHuespedesItem[]>([])
     const [loading, setLoading] = useState(false)
@@ -27,9 +28,21 @@ export function RegistroLegalClient() {
     const generarReporte = async () => {
         setLoading(true)
         try {
-            const fechaBase = setMonth(setYear(new Date(), parseInt(anio)), parseInt(mes))
-            const inicio = startOfMonth(fechaBase)
-            const fin = endOfMonth(fechaBase)
+            // Validar que el año sea válido
+            const anioNum = parseInt(anio)
+            if (isNaN(anioNum) || anioNum < 2020 || anioNum > 2100) {
+                toast.error('Ingresa un año válido (2020-2100)')
+                setLoading(false)
+                return
+            }
+
+            const mesInicioNum = parseInt(mesInicio)
+            const mesFinNum = parseInt(mesFin)
+
+            // Fecha de inicio: primer día del mes inicio
+            const inicio = startOfMonth(setMonth(setYear(new Date(), anioNum), mesInicioNum))
+            // Fecha fin: último día del mes fin
+            const fin = endOfMonth(setMonth(setYear(new Date(), anioNum), mesFinNum))
 
             const result = await getLibroHuespedes({
                 fechaInicio: inicio,
@@ -41,6 +54,11 @@ export function RegistroLegalClient() {
                 setSearched(true)
                 if (result.data.length === 0) {
                     toast.info('No se encontraron registros para este periodo')
+                } else {
+                    const periodo = mesInicioNum === mesFinNum 
+                        ? `${meses[mesInicioNum].label} ${anio}`
+                        : `${meses[mesInicioNum].label} - ${meses[mesFinNum].label} ${anio}`
+                    toast.success(`${result.data.length} registros encontrados (${periodo})`)
                 }
             } else {
                 toast.error('Error al generar el reporte')
@@ -57,53 +75,139 @@ export function RegistroLegalClient() {
         window.print()
     }
 
-    const handleExportExcel = () => {
+    const handleExportExcel = async () => {
         if (datos.length === 0) return
 
-        // Mapear datos para Excel con formato plano
-        // Orden: Hab, Fecha, Hora, Salida, Tarifa, Total, Huésped, Tipo Doc, N° Doc, Nacionalidad, Procedencia
-        const dataForExcel = datos.map(fila => ({
-            'N° Hab': fila.habitacion,
-            'Fecha Ingreso': format(new Date(fila.fecha_ingreso), 'dd/MM/yyyy'),
-            'Hora': format(new Date(fila.fecha_ingreso), 'HH:mm'),
-            'Salida Probable': format(new Date(fila.fecha_salida), 'dd/MM/yyyy'),
-            'Tarifa': fila.es_titular ? fila.tarifa_numero : '',    // Solo titular
-            'Total': fila.es_titular ? fila.total : '',              // Solo titular
-            'Huésped': fila.nombre_completo,
-            'Tipo Doc': fila.tipo_documento,
-            'N° Doc': fila.numero_documento,
-            'Nacionalidad': fila.nacionalidad,
-            'Procedencia': fila.departamento,
-        }))
+        try {
+            // Crear nuevo libro de Excel
+            const workbook = new ExcelJS.Workbook()
+            const worksheet = workbook.addWorksheet('Libro de Huespedes')
 
-        // Crear libro y hoja
-        const wb = XLSX.utils.book_new()
-        const ws = XLSX.utils.json_to_sheet(dataForExcel)
+            // Definir columnas con anchos
+            worksheet.columns = [
+                { width: 12 },  // Habitac. N°
+                { width: 10 },  // Hora Ingreso
+                { width: 14 },  // Fecha Ingreso
+                { width: 10 },  // Hora Salida
+                { width: 14 },  // Fecha Salida
+                { width: 14 },  // Tarifa
+                { width: 40 },  // Nombres y Apellidos
+                { width: 10 },  // Tipo
+                { width: 15 },  // Número
+                { width: 18 },  // Ciudad
+                { width: 20 },  // Departamento
+                { width: 12 },  // País
+            ]
 
-        // Ajustar anchos de columna automáticamente
-        const colWidths = [
-            { wch: 8 },  // Hab
-            { wch: 12 }, // Fecha
-            { wch: 8 },  // Hora
-            { wch: 12 }, // Salida
-            { wch: 10 }, // Tarifa
-            { wch: 12 }, // Total
-            { wch: 35 }, // Huesped
-            { wch: 10 }, // Tipo
-            { wch: 15 }, // Doc
-            { wch: 15 }, // Nac
-            { wch: 15 }, // Proc
-        ]
-        ws['!cols'] = colWidths
+            // FILA 1: Encabezados principales
+            const headerRow1 = worksheet.getRow(1)
+            headerRow1.height = 20
+            headerRow1.values = [
+                'Habitac.\nN°',
+                'INGRESO',
+                '',
+                'FECHA PROBABLE\nDE SALIDA',
+                '',
+                'TARIFA',
+                'HUÉSPED (ES)\nNOMBRES Y APELLIDOS',
+                'DOCUMENTOS',
+                '',
+                'LUGAR DE NACIMIENTO',
+                '',
+                ''
+            ]
 
-        XLSX.utils.book_append_sheet(wb, ws, 'Libro de Huespedes')
+            // FILA 2: Sub-encabezados
+            const headerRow2 = worksheet.getRow(2)
+            headerRow2.height = 20
+            headerRow2.values = ['', 'HORA', 'FECHA', 'HORA', 'FECHA', '', '', 'TIPO', 'NÚMERO', 'CIUDAD', 'DEPARTAMENTO', 'PAÍS']
 
-        // Nombre del archivo
-        const mesNombre = meses[parseInt(mes)].label
-        const fileName = `Libro_Huespedes_${mesNombre}_${anio}.xlsx`
+            // COMBINAR CELDAS
+            worksheet.mergeCells('A1:A2')  // Habitac N°
+            worksheet.mergeCells('B1:C1')  // INGRESO
+            worksheet.mergeCells('D1:E1')  // FECHA PROBABLE DE SALIDA
+            worksheet.mergeCells('F1:F2')  // TARIFA
+            worksheet.mergeCells('G1:G2')  // HUÉSPED
+            worksheet.mergeCells('H1:I1')  // DOCUMENTOS
+            worksheet.mergeCells('J1:L1')  // LUGAR DE NACIMIENTO
 
-        XLSX.writeFile(wb, fileName)
-        toast.success("Excel exportado correctamente")
+            // Estilo para encabezados
+            const headerStyle = {
+                font: { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 },
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } },
+                alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+                border: {
+                    top: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    left: { style: 'thin' },
+                    right: { style: 'thin' }
+                }
+            }
+
+            // Aplicar estilo a encabezados
+            for (let col = 1; col <= 12; col++) {
+                worksheet.getCell(1, col).style = headerStyle
+                worksheet.getCell(2, col).style = headerStyle
+            }
+
+            // AGREGAR DATOS
+            datos.forEach((fila) => {
+                const row = worksheet.addRow([
+                    fila.habitacion,
+                    format(new Date(fila.fecha_ingreso), 'HH:mm'),
+                    format(new Date(fila.fecha_ingreso), 'd/MM/yyyy'),
+                    format(new Date(fila.fecha_salida), 'HH:mm'),
+                    format(new Date(fila.fecha_salida), 'd/MM/yyyy'),
+                    fila.es_titular ? fila.tarifa : '',
+                    fila.nombre_completo,
+                    fila.tipo_documento,
+                    fila.numero_documento,
+                    fila.ciudad,
+                    fila.departamento,
+                    fila.pais
+                ])
+
+                row.height = 20
+
+                // Estilo para datos
+                row.eachCell((cell, colNumber) => {
+                    cell.border = {
+                        top: { style: 'thin' },
+                        bottom: { style: 'thin' },
+                        left: { style: 'thin' },
+                        right: { style: 'thin' }
+                    }
+                    cell.alignment = {
+                        horizontal: colNumber === 7 ? 'left' : 'center',  // Nombres a la izquierda
+                        vertical: 'middle'
+                    }
+                    cell.font = { size: 10 }
+                })
+            })
+
+            // Generar archivo Excel
+            const buffer = await workbook.xlsx.writeBuffer()
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+            const url = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            
+            // Nombre de archivo según rango
+            const mesInicioNum = parseInt(mesInicio)
+            const mesFinNum = parseInt(mesFin)
+            const nombrePeriodo = mesInicioNum === mesFinNum 
+                ? `${meses[mesInicioNum].label}_${anio}`
+                : `${meses[mesInicioNum].label}-${meses[mesFinNum].label}_${anio}`
+            
+            link.download = `Libro_Huespedes_${nombrePeriodo}.xlsx`
+            link.click()
+            window.URL.revokeObjectURL(url)
+
+            toast.success("Excel exportado con formato profesional")
+        } catch (error) {
+            console.error('Error al exportar Excel:', error)
+            toast.error('Error al generar el archivo Excel')
+        }
     }
 
     const anios = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString())
@@ -127,17 +231,30 @@ export function RegistroLegalClient() {
             {/* Header y Controles Unificados */}
             <div className="flex flex-col gap-4 sm:gap-6 print:hidden border-b pb-4 sm:pb-6">
                 <div>
-                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Libro de Huéspedes</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-primary">Libro de Huéspedes - Registro Legal</h2>
                     <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                        Reporte legal para notaría (Hojas Sueltas)
+                        D.S. N° 001-2015-MINCETUR - Registro obligatorio de huéspedes
                     </p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <div className="flex items-center gap-2 bg-muted/40 p-1 rounded-md border">
-                        <Select value={mes} onValueChange={setMes}>
+                        <Select value={mesInicio} onValueChange={setMesInicio}>
                             <SelectTrigger className="h-9 w-full sm:w-[140px] border-0 bg-transparent focus:ring-0 shadow-none text-xs sm:text-sm">
-                                <SelectValue />
+                                <SelectValue placeholder="Mes inicio" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {meses.map((m) => (
+                                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <span className="text-xs text-muted-foreground">→</span>
+
+                        <Select value={mesFin} onValueChange={setMesFin}>
+                            <SelectTrigger className="h-9 w-full sm:w-[140px] border-0 bg-transparent focus:ring-0 shadow-none text-xs sm:text-sm">
+                                <SelectValue placeholder="Mes fin" />
                             </SelectTrigger>
                             <SelectContent>
                                 {meses.map((m) => (
@@ -148,16 +265,15 @@ export function RegistroLegalClient() {
 
                         <div className="w-px h-5 bg-border mx-1" />
 
-                        <Select value={anio} onValueChange={setAnio}>
-                            <SelectTrigger className="h-9 w-full sm:w-[90px] border-0 bg-transparent focus:ring-0 shadow-none text-xs sm:text-sm">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {anios.map((a) => (
-                                    <SelectItem key={a} value={a}>{a}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <input
+                            type="number"
+                            value={anio}
+                            onChange={(e) => setAnio(e.target.value)}
+                            placeholder="Año"
+                            min="2020"
+                            max="2100"
+                            className="h-9 w-[80px] border-0 bg-transparent focus:ring-0 shadow-none text-xs sm:text-sm text-center outline-none"
+                        />
                     </div>
 
                     <Button onClick={generarReporte} disabled={loading} className="h-10 px-4 sm:px-6 shadow-sm text-xs sm:text-sm">
@@ -166,11 +282,11 @@ export function RegistroLegalClient() {
 
                     {datos.length > 0 && (
                         <div className="flex items-center gap-2 sm:border-l sm:pl-4 sm:ml-2">
+                            <Button variant="outline" size="icon" onClick={handlePrint} className="h-10 w-10 hover:text-primary" title="Imprimir">
+                                <Printer className="h-4 w-4" />
+                            </Button>
                             <Button variant="outline" size="icon" onClick={handleExportExcel} className="h-10 w-10 text-green-700 hover:text-green-800 hover:bg-green-50 border-green-200" title="Exportar Excel">
                                 <FileSpreadsheet className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="icon" onClick={handlePrint} className="h-10 w-10" title="Imprimir">
-                                <Printer className="h-4 w-4" />
                             </Button>
                         </div>
                     )}
@@ -186,67 +302,80 @@ export function RegistroLegalClient() {
                             Registro de Huéspedes
                         </h1>
                         <p className="text-xs sm:text-sm mt-2">
-                            Periodo: {meses[parseInt(mes)].label.toUpperCase()} {anio}
+                            Periodo: {parseInt(mesInicio) === parseInt(mesFin) 
+                                ? `${meses[parseInt(mesInicio)].label.toUpperCase()} ${anio}`
+                                : `${meses[parseInt(mesInicio)].label.toUpperCase()} - ${meses[parseInt(mesFin)].label.toUpperCase()} ${anio}`
+                            }
                         </p>
                     </div>
 
                     <div className="overflow-x-auto -mx-3 sm:mx-0">
-                        <table className="w-full text-[10px] sm:text-sm border-collapse min-w-[800px]">
+                        <table className="w-full text-[9px] sm:text-xs border-collapse min-w-[1000px]">
                             <thead>
                                 <tr className="bg-muted print:bg-transparent">
-                                    <th className="border border-black p-1 sm:p-2 text-center w-10 sm:w-12 font-semibold">Hab</th>
-                                    <th className="border border-black p-1 sm:p-2 text-center w-16 sm:w-20 font-semibold">Fecha</th>
-                                    <th className="border border-black p-1 sm:p-2 text-center w-12 sm:w-16 font-semibold">Hora</th>
-                                    <th className="border border-black p-1 sm:p-2 text-center w-16 sm:w-20 font-semibold">Salida</th>
-                                    <th className="border border-black p-1 sm:p-2 text-right w-14 sm:w-16 font-semibold">Tarifa</th>
-                                    <th className="border border-black p-1 sm:p-2 text-right w-16 sm:w-20 font-semibold">Total</th>
-                                    <th className="border border-black p-1 sm:p-2 text-left font-semibold">Huésped</th>
-                                    <th className="border border-black p-1 sm:p-2 text-center w-14 sm:w-16 font-semibold">Tipo</th>
-                                    <th className="border border-black p-1 sm:p-2 text-center w-20 sm:w-24 font-semibold">N° Doc</th>
-                                    <th className="border border-black p-1 sm:p-2 text-center w-20 sm:w-24 font-semibold">Nacionalidad</th>
-                                    <th className="border border-black p-1 sm:p-2 text-center w-20 sm:w-24 font-semibold">Procedencia</th>
+                                    <th rowSpan={2} className="border border-black p-1 text-center w-12 font-semibold align-middle">Habitac.<br/>N°</th>
+                                    <th colSpan={2} className="border border-black p-1 text-center font-semibold">INGRESO</th>
+                                    <th colSpan={2} className="border border-black p-1 text-center font-semibold">FECHA PROBABLE<br/>DE SALIDA</th>
+                                    <th rowSpan={2} className="border border-black p-1 text-center w-16 font-semibold align-middle">TARIFA</th>
+                                    <th rowSpan={2} className="border border-black p-1 text-center font-semibold align-middle">HUÉSPED (ES)<br/>NOMBRES Y APELLIDOS</th>
+                                    <th colSpan={2} className="border border-black p-1 text-center font-semibold">DOCUMENTOS</th>
+                                    <th colSpan={3} className="border border-black p-1 text-center font-semibold">LUGAR DE NACIMIENTO</th>
+                                </tr>
+                                <tr className="bg-muted print:bg-transparent">
+                                    <th className="border border-black p-1 text-center w-12 font-semibold">HORA</th>
+                                    <th className="border border-black p-1 text-center w-20 font-semibold">FECHA</th>
+                                    <th className="border border-black p-1 text-center w-12 font-semibold">HORA</th>
+                                    <th className="border border-black p-1 text-center w-20 font-semibold">FECHA</th>
+                                    <th className="border border-black p-1 text-center w-12 font-semibold">TIPO</th>
+                                    <th className="border border-black p-1 text-center w-20 font-semibold">NÚMERO</th>
+                                    <th className="border border-black p-1 text-center w-20 font-semibold">CIUDAD</th>
+                                    <th className="border border-black p-1 text-center w-24 font-semibold">DEPARTAMENTO</th>
+                                    <th className="border border-black p-1 text-center w-16 font-semibold">PAÍS</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {datos.length === 0 ? (
                                     <tr>
-                                        <td colSpan={11} className="border border-black p-6 sm:p-8 text-center text-muted-foreground italic text-xs sm:text-sm">
+                                        <td colSpan={12} className="border border-black p-6 sm:p-8 text-center text-muted-foreground italic text-xs sm:text-sm">
                                             No hay registros de ingreso en este periodo.
                                         </td>
                                     </tr>
                                 ) : (
                                     datos.map((fila, i) => (
                                         <tr key={i} className="print:break-inside-avoid">
-                                            <td className="border border-black p-1 sm:p-1.5 text-center font-bold">{fila.habitacion}</td>
-                                            <td className="border border-black p-1 sm:p-1.5 text-center">
-                                                {format(new Date(fila.fecha_ingreso), 'dd/MM/yy')}
-                                            </td>
-                                            <td className="border border-black p-1 sm:p-1.5 text-center">
+                                            <td className="border border-black p-1 text-center font-bold">{fila.habitacion}</td>
+                                            <td className="border border-black p-1 text-center">
                                                 {format(new Date(fila.fecha_ingreso), 'HH:mm')}
                                             </td>
-                                            <td className="border border-black p-1 sm:p-1.5 text-center">
-                                                {format(new Date(fila.fecha_salida), 'dd/MM/yy')}
+                                            <td className="border border-black p-1 text-center">
+                                                {format(new Date(fila.fecha_ingreso), 'd/MM/yyyy')}
                                             </td>
-                                            <td className="border border-black p-1 sm:p-1.5 text-right">
-                                                {fila.es_titular ? `S/${fila.tarifa_numero.toFixed(2)}` : '-'}
+                                            <td className="border border-black p-1 text-center">
+                                                {format(new Date(fila.fecha_salida), 'HH:mm')}
                                             </td>
-                                            <td className="border border-black p-1 sm:p-1.5 text-right font-medium">
-                                                {fila.es_titular ? `S/${fila.total.toFixed(2)}` : '-'}
+                                            <td className="border border-black p-1 text-center">
+                                                {format(new Date(fila.fecha_salida), 'd/MM/yyyy')}
                                             </td>
-                                            <td className="border border-black p-1 sm:p-1.5 font-medium truncate max-w-[150px] sm:max-w-[200px]">
+                                            <td className="border border-black p-1 text-center">
+                                                {fila.es_titular ? fila.tarifa : ''}
+                                            </td>
+                                            <td className="border border-black p-1 text-left">
                                                 {fila.nombre_completo}
                                             </td>
-                                            <td className="border border-black p-1 sm:p-1.5 text-center text-[10px] sm:text-xs">
+                                            <td className="border border-black p-1 text-center">
                                                 {fila.tipo_documento}
                                             </td>
-                                            <td className="border border-black p-1 sm:p-1.5 text-center text-[10px] sm:text-xs">
+                                            <td className="border border-black p-1 text-center">
                                                 {fila.numero_documento}
                                             </td>
-                                            <td className="border border-black p-1 sm:p-1.5 text-center text-[9px] sm:text-xs">
-                                                {fila.nacionalidad}
+                                            <td className="border border-black p-1 text-center">
+                                                {fila.ciudad}
                                             </td>
-                                            <td className="border border-black p-1 sm:p-1.5 text-center text-[9px] sm:text-xs">
+                                            <td className="border border-black p-1 text-center">
                                                 {fila.departamento}
+                                            </td>
+                                            <td className="border border-black p-1 text-center">
+                                                {fila.pais}
                                             </td>
                                         </tr>
                                     ))
@@ -265,7 +394,8 @@ export function RegistroLegalClient() {
             {!searched && (
                 <div className="flex flex-col items-center justify-center p-12 text-muted-foreground border-2 border-dashed rounded-lg">
                     <FileText className="h-12 w-12 mb-4 opacity-20" />
-                    <p>Selecciona un mes y año para generar el libro de huéspedes.</p>
+                    <p className="text-center">Selecciona un rango de meses y año para generar el libro de huéspedes.</p>
+                    <p className="text-xs text-center mt-2 text-muted-foreground/70">Puedes consultar un solo mes o un rango completo</p>
                 </div>
             )}
 
