@@ -6,6 +6,7 @@ import { getHotelConfig } from '@/lib/actions/configuracion'
 import { enviarComprobanteNubefact, consultarEstadoNubefact } from '@/lib/services/nubefact'
 import { logger } from '@/lib/logger'
 import { getErrorMessage } from '@/lib/errors'
+import { getFechaEmisionPeru } from '@/lib/utils'
 
 // ========================================
 // TYPES
@@ -314,9 +315,8 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
 
   // 9. Enviar a NubeFact (si está configurado)
   try {
-    // Formatear fecha a DD-MM-YYYY (formato requerido por Nubefact)
-    const hoy = new Date()
-    const fechaFormateada = `${String(hoy.getDate()).padStart(2, '0')}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${hoy.getFullYear()}`
+    // Usar zona horaria de Perú (Vercel corre en UTC, SUNAT requiere fecha Perú)
+    const fechaFormateada = getFechaEmisionPeru()
 
     const respuesta = await enviarComprobanteNubefact({
       tipo_comprobante: input.tipo_comprobante,
@@ -1012,7 +1012,8 @@ export async function emitirNotaCreditoParcial(input: EmitirNotaCreditoInput) {
 
     // 8. ENVIAR A NUBEFACT
     try {
-      const fechaFormateada = `${String(new Date().getDate()).padStart(2, '0')}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${new Date().getFullYear()}`
+      // Usar zona horaria de Perú (Vercel corre en UTC, SUNAT requiere fecha Perú)
+      const fechaFormateada = getFechaEmisionPeru()
 
       // Preparar item para Nubefact
       const itemsNubefact = [{
@@ -1570,8 +1571,8 @@ export async function corregirComprobanteRechazado(
       }
     })
 
-    const fechaHoy = new Date()
-    const fechaFormateada = `${String(fechaHoy.getDate()).padStart(2, '0')}-${String(fechaHoy.getMonth() + 1).padStart(2, '0')}-${fechaHoy.getFullYear()}`
+    // Usar zona horaria de Perú (Vercel corre en UTC, SUNAT requiere fecha Perú)
+    const fechaFormateada = getFechaEmisionPeru()
 
     const respuestaNubefact = await enviarComprobanteNubefact({
       tipo_comprobante: original.tipo_comprobante,

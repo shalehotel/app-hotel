@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/logger'
 import { getErrorMessage } from '@/lib/errors'
+import { getFechaHoraPeru } from '@/lib/utils'
 
 /**
  * Datos del comprobante a emitir
@@ -86,7 +87,7 @@ export async function cobrarYFacturarAtomico(
       p_total: comprobante.total,
       p_moneda: comprobante.moneda,
       p_tipo_cambio_factura: comprobante.tipo_cambio,
-      p_fecha_emision: comprobante.fecha_emision || new Date(),
+      p_fecha_emision: comprobante.fecha_emision || getFechaHoraPeru(),
 
       // Parámetros del pago
       p_monto_pago: pago.monto,

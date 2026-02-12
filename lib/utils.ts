@@ -7,6 +7,42 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // ========================================
+// FECHA PERÚ - Zona horaria correcta para SUNAT
+// Vercel corre en UTC, pero SUNAT requiere fecha de Perú (UTC-5)
+// ========================================
+
+/**
+ * Retorna la fecha actual en zona horaria de Perú (America/Lima)
+ * formateada como DD-MM-YYYY (formato requerido por NubeFact/SUNAT)
+ */
+export function getFechaEmisionPeru(): string {
+  const now = new Date()
+  // Formatear con zona horaria de Perú
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Lima',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).formatToParts(now)
+  
+  const day = parts.find(p => p.type === 'day')!.value
+  const month = parts.find(p => p.type === 'month')!.value
+  const year = parts.find(p => p.type === 'year')!.value
+  
+  return `${day}-${month}-${year}` // DD-MM-YYYY
+}
+
+/**
+ * Retorna un Date object ajustado a la zona horaria de Perú
+ * Para uso en campos timestamptz de la BD
+ */
+export function getFechaHoraPeru(): Date {
+  const now = new Date()
+  const peruString = now.toLocaleString('en-US', { timeZone: 'America/Lima' })
+  return new Date(peruString)
+}
+
+// ========================================
 // HELPERS CÁLCULO RESERVAS (Pure Functions)
 // ========================================
 

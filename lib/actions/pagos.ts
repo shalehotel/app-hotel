@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getHotelConfig } from '@/lib/actions/configuracion'
 import { enviarComprobanteNubefact } from '@/lib/services/nubefact'
-import { calcularTotalReserva } from '@/lib/utils'
+import { calcularTotalReserva, getFechaEmisionPeru } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import { getErrorMessage } from '@/lib/errors'
 import { requireOperador } from '@/lib/auth/permissions'
@@ -241,8 +241,8 @@ export async function cobrarYFacturarAtomico(input: CobrarYFacturarInput) {
     // 8. Enviar a NubeFact
 
     try {
-      const hoy = new Date()
-      const fechaFormateada = `${String(hoy.getDate()).padStart(2, '0')}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${hoy.getFullYear()}`
+      // Usar zona horaria de Perú (Vercel corre en UTC, SUNAT requiere fecha Perú)
+      const fechaFormateada = getFechaEmisionPeru()
 
       const respuestaNubefact = await enviarComprobanteNubefact({
         tipo_comprobante: input.tipo_comprobante,
@@ -488,9 +488,8 @@ export async function cobrarYFacturar(input: CobrarYFacturarInput) {
 
     // Esto se hace DESPUÉS de guardar todo localmente para no perder datos si Nubefact falla
     try {
-      // Formatear fecha a DD-MM-YYYY (formato requerido por Nubefact)
-      const hoy = new Date()
-      const fechaFormateada = `${String(hoy.getDate()).padStart(2, '0')}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${hoy.getFullYear()}`
+      // Usar zona horaria de Perú (Vercel corre en UTC, SUNAT requiere fecha Perú)
+      const fechaFormateada = getFechaEmisionPeru()
 
       const respuestaNubefact = await enviarComprobanteNubefact({
         tipo_comprobante: input.tipo_comprobante,
