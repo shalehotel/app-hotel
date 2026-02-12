@@ -224,16 +224,71 @@ export async function getEstadisticasOcupaciones() {
 export async function getDetalleReserva(reserva_id: string) {
   const supabase = await createClient()
 
-  // Obtener datos básicos
-  const { data: reserva, error } = await supabase
+  // Intentar primero desde la vista (filtra por estados activos)
+  let { data: reserva, error } = await supabase
     .from('vw_reservas_con_datos_basicos')
     .select('*')
     .eq('id', reserva_id)
     .single()
 
-  if (error) {
-    logger.error('Error al obtener detalle de reserva', { action: 'getDetalleReserva', reservaId: reserva_id, originalError: getErrorMessage(error) })
-    throw new Error('Error al cargar detalle de reserva')
+  // Si no se encuentra en la vista (ej: CANCELADA/NO_SHOW), buscar directo en reservas
+  if (error || !reserva) {
+    const { data: reservaDirecta, error: errDirecta } = await supabase
+      .from('reservas')
+      .select(`
+        id,
+        codigo_reserva,
+        estado,
+        fecha_entrada,
+        fecha_salida,
+        check_in_real,
+        check_out_real,
+        precio_pactado,
+        moneda_pactada,
+        huesped_presente,
+        habitacion_id,
+        created_at,
+        updated_at,
+        habitaciones (
+          numero,
+          piso,
+          tipos_habitacion ( nombre ),
+          categorias_habitacion ( nombre )
+        ),
+        reserva_huespedes!inner (
+          huesped_id,
+          es_titular,
+          huespedes (
+            id, nombres, apellidos, tipo_documento, numero_documento, correo, telefono
+          )
+        )
+      `)
+      .eq('id', reserva_id)
+      .single()
+
+    if (errDirecta || !reservaDirecta) {
+      logger.error('Error al obtener detalle de reserva', { action: 'getDetalleReserva', reservaId: reserva_id, originalError: getErrorMessage(errDirecta || error) })
+      throw new Error('Error al cargar detalle de reserva')
+    }
+
+    // Mapear a estructura esperada
+    const hab = reservaDirecta.habitaciones as any
+    const titular = (reservaDirecta.reserva_huespedes as any[])?.find((rh: any) => rh.es_titular)?.huespedes
+    reserva = {
+      ...reservaDirecta,
+      habitacion_numero: hab?.numero || '',
+      habitacion_piso: hab?.piso || '',
+      tipo_habitacion: hab?.tipos_habitacion?.nombre || '',
+      categoria_habitacion: hab?.categorias_habitacion?.nombre || '',
+      titular_id: titular?.id || null,
+      titular_nombre: titular ? `${titular.nombres} ${titular.apellidos}` : 'Sin titular',
+      titular_tipo_doc: titular?.tipo_documento || '',
+      titular_numero_doc: titular?.numero_documento || '',
+      titular_correo: titular?.correo || null,
+      titular_telefono: titular?.telefono || null,
+      titular_nacionalidad: null,
+      responsable_nombre: '',
+    } as any
   }
 
   // Obtener pagos con método
