@@ -197,6 +197,17 @@ export function TarifasClientNew({ tarifas, tipos, categorias }: Props) {
                 </div>
 
                 <div className="grid gap-2">
+                  <Label htmlFor="nombre_tarifa">Nombre de Tarifa *</Label>
+                  <Input
+                    id="nombre_tarifa"
+                    name="nombre_tarifa"
+                    placeholder="Ej: Tarifa Base, Temporada Alta..."
+                    defaultValue={editingTarifa?.nombre_tarifa}
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
                   <Label htmlFor="precio_base">Precio Base (S/) *</Label>
                   <Input
                     id="precio_base"

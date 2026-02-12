@@ -44,6 +44,15 @@ export const tarifasColumns: ColumnDef<Tarifa>[] = [
     },
   },
   {
+    accessorKey: 'nombre_tarifa',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Nombre" />
+    ),
+    cell: ({ row }) => {
+      return <span>{row.getValue('nombre_tarifa')}</span>
+    },
+  },
+  {
     accessorKey: 'precio_base',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Precio Base" />
