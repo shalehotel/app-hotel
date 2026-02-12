@@ -239,8 +239,10 @@ export async function getHuespedesByReserva(reservaId: string) {
         apellidos,
         tipo_documento,
         numero_documento,
-        nacionalidad,
+        sexo,
+        pais,
         procedencia_departamento,
+        procedencia_ciudad,
         correo,
         telefono,
         fecha_nacimiento
@@ -312,8 +314,9 @@ export type DirectorioHuesped = {
   apellidos: string
   tipo_documento: string
   numero_documento: string
-  nacionalidad: string | null
+  pais: string | null
   procedencia_departamento: string | null
+  procedencia_ciudad: string | null
   correo: string | null
   telefono: string | null
   notas_internas: string | null

@@ -52,7 +52,7 @@ export function DirectorioHuespedesClient({ huespedes }: Props) {
 
       return true
     })
-  }, [huespedes, filtroVIP, filtroAlertas, filtroTipoDoc, filtroNacionalidad])
+  }, [huespedes, filtroVIP, filtroAlertas, filtroTipoDoc, filtroPais])
 
   // Contar filtros activos
   const filtrosActivos = [

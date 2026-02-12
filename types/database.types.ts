@@ -541,11 +541,13 @@ export type Database = {
           es_frecuente: boolean | null
           fecha_nacimiento: string | null
           id: string
-          nacionalidad: string | null
           nombres: string
           notas_internas: string | null
           numero_documento: string
+          pais: string | null
+          procedencia_ciudad: string | null
           procedencia_departamento: string | null
+          sexo: string | null
           telefono: string | null
           tipo_documento: string
         }
@@ -556,11 +558,13 @@ export type Database = {
           es_frecuente?: boolean | null
           fecha_nacimiento?: string | null
           id?: string
-          nacionalidad?: string | null
           nombres: string
           notas_internas?: string | null
           numero_documento: string
+          pais?: string | null
+          procedencia_ciudad?: string | null
           procedencia_departamento?: string | null
+          sexo?: string | null
           telefono?: string | null
           tipo_documento: string
         }
@@ -571,11 +575,13 @@ export type Database = {
           es_frecuente?: boolean | null
           fecha_nacimiento?: string | null
           id?: string
-          nacionalidad?: string | null
           nombres?: string
           notas_internas?: string | null
           numero_documento?: string
+          pais?: string | null
+          procedencia_ciudad?: string | null
           procedencia_departamento?: string | null
+          sexo?: string | null
           telefono?: string | null
           tipo_documento?: string
         }

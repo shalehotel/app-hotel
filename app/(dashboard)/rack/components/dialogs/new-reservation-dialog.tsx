@@ -43,7 +43,7 @@ type FormData = {
   apellidos: string
   email: string
   telefono: string
-  nacionalidad: string
+  pais: string
   fecha_nacimiento: string
 
   // Step 3: Pago (Checkbox solo para UI logic)
@@ -105,7 +105,7 @@ export function NewReservationDialog({
     apellidos: '',
     email: '',
     telefono: '',
-    nacionalidad: 'PE',
+    pais: 'Perú',
     fecha_nacimiento: '',
 
     registrar_pago: false,

@@ -35,8 +35,8 @@ const huespedSchema = z.object({
     apellidos: z.string().min(1, 'Los apellidos son requeridos'),
     correo: z.string().email('Email inválido').optional().nullable(),
     telefono: z.string().optional().nullable(),
-    nacionalidad: z.string().optional().nullable(),
-    ciudad_procedencia: z.string().optional().nullable(),
+    pais: z.string().optional().nullable(),
+    procedencia_ciudad: z.string().optional().nullable(),
     direccion: z.string().optional().nullable(),
     razon_social: z.string().optional().nullable(),
 })
@@ -109,7 +109,7 @@ const checkInSchema = z.object({
         apellidos: z.string(),
         tipo_documento: z.string(),
         numero_documento: z.string(),
-        nacionalidad: z.string().optional(),
+        pais: z.string().optional(),
         es_titular: z.boolean().optional().default(false)
     })).optional(),
 })
