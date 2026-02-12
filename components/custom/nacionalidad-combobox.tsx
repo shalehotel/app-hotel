@@ -17,81 +17,20 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover'
-
-const NACIONALIDADES = [
-    'Peruana',
-    'Argentina',
-    'Boliviana',
-    'Brasileña',
-    'Chilena',
-    'Colombiana',
-    'Ecuatoriana',
-    'Venezolana',
-    'Uruguaya',
-    'Paraguaya',
-    'Estadounidense',
-    'Canadiense',
-    'Mexicana',
-    'Española',
-    'Francesa',
-    'Alemana',
-    'Italiana',
-    'Británica',
-    'Portuguesa',
-    'Holandesa',
-    'Belga',
-    'Suiza',
-    'Sueca',
-    'Noruega',
-    'Danesa',
-    'Finlandesa',
-    'Rusa',
-    'Ucraniana',
-    'Polaca',
-    'Rumana',
-    'Griega',
-    'Turca',
-    'China',
-    'Japonesa',
-    'Coreana',
-    'India',
-    'Australiana',
-    'Neozelandesa',
-    'Sudafricana',
-    'Israelí',
-    'Otra',
-]
+import { PAISES, PAISES_FRECUENTES } from '@/lib/utils/nacionalidades'
 
 interface NacionalidadComboboxProps {
-    value: string
-    onValueChange: (value: string) => void
+    value?: string
+    onValueChange?: (value: string) => void
     disabled?: boolean
 }
 
-export function NacionalidadCombobox({ value, onValueChange, disabled }: NacionalidadComboboxProps) {
+export function NacionalidadCombobox({
+    value = '',
+    onValueChange,
+    disabled = false,
+}: NacionalidadComboboxProps) {
     const [open, setOpen] = React.useState(false)
-    const [inputValue, setInputValue] = React.useState(value || '')
-
-    // Sincronizar inputValue con value cuando cambia externamente
-    React.useEffect(() => {
-        setInputValue(value || '')
-    }, [value])
-
-    const filteredNacionalidades = NACIONALIDADES.filter((nac) =>
-        nac.toLowerCase().includes(inputValue.toLowerCase())
-    )
-
-    const handleInputChange = (newValue: string) => {
-        setInputValue(newValue)
-        // Actualizar el valor en tiempo real para permitir valores personalizados
-        onValueChange(newValue)
-    }
-
-    const handleSelect = (selectedValue: string) => {
-        onValueChange(selectedValue)
-        setInputValue(selectedValue)
-        setOpen(false)
-    }
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -103,43 +42,56 @@ export function NacionalidadCombobox({ value, onValueChange, disabled }: Naciona
                     className="w-full justify-between"
                     disabled={disabled}
                 >
-                    {value || 'Selecciona o escribe...'}
+                    {value || 'Seleccionar país...'}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-full p-0" align="start">
-                <Command shouldFilter={false}>
-                    <CommandInput
-                        placeholder="Buscar o escribir nacionalidad..."
-                        value={inputValue}
-                        onValueChange={handleInputChange}
-                    />
+                <Command>
+                    <CommandInput placeholder="Buscar país..." />
                     <CommandList>
-                        {filteredNacionalidades.length === 0 && inputValue && (
-                            <CommandItem
-                                value={inputValue}
-                                onSelect={() => handleSelect(inputValue)}
-                            >
-                                <Check className="mr-2 h-4 w-4 opacity-0" />
-                                Usar "{inputValue}"
-                            </CommandItem>
-                        )}
-                        <CommandGroup>
-                            {filteredNacionalidades.map((nacionalidad) => (
+                        <CommandEmpty>No se encontró el país.</CommandEmpty>
+                        
+                        {/* Países frecuentes */}
+                        <CommandGroup heading="Más comunes">
+                            {PAISES_FRECUENTES.map((pais) => (
                                 <CommandItem
-                                    key={nacionalidad}
-                                    value={nacionalidad}
-                                    onSelect={() => handleSelect(nacionalidad)}
+                                    key={pais}
+                                    value={pais}
+                                    onSelect={() => {
+                                        onValueChange?.(pais)
+                                        setOpen(false)
+                                    }}
                                 >
                                     <Check
                                         className={cn(
                                             'mr-2 h-4 w-4',
-                                            value.toLowerCase() === nacionalidad.toLowerCase()
-                                                ? 'opacity-100'
-                                                : 'opacity-0'
+                                            value === pais ? 'opacity-100' : 'opacity-0'
                                         )}
                                     />
-                                    {nacionalidad}
+                                    {pais}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+
+                        {/* Todos los países */}
+                        <CommandGroup heading="Todos los países">
+                            {PAISES.filter(p => !PAISES_FRECUENTES.includes(p)).map((pais) => (
+                                <CommandItem
+                                    key={pais}
+                                    value={pais}
+                                    onSelect={() => {
+                                        onValueChange?.(pais)
+                                        setOpen(false)
+                                    }}
+                                >
+                                    <Check
+                                        className={cn(
+                                            'mr-2 h-4 w-4',
+                                            value === pais ? 'opacity-100' : 'opacity-0'
+                                        )}
+                                    />
+                                    {pais}
                                 </CommandItem>
                             ))}
                         </CommandGroup>

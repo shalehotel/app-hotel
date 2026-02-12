@@ -7,16 +7,15 @@ export interface LibroHuespedesItem {
     fecha_ingreso: string
     habitacion: string
     nombre_completo: string
-    nacionalidad: string
     departamento: string
-    ciudad: string          // Ciudad de nacimiento
-    pais: string            // País de nacimiento
+    ciudad: string
+    pais: string
     tipo_documento: string
     numero_documento: string
     fecha_salida: string
-    tarifa: string          // Texto formateado: "S/ 100.00"
-    tarifa_numero: number   // Número puro: 100
-    moneda: string          // "PEN" o "USD"
+    tarifa: string
+    tarifa_numero: number
+    moneda: string
     es_titular: boolean
 }
 
@@ -60,8 +59,9 @@ export async function getLibroHuespedes(filtros: FiltrosLibro) {
         huespedes!inner(
             nombres,
             apellidos,
-            nacionalidad,
+            pais,
             procedencia_departamento,
+            procedencia_ciudad,
             tipo_documento,
             numero_documento
         )
@@ -96,10 +96,9 @@ export async function getLibroHuespedes(filtros: FiltrosLibro) {
                 fecha_ingreso: fechaIngreso,
                 habitacion,
                 nombre_completo: `${h.nombres} ${h.apellidos}`.trim(),
-                nacionalidad: (h.nacionalidad || 'PE'),
                 departamento: (h.procedencia_departamento || ''),
                 ciudad: (h.procedencia_ciudad || h.procedencia_departamento || ''),
-                pais: 'Perú',  // Por defecto Perú, se puede expandir con tabla de países
+                pais: (h.pais || 'Perú'),
                 tipo_documento: h.tipo_documento,
                 numero_documento: h.numero_documento,
                 fecha_salida: fechaSalida,

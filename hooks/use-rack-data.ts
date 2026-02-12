@@ -58,7 +58,8 @@ export function useRackData(daysRange = 30) {
 
   // Calcular rango de fechas: 3 días de contexto pasado, el resto futuro
   const today = startOfDay(new Date())
-  const PAST_DAYS_CONTEXT = 3
+  // TEMPORAL: Cambiar de 3 a 4 días para ver reservas antiguas (revertir después)
+  const PAST_DAYS_CONTEXT = 4  // Original: 3
   const startDate = addDays(today, -PAST_DAYS_CONTEXT)
   const endDate = addDays(today, daysRange - PAST_DAYS_CONTEXT)
 

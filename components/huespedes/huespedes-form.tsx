@@ -30,8 +30,9 @@ interface HuespedFormData {
   apellidos: string
   tipo_documento: 'DNI' | 'PASAPORTE' | 'CE' | 'OTRO'
   numero_documento: string
-  nacionalidad: string
+  pais: string
   procedencia_departamento: string
+  procedencia_ciudad: string
   correo: string
   telefono: string
   fecha_nacimiento: string
@@ -54,21 +55,6 @@ const TIPOS_DOCUMENTO = [
   { value: 'PASAPORTE', label: 'Pasaporte' },
   { value: 'CE', label: 'Carnet de Extranjería' },
   { value: 'OTRO', label: 'Otro' },
-]
-
-const NACIONALIDADES = [
-  'Peruana',
-  'Argentina',
-  'Boliviana',
-  'Brasileña',
-  'Chilena',
-  'Colombiana',
-  'Ecuatoriana',
-  'Estadounidense',
-  'Española',
-  'Mexicana',
-  'Venezolana',
-  'Otra',
 ]
 
 const DEPARTAMENTOS_PERU = [
@@ -109,8 +95,9 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         apellidos: '',
         tipo_documento: 'DNI',
         numero_documento: '',
-        nacionalidad: 'Peruana',
+        pais: 'Perú',
         procedencia_departamento: '',
+        procedencia_ciudad: '',
         correo: '',
         telefono: '',
         fecha_nacimiento: '',
@@ -144,8 +131,9 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
               huesped_bd_id: result.huesped.id,
               nombres: result.huesped.nombres || '',
               apellidos: result.huesped.apellidos || '',
-              nacionalidad: result.huesped.nacionalidad || 'Peruana',
+              pais: result.huesped.pais || 'Perú',
               procedencia_departamento: result.huesped.procedencia_departamento || '',
+              procedencia_ciudad: result.huesped.procedencia_ciudad || '',
               correo: result.huesped.correo || '',
               telefono: result.huesped.telefono || '',
               fecha_nacimiento: result.huesped.fecha_nacimiento || '',
@@ -181,8 +169,9 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         apellidos: '',
         tipo_documento: 'DNI',
         numero_documento: '',
-        nacionalidad: 'Peruana',
+        pais: 'Perú',
         procedencia_departamento: '',
+        procedencia_ciudad: '',
         correo: '',
         telefono: '',
         fecha_nacimiento: '',
@@ -273,8 +262,9 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         apellidos: h.apellidos,
         tipo_documento: h.tipo_documento,
         numero_documento: h.numero_documento,
-        nacionalidad: h.nacionalidad,
+        pais: h.pais,
         procedencia_departamento: h.procedencia_departamento || null,
+        procedencia_ciudad: h.procedencia_ciudad || null,
         correo: h.correo || null,
         telefono: h.telefono || null,
         fecha_nacimiento: h.fecha_nacimiento || null,
@@ -412,22 +402,34 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
               </div>
 
               <div>
-                <Label htmlFor="nacionalidad-titular">Nacionalidad</Label>
+                <Label htmlFor="pais-titular">País</Label>
                 <NacionalidadCombobox
-                  value={titular.nacionalidad}
+                  value={titular.pais}
                   onValueChange={(value) =>
-                    actualizarHuesped(titular.id, 'nacionalidad', value)
+                    actualizarHuesped(titular.id, 'pais', value)
                   }
                 />
               </div>
 
               <div>
-                <Label htmlFor="procedencia-titular">Procedencia (Dpto)</Label>
+                <Label htmlFor="procedencia-titular">Departamento</Label>
                 <DepartamentoCombobox
                   value={titular.procedencia_departamento}
                   onValueChange={(value) =>
                     actualizarHuesped(titular.id, 'procedencia_departamento', value)
                   }
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="ciudad-titular">Ciudad</Label>
+                <Input
+                  id="ciudad-titular"
+                  value={titular.procedencia_ciudad}
+                  onChange={(e) =>
+                    actualizarHuesped(titular.id, 'procedencia_ciudad', e.target.value)
+                  }
+                  placeholder="Lima, Chachapoyas, etc."
                 />
               </div>
 
@@ -625,22 +627,33 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                   </div>
 
                   <div>
-                    <Label>Nacionalidad</Label>
+                    <Label>País</Label>
                     <NacionalidadCombobox
-                      value={acomp.nacionalidad}
+                      value={acomp.pais}
                       onValueChange={(value) =>
-                        actualizarHuesped(acomp.id, 'nacionalidad', value)
+                        actualizarHuesped(acomp.id, 'pais', value)
                       }
                     />
                   </div>
 
                   <div>
-                    <Label>Procedencia (Dpto)</Label>
+                    <Label>Departamento</Label>
                     <DepartamentoCombobox
                       value={acomp.procedencia_departamento}
                       onValueChange={(value) =>
                         actualizarHuesped(acomp.id, 'procedencia_departamento', value)
                       }
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Ciudad</Label>
+                    <Input
+                      value={acomp.procedencia_ciudad}
+                      onChange={(e) =>
+                        actualizarHuesped(acomp.id, 'procedencia_ciudad', e.target.value)
+                      }
+                      placeholder="Lima, Chachapoyas, etc."
                     />
                   </div>
 

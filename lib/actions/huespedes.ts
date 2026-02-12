@@ -14,8 +14,9 @@ export type HuespedData = {
   apellidos: string
   tipo_documento: 'DNI' | 'PASAPORTE' | 'CE' | 'OTRO'
   numero_documento: string
-  nacionalidad: string
+  pais: string
   procedencia_departamento?: string | null
+  procedencia_ciudad?: string | null
   correo?: string | null
   telefono?: string | null
   fecha_nacimiento?: string | null
