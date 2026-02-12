@@ -43,6 +43,9 @@ export function FacturacionClient() {
   const [ncDialogOpen, setNcDialogOpen] = useState(false)
   const [comprobanteParaNC, setComprobanteParaNC] = useState<Comprobante | null>(null)
 
+  // Reemitir comprobante anulado
+  const [reemitirComprobante, setReemitirComprobante] = useState<Comprobante | null>(null)
+
   useEffect(() => {
     cargarComprobantes()
   }, [filtroTipo, filtroEstado])
@@ -95,14 +98,22 @@ export function FacturacionClient() {
   }
 
   async function handleActualizarEstado(comprobanteId: string) {
-    // No activamos loading global para no parpadear toda la tabla
-    // Idealmente usaríamos un estado de carga por fila o toast
     const res = await actualizarEstadoComprobante(comprobanteId)
     if (res.success) {
       await cargarComprobantes()
     } else {
-      // Fallback simple si no hay toast
       alert(res.message || 'Error al actualizar estado')
+    }
+  }
+
+  function handleReemitir(comprobante: Comprobante) {
+    // Abrir la reserva original para que el usuario pueda reemitir desde ahí
+    if (comprobante.reserva_id) {
+      setReemitirComprobante(comprobante)
+      setSelectedReservaId(comprobante.reserva_id)
+      setReservaSheetOpen(true)
+    } else {
+      alert('Este comprobante no tiene reserva asociada.')
     }
   }
 
@@ -121,12 +132,18 @@ export function FacturacionClient() {
         data={comprobantes}
         searchKey="comprobante"
         searchPlaceholder="Buscar recibo, cliente o fecha..."
+        rowClassName={(row) =>
+          row.estado_sunat === 'ANULADO'
+            ? 'bg-muted/60 opacity-60'
+            : ''
+        }
         meta={{
           onVerDetalle: handleVerDetalle,
           onVerReserva: handleVerReserva,
           onDescargarPDF: handleDescargarPDF,
           onAnular: handleAnular,
           onActualizarEstado: handleActualizarEstado,
+          onReemitir: handleReemitir,
         }}
         toolbar={
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0">
@@ -200,7 +217,7 @@ export function FacturacionClient() {
         />
       )}
 
-      {/* Sheet de detalle de reserva */}
+      {/* Sheet de detalle de reserva (ver reserva o reemitir) */}
       {selectedReservaId && (
         <ReservationDetailSheet
           reservaId={selectedReservaId}
@@ -209,9 +226,14 @@ export function FacturacionClient() {
             setReservaSheetOpen(open)
             if (!open) {
               setSelectedReservaId(null)
+              if (reemitirComprobante) {
+                setReemitirComprobante(null)
+                cargarComprobantes() // Recargar por si emitió nuevo comprobante
+              }
             }
           }}
           onUpdate={() => { }}
+          defaultTab="cuenta"
         />
       )}
 

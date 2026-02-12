@@ -27,7 +27,8 @@ import {
     Download,
     FileMinus,
     MessageCircle,
-    Printer
+    Printer,
+    RotateCcw
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -121,6 +122,19 @@ export function ComprobanteActions({ comprobante, meta }: ComprobanteActionsProp
                             >
                                 <FileMinus className="mr-2 h-4 w-4" />
                                 Emitir Nota de Crédito
+                            </DropdownMenuItem>
+                        </>
+                    )}
+
+                    {comprobante.estado_sunat === 'ANULADO' && (
+                        <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                onClick={() => meta?.onReemitir?.(comprobante)}
+                                className="text-blue-600"
+                            >
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Reemitir Comprobante
                             </DropdownMenuItem>
                         </>
                     )}

@@ -25,6 +25,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -41,6 +42,7 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
   meta?: any
   toolbar?: React.ReactNode
+  rowClassName?: (row: TData) => string
 
   // SSR Pagination Extension
   manualPagination?: boolean
@@ -58,6 +60,7 @@ export function DataTable<TData, TValue>({
   onRowClick,
   meta,
   toolbar,
+  rowClassName,
 
   // SSR props
   manualPagination = false,
@@ -172,7 +175,10 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={onRowClick ? "cursor-pointer" : ""}
+                  className={cn(
+                    onRowClick ? "cursor-pointer" : "",
+                    rowClassName?.(row.original) || ""
+                  )}
                   onClick={() => onRowClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (

@@ -57,9 +57,10 @@ type ReservationDetailSheetProps = {
   onOpenChange: (open: boolean) => void
   onUpdate?: () => void
   readonly?: boolean // Modo solo lectura / auditoría
+  defaultTab?: 'ficha' | 'cuenta'
 }
 
-export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate, readonly = false }: ReservationDetailSheetProps) {
+export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate, readonly = false, defaultTab = 'ficha' }: ReservationDetailSheetProps) {
   const [reserva, setReserva] = useState<OcupacionReserva | null>(null)
   const [huespedes, setHuespedes] = useState<any[]>([])
   const [pagos, setPagos] = useState<any[]>([])
@@ -192,7 +193,7 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-4">
-            <Tabs defaultValue="ficha" className="w-full">
+            <Tabs defaultValue={defaultTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-4">
                 <TabsTrigger value="ficha">Ficha de Registro</TabsTrigger>
                 <TabsTrigger value="cuenta">Estado de Cuenta</TabsTrigger>
