@@ -52,7 +52,6 @@ export async function getUsuarios() {
   await verificarEsAdmin()
 
   const supabase = await createClient()
-  const supabaseAdmin = await createAdminClient()
 
   // 1. Obtener usuarios de la tabla public.usuarios
   const { data: usuarios, error } = await supabase
@@ -63,24 +62,32 @@ export async function getUsuarios() {
   if (error) throw error
   if (!usuarios) return []
 
-  // 2. Obtener emails desde auth.users
-  const { data: { users: authUsers }, error: authError } = await supabaseAdmin.auth.admin.listUsers()
+  // 2. Obtener emails desde auth.users (requiere service_role key)
+  try {
+    const supabaseAdmin = await createAdminClient()
+    const { data: { users: authUsers }, error: authError } = await supabaseAdmin.auth.admin.listUsers()
 
-  if (authError) {
-    logger.error('Error al obtener usuarios de auth', { action: 'getUsuarios', originalError: getErrorMessage(authError) })
-    return usuarios // Retornar sin emails si falla
-  }
-
-  // 3. Combinar datos
-  const usuariosConEmail = usuarios.map(usuario => {
-    const authUser = authUsers?.find(u => u.id === usuario.id)
-    return {
-      ...usuario,
-      email: authUser?.email || null
+    if (authError) {
+      logger.error('Error al obtener usuarios de auth', { action: 'getUsuarios', originalError: getErrorMessage(authError) })
+      return usuarios.map(u => ({ ...u, email: null }))
     }
-  })
 
-  return usuariosConEmail
+    // 3. Combinar datos
+    return usuarios.map(usuario => {
+      const authUser = authUsers?.find(u => u.id === usuario.id)
+      return {
+        ...usuario,
+        email: authUser?.email || null
+      }
+    })
+  } catch (adminError) {
+    logger.error('Error al crear admin client para listar usuarios', { 
+      action: 'getUsuarios', 
+      originalError: getErrorMessage(adminError) 
+    })
+    // Retornar usuarios sin email si el admin client falla
+    return usuarios.map(u => ({ ...u, email: null }))
+  }
 }
 
 export async function getUsuarioActual() {
