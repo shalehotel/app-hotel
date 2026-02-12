@@ -214,18 +214,38 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
   }
 
   const validarFormulario = (): boolean => {
-    // Validar que todos tengan nombres
     for (const h of huespedes) {
+      const label = h.es_titular ? 'Titular' : 'Acompañante'
       if (!h.nombres.trim()) {
-        toast.error('Todos los huéspedes deben tener nombre')
+        toast.error(`${label}: Nombres es obligatorio`)
         return false
       }
       if (!h.apellidos.trim()) {
-        toast.error('Todos los huéspedes deben tener apellidos')
+        toast.error(`${label}: Apellidos es obligatorio`)
         return false
       }
       if (!h.numero_documento.trim()) {
-        toast.error('Todos los huéspedes deben tener número de documento')
+        toast.error(`${label}: Número de documento es obligatorio`)
+        return false
+      }
+      if (!h.sexo) {
+        toast.error(`${label}: Sexo es obligatorio`)
+        return false
+      }
+      if (!h.pais.trim()) {
+        toast.error(`${label}: País es obligatorio`)
+        return false
+      }
+      if (!h.procedencia_departamento.trim()) {
+        toast.error(`${label}: Departamento es obligatorio`)
+        return false
+      }
+      if (!h.procedencia_ciudad.trim()) {
+        toast.error(`${label}: Ciudad es obligatorio`)
+        return false
+      }
+      if (!h.fecha_nacimiento) {
+        toast.error(`${label}: Fecha de nacimiento es obligatorio`)
         return false
       }
     }
@@ -384,12 +404,15 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
               </div>
 
               <div>
-                <Label htmlFor="sexo-titular">Sexo (MINCETUR)</Label>
+                <Label htmlFor="sexo-titular">
+                  Sexo (MINCETUR) <span className="text-red-500">*</span>
+                </Label>
                 <Select
                   value={titular.sexo}
                   onValueChange={(value) =>
                     actualizarHuesped(titular.id, 'sexo', value)
                   }
+                  required
                 >
                   <SelectTrigger id="sexo-titular">
                     <SelectValue placeholder="Seleccionar" />
@@ -402,7 +425,9 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
               </div>
 
               <div>
-                <Label htmlFor="pais-titular">País</Label>
+                <Label htmlFor="pais-titular">
+                  País <span className="text-red-500">*</span>
+                </Label>
                 <NacionalidadCombobox
                   value={titular.pais}
                   onValueChange={(value) =>
@@ -412,7 +437,9 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
               </div>
 
               <div>
-                <Label htmlFor="procedencia-titular">Departamento</Label>
+                <Label htmlFor="procedencia-titular">
+                  Departamento <span className="text-red-500">*</span>
+                </Label>
                 <DepartamentoCombobox
                   value={titular.procedencia_departamento}
                   onValueChange={(value) =>
@@ -422,7 +449,9 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
               </div>
 
               <div>
-                <Label htmlFor="ciudad-titular">Ciudad</Label>
+                <Label htmlFor="ciudad-titular">
+                  Ciudad <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="ciudad-titular"
                   value={titular.procedencia_ciudad}
@@ -430,11 +459,14 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                     actualizarHuesped(titular.id, 'procedencia_ciudad', e.target.value)
                   }
                   placeholder="Lima, Chachapoyas, etc."
+                  required
                 />
               </div>
 
               <div>
-                <Label htmlFor="fecha-nac-titular">Fecha Nacimiento</Label>
+                <Label htmlFor="fecha-nac-titular">
+                  Fecha Nacimiento <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="fecha-nac-titular"
                   type="date"
@@ -442,6 +474,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                   onChange={(e) =>
                     actualizarHuesped(titular.id, 'fecha_nacimiento', e.target.value)
                   }
+                  required
                 />
               </div>
 
@@ -609,12 +642,15 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                   </div>
 
                   <div>
-                    <Label>Sexo (MINCETUR)</Label>
+                    <Label>
+                      Sexo (MINCETUR) <span className="text-red-500">*</span>
+                    </Label>
                     <Select
                       value={acomp.sexo}
                       onValueChange={(value) =>
                         actualizarHuesped(acomp.id, 'sexo', value)
                       }
+                      required
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar" />
@@ -627,7 +663,9 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                   </div>
 
                   <div>
-                    <Label>País</Label>
+                    <Label>
+                      País <span className="text-red-500">*</span>
+                    </Label>
                     <NacionalidadCombobox
                       value={acomp.pais}
                       onValueChange={(value) =>
@@ -637,7 +675,9 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                   </div>
 
                   <div>
-                    <Label>Departamento</Label>
+                    <Label>
+                      Departamento <span className="text-red-500">*</span>
+                    </Label>
                     <DepartamentoCombobox
                       value={acomp.procedencia_departamento}
                       onValueChange={(value) =>
@@ -647,24 +687,30 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                   </div>
 
                   <div>
-                    <Label>Ciudad</Label>
+                    <Label>
+                      Ciudad <span className="text-red-500">*</span>
+                    </Label>
                     <Input
                       value={acomp.procedencia_ciudad}
                       onChange={(e) =>
                         actualizarHuesped(acomp.id, 'procedencia_ciudad', e.target.value)
                       }
                       placeholder="Lima, Chachapoyas, etc."
+                      required
                     />
                   </div>
 
                   <div>
-                    <Label>Fecha Nacimiento</Label>
+                    <Label>
+                      Fecha Nacimiento <span className="text-red-500">*</span>
+                    </Label>
                     <Input
                       type="date"
                       value={acomp.fecha_nacimiento}
                       onChange={(e) =>
                         actualizarHuesped(acomp.id, 'fecha_nacimiento', e.target.value)
                       }
+                      required
                     />
                   </div>
 
