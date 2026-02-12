@@ -160,12 +160,14 @@ export function HuespedDetailSheet({ huespedId, open, onClose }: Props) {
                 <p className="font-medium">{huesped.telefono || '—'}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Nacionalidad</p>
-                <p className="font-medium">{huesped.nacionalidad || '—'}</p>
+                <p className="text-muted-foreground">País</p>
+                <p className="font-medium">{huesped.pais || '—'}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Procedencia (Dpto)</p>
-                <p className="font-medium">{huesped.procedencia_departamento || '—'}</p>
+                <p className="text-muted-foreground">Procedencia</p>
+                <p className="font-medium">
+                  {[huesped.procedencia_ciudad, huesped.procedencia_departamento].filter(Boolean).join(', ') || '—'}
+                </p>
               </div>
               <div>
                 <p className="text-muted-foreground">Cumpleaños</p>

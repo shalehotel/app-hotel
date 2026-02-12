@@ -34,11 +34,12 @@ export async function GET(
                         apellidos,
                         tipo_documento,
                         numero_documento,
-                        nacionalidad,
+                        pais,
                         fecha_nacimiento,
                         telefono,
                         correo,
                         procedencia_departamento,
+                        procedencia_ciudad,
                         sexo
                     )
                 )
@@ -192,7 +193,8 @@ export async function GET(
         const titularReserva = reserva.reserva_huespedes?.find((rh: any) => rh.es_titular)
         const titular = titularReserva?.huespedes || {}
 
-        const procedencia = titular.procedencia_departamento || '-'
+        const procedencia = [titular.procedencia_ciudad, titular.procedencia_departamento].filter(Boolean).join(', ') || '-'
+        const sexoTexto = titular.sexo === 'M' ? 'MASCULINO' : titular.sexo === 'F' ? 'FEMENINO' : '-'
 
         doc.autoTable({
             startY: (doc as any).lastAutoTable.finalY + 5,
@@ -212,14 +214,14 @@ export async function GET(
                 [
                     { content: 'DOCUMENTO (ID/Passport):', styles: { fontStyle: 'bold' } },
                     titular.numero_documento || '-',
-                    { content: 'NACIONALIDAD (Nationality):', styles: { fontStyle: 'bold' } },
-                    titular.nacionalidad || '-'
+                    { content: 'PAÍS (Country):', styles: { fontStyle: 'bold' } },
+                    titular.pais || '-'
                 ],
                 [
                     { content: 'FECHA NAC. (Birth Date):', styles: { fontStyle: 'bold' } },
                     titular.fecha_nacimiento ? format(new Date(titular.fecha_nacimiento), 'dd/MM/yyyy') : '-',
                     { content: 'SEXO (Sex):', styles: { fontStyle: 'bold' } },
-                    titular.sexo || '-'
+                    sexoTexto
                 ],
                 [
                     { content: 'PROCEDENCIA (Origin):', styles: { fontStyle: 'bold' } },

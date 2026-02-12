@@ -47,10 +47,10 @@ export const columns: ColumnDef<DirectorioHuesped>[] = [
     },
   },
   {
-    accessorKey: "nacionalidad",
-    header: "Nacionalidad",
+    accessorKey: "pais",
+    header: "País",
     cell: ({ row }) => {
-      return row.original.nacionalidad || (
+      return row.original.pais || (
         <span className="text-muted-foreground">-</span>
       )
     },

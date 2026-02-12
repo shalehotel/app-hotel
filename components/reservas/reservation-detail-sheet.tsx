@@ -305,12 +305,22 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
 
                           <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm mt-2">
                             <div>
-                              <p className="text-xs text-muted-foreground">Nacionalidad</p>
-                              <p>{datos.nacionalidad || 'No registrada'}</p>
+                              <p className="text-xs text-muted-foreground">País</p>
+                              <p>{datos.pais || 'No registrado'}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Sexo</p>
+                              <p>{datos.sexo === 'M' ? 'Masculino' : datos.sexo === 'F' ? 'Femenino' : '-'}</p>
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">Fecha Nacimiento</p>
                               <p>{datos.fecha_nacimiento ? format(new Date(datos.fecha_nacimiento), 'dd/MM/yyyy') : '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Procedencia</p>
+                              <p className="text-xs">
+                                {[datos.procedencia_ciudad, datos.procedencia_departamento].filter(Boolean).join(', ') || '-'}
+                              </p>
                             </div>
                             {datos.telefono && (
                               <div>
@@ -322,12 +332,6 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
                               <div>
                                 <p className="text-xs text-muted-foreground">Correo</p>
                                 <p className="text-xs truncate">{datos.correo}</p>
-                              </div>
-                            )}
-                            {datos.procedencia_departamento && (
-                              <div className="col-span-2">
-                                <p className="text-xs text-muted-foreground">Procedencia</p>
-                                <p className="text-xs">{datos.procedencia_departamento}</p>
                               </div>
                             )}
                           </div>

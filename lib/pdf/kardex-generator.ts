@@ -123,7 +123,8 @@ export const generateKardexPDF = (reserva: any, huespedes: any[], pagos: any[], 
     const titularReserva = huespedes.find((h: any) => h.es_titular)
     const titular = titularReserva?.huespedes || {}
 
-    const procedencia = titular.procedencia_departamento || '-'
+    const procedencia = [titular.procedencia_ciudad, titular.procedencia_departamento].filter(Boolean).join(', ') || '-'
+    const sexoTexto = titular.sexo === 'M' ? 'MASCULINO' : titular.sexo === 'F' ? 'FEMENINO' : '-'
 
     autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 5,
@@ -143,14 +144,14 @@ export const generateKardexPDF = (reserva: any, huespedes: any[], pagos: any[], 
             [
                 { content: 'DOCUMENTO (ID/Passport):', styles: { fontStyle: 'bold' } },
                 titular.numero_documento || '-',
-                { content: 'NACIONALIDAD (Nationality):', styles: { fontStyle: 'bold' } },
-                titular.nacionalidad || '-'
+                { content: 'PAÍS (Country):', styles: { fontStyle: 'bold' } },
+                titular.pais || '-'
             ],
             [
                 { content: 'FECHA NAC. (Birth Date):', styles: { fontStyle: 'bold' } },
                 titular.fecha_nacimiento ? format(new Date(titular.fecha_nacimiento), 'dd/MM/yyyy') : '-',
                 { content: 'SEXO (Sex):', styles: { fontStyle: 'bold' } },
-                titular.sexo || '-'
+                sexoTexto
             ],
             [
                 { content: 'PROCEDENCIA (Origin):', styles: { fontStyle: 'bold' } },

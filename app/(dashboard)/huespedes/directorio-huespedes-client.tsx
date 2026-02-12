@@ -24,13 +24,13 @@ export function DirectorioHuespedesClient({ huespedes }: Props) {
   const [filtroVIP, setFiltroVIP] = useState(false)
   const [filtroAlertas, setFiltroAlertas] = useState(false)
   const [filtroTipoDoc, setFiltroTipoDoc] = useState<string>("TODOS")
-  const [filtroNacionalidad, setFiltroNacionalidad] = useState<string>("TODOS")
+  const [filtroPais, setFiltroPais] = useState<string>("TODOS")
 
-  // Obtener nacionalidades únicas para el selector
-  const nacionalidadesUnicas = useMemo(() => {
+  // Obtener países únicos para el selector
+  const paisesUnicos = useMemo(() => {
     const set = new Set<string>()
     huespedes.forEach(h => {
-      if (h.nacionalidad) set.add(h.nacionalidad)
+      if (h.pais) set.add(h.pais)
     })
     return Array.from(set).sort()
   }, [huespedes])
@@ -47,8 +47,8 @@ export function DirectorioHuespedesClient({ huespedes }: Props) {
       // Filtro Tipo Documento
       if (filtroTipoDoc !== "TODOS" && h.tipo_documento !== filtroTipoDoc) return false
 
-      // Filtro Nacionalidad
-      if (filtroNacionalidad !== "TODOS" && h.nacionalidad !== filtroNacionalidad) return false
+      // Filtro País
+      if (filtroPais !== "TODOS" && h.pais !== filtroPais) return false
 
       return true
     })
@@ -59,14 +59,14 @@ export function DirectorioHuespedesClient({ huespedes }: Props) {
     filtroVIP,
     filtroAlertas,
     filtroTipoDoc !== "TODOS",
-    filtroNacionalidad !== "TODOS"
+    filtroPais !== "TODOS"
   ].filter(Boolean).length
 
   const limpiarFiltros = () => {
     setFiltroVIP(false)
     setFiltroAlertas(false)
     setFiltroTipoDoc("TODOS")
-    setFiltroNacionalidad("TODOS")
+    setFiltroPais("TODOS")
   }
 
   // Componente de filtros que irá en el toolbar del DataTable
@@ -105,15 +105,15 @@ export function DirectorioHuespedesClient({ huespedes }: Props) {
         </SelectContent>
       </Select>
 
-      <Select value={filtroNacionalidad} onValueChange={setFiltroNacionalidad}>
+      <Select value={filtroPais} onValueChange={setFiltroPais}>
         <SelectTrigger className="w-[90px] sm:w-[130px] h-8 text-xs sm:text-sm flex-shrink-0">
           <SelectValue placeholder="País" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="TODOS">Todos</SelectItem>
-          {nacionalidadesUnicas.map(nac => (
-            <SelectItem key={nac} value={nac}>
-              {nac}
+          {paisesUnicos.map(pais => (
+            <SelectItem key={pais} value={pais}>
+              {pais}
             </SelectItem>
           ))}
         </SelectContent>

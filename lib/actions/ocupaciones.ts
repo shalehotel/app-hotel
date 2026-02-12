@@ -279,11 +279,13 @@ export async function getHuespedesDeReserva(reserva_id: string) {
         apellidos,
         tipo_documento,
         numero_documento,
-        nacionalidad,
+        sexo,
+        pais,
+        procedencia_departamento,
+        procedencia_ciudad,
         fecha_nacimiento,
         correo,
-        telefono,
-        procedencia_departamento
+        telefono
       )
     `)
     .eq('reserva_id', reserva_id)
