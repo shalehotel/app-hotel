@@ -63,7 +63,7 @@ export async function upsertHuesped(data: HuespedData) {
         procedencia_ciudad: data.procedencia_ciudad,
         correo: data.correo,
         telefono: data.telefono,
-        fecha_nacimiento: data.fecha_nacimiento,
+        fecha_nacimiento: data.fecha_nacimiento || null,
         sexo: data.sexo,
         notas_internas: data.notas_internas
       })
@@ -81,7 +81,7 @@ export async function upsertHuesped(data: HuespedData) {
   // Si no existe, crear
   const { data: created, error: createError } = await supabase
     .from('huespedes')
-    .insert(data)
+    .insert({ ...data, fecha_nacimiento: data.fecha_nacimiento || null })
     .select()
     .single()
 
@@ -160,7 +160,7 @@ export async function registrarHuespedesEnReserva(
         procedencia_ciudad: huesped.procedencia_ciudad,
         correo: huesped.correo,
         telefono: huesped.telefono,
-        fecha_nacimiento: huesped.fecha_nacimiento,
+        fecha_nacimiento: huesped.fecha_nacimiento || null,
         sexo: huesped.sexo,
         notas_internas: huesped.notas_internas,
       })
