@@ -230,10 +230,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         toast.error(`${label}: Ciudad es obligatorio`)
         return false
       }
-      if (!h.fecha_nacimiento) {
-        toast.error(`${label}: Fecha de nacimiento es obligatorio`)
-        return false
-      }
+      // fecha_nacimiento es opcional — no requerido por MINCETUR
     }
 
     // Validar documentos únicos y formato

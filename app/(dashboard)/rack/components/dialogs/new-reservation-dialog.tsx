@@ -154,15 +154,14 @@ export function NewReservationDialog({
     if (currentStep === 2) {
       // Validar que todos los huéspedes tengan campos obligatorios
       if (!formData.huespedes || formData.huespedes.length === 0) return false
-      return formData.huespedes.every((h: any) => 
-        h.nombres?.trim() && 
-        h.apellidos?.trim() && 
-        h.numero_documento?.trim() && 
-        h.sexo && 
-        h.pais?.trim() && 
-        h.procedencia_departamento?.trim() && 
-        h.procedencia_ciudad?.trim() && 
-        h.fecha_nacimiento
+      return formData.huespedes.every((h: any) =>
+        h.nombres?.trim() &&
+        h.apellidos?.trim() &&
+        h.numero_documento?.trim() &&
+        h.sexo &&
+        h.pais?.trim() &&
+        h.procedencia_departamento?.trim() &&
+        h.procedencia_ciudad?.trim()
       )
     }
     return true
