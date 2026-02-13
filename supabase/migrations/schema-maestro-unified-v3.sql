@@ -11,6 +11,8 @@
 --   - consolidated_caja_fixes.sql (funciones corregidas)
 --   - add_kardex_number.sql (numero_kardex)
 --   - update_reservas_view_for_kardex.sql (vistas mejoradas)
+--   - fix-security-definer-simple.sql (SECURITY DEFINER en calcular_movimientos_turno)
+--   - 20260211_add_ciudad_pais_huespedes.sql (pais + ciudad en huespedes, D.S. N° 001-2015-MINCETUR)
 -- =============================================
 
 -- =============================================
@@ -246,7 +248,8 @@ CREATE TABLE public.huespedes (
     tipo_documento text NOT NULL,
     numero_documento text NOT NULL,
     sexo char(1) CHECK (sexo IN ('M', 'F')), -- Obligatorio MINCETUR
-    nacionalidad text,
+    pais text NOT NULL DEFAULT 'Perú', -- País del huésped (requerido por MINCETUR D.S. N° 001-2015)
+    procedencia_ciudad text, -- Ciudad de procedencia del huésped (requerido por MINCETUR)
     procedencia_departamento text,
     correo text,
     telefono text,
@@ -378,6 +381,8 @@ CREATE INDEX IF NOT EXISTS idx_comprobantes_ticket_anulacion ON public.comproban
 CREATE INDEX IF NOT EXISTS idx_huespedes_activos ON public.huespedes(id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_reservas_activas ON public.reservas(id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_habitaciones_activas ON public.habitaciones(id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_huespedes_pais ON public.huespedes(pais);
+CREATE INDEX IF NOT EXISTS idx_huespedes_ciudad ON public.huespedes(procedencia_ciudad);
 
 -- =============================================
 -- 5. FUNCIONES
@@ -406,7 +411,10 @@ RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ language
 -- Calcular movimientos (Auxiliar)
 CREATE OR REPLACE FUNCTION calcular_movimientos_turno(p_turno_id uuid)
 RETURNS TABLE(total_ingresos_pen numeric, total_ingresos_usd numeric, total_egresos_pen numeric, total_egresos_usd numeric)
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
     RETURN QUERY
     SELECT
@@ -792,8 +800,8 @@ BEGIN
         IF v_huesped_id IS NOT NULL THEN
             UPDATE huespedes SET nombres = COALESCE(huesped_item->>'nombres', nombres), apellidos = COALESCE(huesped_item->>'apellidos', apellidos), correo = COALESCE(huesped_item->>'correo', correo) WHERE id = v_huesped_id;
         ELSE
-            INSERT INTO huespedes (tipo_documento, numero_documento, nombres, apellidos, nacionalidad, correo, telefono)
-            VALUES (huesped_item->>'tipo_documento', huesped_item->>'numero_documento', huesped_item->>'nombres', huesped_item->>'apellidos', COALESCE(huesped_item->>'nacionalidad', 'PE'), huesped_item->>'correo', huesped_item->>'telefono') RETURNING id INTO v_huesped_id;
+            INSERT INTO huespedes (tipo_documento, numero_documento, nombres, apellidos, pais, correo, telefono)
+            VALUES (huesped_item->>'tipo_documento', huesped_item->>'numero_documento', huesped_item->>'nombres', huesped_item->>'apellidos', COALESCE(huesped_item->>'pais', 'Perú'), huesped_item->>'correo', huesped_item->>'telefono') RETURNING id INTO v_huesped_id;
         END IF;
         INSERT INTO reserva_huespedes (reserva_id, huesped_id, es_titular) VALUES (v_reserva_id, v_huesped_id, (huesped_item->>'es_titular')::boolean);
     END LOOP;
@@ -925,6 +933,10 @@ FROM caja_turnos ct JOIN cajas c ON ct.caja_id = c.id JOIN usuarios u ON ct.usua
 CREATE OR REPLACE VIEW public.vw_huespedes_activos AS
 SELECT * FROM public.huespedes WHERE deleted_at IS NULL;
 
+-- Comentarios MINCETUR
+COMMENT ON COLUMN public.huespedes.procedencia_ciudad IS 'Ciudad de procedencia del huésped (requerido por MINCETUR)';
+COMMENT ON COLUMN public.huespedes.pais IS 'País del huésped (requerido por MINCETUR)';
+
 CREATE OR REPLACE VIEW public.vw_reservas_activas AS
 SELECT r.*, h.numero as habitacion_numero, h.piso as habitacion_piso
 FROM public.reservas r LEFT JOIN public.habitaciones h ON r.habitacion_id = h.id WHERE r.deleted_at IS NULL;
@@ -982,4 +994,4 @@ ON CONFLICT (id) DO UPDATE SET rol = 'ADMIN', estado = true;
 -- =============================================
 -- 11. FIN
 -- =============================================
-DO $$ BEGIN RAISE NOTICE '✅ SYSTEM READY: SCHEMA UNIFICADO v3.0 CREADO CON ÉXITO'; END $$;
+DO $$ BEGIN RAISE NOTICE '✅ SYSTEM READY: SCHEMA UNIFICADO v3.0 CREADO CON ÉXITO (incluye SECURITY DEFINER + campos MINCETUR)'; END $$;

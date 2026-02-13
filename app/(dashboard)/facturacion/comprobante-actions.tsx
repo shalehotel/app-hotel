@@ -28,7 +28,8 @@ import {
     FileMinus,
     MessageCircle,
     Printer,
-    RotateCcw
+    RotateCcw,
+    Ban
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -135,6 +136,26 @@ export function ComprobanteActions({ comprobante, meta }: ComprobanteActionsProp
                             >
                                 <RotateCcw className="mr-2 h-4 w-4" />
                                 Reemitir Comprobante
+                            </DropdownMenuItem>
+                        </>
+                    )}
+
+                    {comprobante.estado_sunat === 'RECHAZADO' && (
+                        <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                onClick={() => meta?.onReemitir?.(comprobante)}
+                                className="text-blue-600"
+                            >
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Corregir y Reenviar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => meta?.onAnularLocal?.(comprobante.id)}
+                                className="text-destructive"
+                            >
+                                <Ban className="mr-2 h-4 w-4" />
+                                Anular Localmente
                             </DropdownMenuItem>
                         </>
                     )}

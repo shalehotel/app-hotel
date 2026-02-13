@@ -14,12 +14,12 @@ import {
 } from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Trash2, User, Users, Search, CheckCircle2, Loader2 } from 'lucide-react'
+import { Plus, Trash2, User, Users, Search, CheckCircle2, Loader2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import type { HuespedConRelacion } from '@/lib/actions/huespedes'
 import { NacionalidadCombobox } from '@/components/custom/nacionalidad-combobox'
 import { DepartamentoCombobox } from '@/components/custom/departamento-combobox'
-import { buscarHuespedPorDocumento } from '@/lib/actions/checkin'
+import { consultarDocumento } from '@/lib/actions/consulta-documento'
 import { generateUUID } from '@/lib/utils/random'
 import { getDocumentError } from '@/lib/utils/validation'
 
@@ -57,35 +57,6 @@ const TIPOS_DOCUMENTO = [
   { value: 'OTRO', label: 'Otro' },
 ]
 
-const DEPARTAMENTOS_PERU = [
-  'Amazonas',
-  'Áncash',
-  'Apurímac',
-  'Arequipa',
-  'Ayacucho',
-  'Cajamarca',
-  'Callao',
-  'Cusco',
-  'Huancavelica',
-  'Huánuco',
-  'Ica',
-  'Junín',
-  'La Libertad',
-  'Lambayeque',
-  'Lima',
-  'Loreto',
-  'Madre de Dios',
-  'Moquegua',
-  'Pasco',
-  'Piura',
-  'Puno',
-  'San Martín',
-  'Tacna',
-  'Tumbes',
-  'Ucayali',
-  'Extranjero',
-]
-
 export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guardar Huéspedes', showSubmitButton = true, onChange }: Props) {
   const [huespedes, setHuespedes] = useState<HuespedFormData[]>(
     initialData || [
@@ -111,41 +82,55 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
 
   const [loading, setLoading] = useState(false)
   const [buscando, setBuscando] = useState<Record<string, boolean>>({})
+  const [erroresApi, setErroresApi] = useState<Record<string, string>>({})
 
-  // Función para buscar huésped por documento
-  const buscarHuesped = useCallback(async (huespedId: string, tipoDoc: string, numDoc: string) => {
-    if (!numDoc || numDoc.length < 3) return // Mínimo 3 caracteres para buscar
+  // Función para buscar datos vía APISPerú + BD local
+  const buscarDocumento = useCallback(async (huespedId: string, tipoDoc: string, numDoc: string) => {
+    if (!numDoc) return
+
+    // Solo consultar API para DNI (8 dígitos)
+    if (tipoDoc === 'DNI' && numDoc.length !== 8) return
+    // Para otros tipos, ignorar API
+    if (tipoDoc !== 'DNI') return
 
     setBuscando(prev => ({ ...prev, [huespedId]: true }))
+    setErroresApi(prev => ({ ...prev, [huespedId]: '' }))
 
     try {
-      const result = await buscarHuespedPorDocumento(numDoc, tipoDoc)
+      const result = await consultarDocumento('DNI', numDoc)
 
-      if (result.huesped) {
-        // Huésped encontrado: autocompleta los campos
+      if (result.success && result.data) {
+        const data = result.data
         setHuespedes(prev => prev.map(h => {
           if (h.id === huespedId) {
-            toast.success(`Huésped encontrado: ${result.huesped.nombres} ${result.huesped.apellidos}`)
-            return {
-              ...h,
-              huesped_bd_id: result.huesped.id,
-              nombres: result.huesped.nombres || '',
-              apellidos: result.huesped.apellidos || '',
-              pais: result.huesped.pais || 'Perú',
-              procedencia_departamento: result.huesped.procedencia_departamento || '',
-              procedencia_ciudad: result.huesped.procedencia_ciudad || '',
-              correo: result.huesped.correo || '',
-              telefono: result.huesped.telefono || '',
-              fecha_nacimiento: result.huesped.fecha_nacimiento || '',
-              sexo: result.huesped.sexo || '',
-              notas: result.huesped.notas_internas || '',
-              es_existente: true,
+            const updated = { ...h }
+
+            // Datos de APISPerú (RENIEC)
+            if (data.nombres) updated.nombres = data.nombres
+            if (data.apellidos) updated.apellidos = data.apellidos
+
+            // Datos complementarios de BD local
+            if (data.huesped_existente) {
+              updated.huesped_bd_id = data.huesped_existente.id
+              updated.es_existente = true
+              if (data.huesped_existente.pais) updated.pais = data.huesped_existente.pais
+              if (data.huesped_existente.procedencia_departamento) updated.procedencia_departamento = data.huesped_existente.procedencia_departamento
+              if (data.huesped_existente.procedencia_ciudad) updated.procedencia_ciudad = data.huesped_existente.procedencia_ciudad
+              if (data.huesped_existente.correo) updated.correo = data.huesped_existente.correo
+              if (data.huesped_existente.telefono) updated.telefono = data.huesped_existente.telefono
+              if (data.huesped_existente.fecha_nacimiento) updated.fecha_nacimiento = data.huesped_existente.fecha_nacimiento
+              if (data.huesped_existente.sexo) updated.sexo = data.huesped_existente.sexo as 'M' | 'F'
+              if (data.huesped_existente.notas_internas) updated.notas = data.huesped_existente.notas_internas
             }
+
+            toast.success(`Datos encontrados: ${updated.nombres} ${updated.apellidos}`)
+            return updated
           }
           return h
         }))
       } else {
-        // No existe: marcar como nuevo
+        setErroresApi(prev => ({ ...prev, [huespedId]: result.error || 'No se encontraron datos' }))
+        // Limpiar flag de existente
         setHuespedes(prev => prev.map(h => {
           if (h.id === huespedId) {
             return { ...h, huesped_bd_id: undefined, es_existente: false }
@@ -154,7 +139,8 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
         }))
       }
     } catch (error) {
-      console.error('Error buscando huésped:', error)
+      console.error('Error consultando documento:', error)
+      setErroresApi(prev => ({ ...prev, [huespedId]: 'Error de conexión' }))
     } finally {
       setBuscando(prev => ({ ...prev, [huespedId]: false }))
     }
@@ -300,6 +286,230 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
     }
   }
 
+  // =====================================================
+  // RENDER DE UN BLOQUE DE HUÉSPED (Titular o Acompañante)
+  // =====================================================
+  const renderHuespedFields = (huesped: HuespedFormData, labelPrefix: string) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* ===== FILA 1: TIPO DOCUMENTO + NÚMERO DOCUMENTO (PRIMERA FILA) ===== */}
+      <div>
+        <Label>Tipo Documento</Label>
+        <Select
+          value={huesped.tipo_documento}
+          onValueChange={(value) =>
+            actualizarHuesped(huesped.id, 'tipo_documento', value)
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TIPOS_DOCUMENTO.map((tipo) => (
+              <SelectItem key={tipo.value} value={tipo.value}>
+                {tipo.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label>
+          Número Documento <span className="text-red-500">*</span>
+        </Label>
+        <div className="relative">
+          <Input
+            value={huesped.numero_documento}
+            onChange={(e) => {
+              actualizarHuesped(huesped.id, 'numero_documento', e.target.value)
+              // Limpiar error al escribir
+              if (erroresApi[huesped.id]) {
+                setErroresApi(prev => ({ ...prev, [huesped.id]: '' }))
+              }
+            }}
+            onBlur={() => buscarDocumento(huesped.id, huesped.tipo_documento, huesped.numero_documento)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                buscarDocumento(huesped.id, huesped.tipo_documento, huesped.numero_documento)
+              }
+            }}
+            placeholder={huesped.tipo_documento === 'DNI' ? 'Ingrese 8 dígitos y presione Tab' : 'Número de documento'}
+            required
+            className={`pr-10 ${getDocumentError(huesped.tipo_documento, huesped.numero_documento) || erroresApi[huesped.id] ? 'border-red-500' : ''}`}
+          />
+          {buscando[huesped.id] && (
+            <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-blue-500" />
+          )}
+          {!buscando[huesped.id] && huesped.es_existente && (
+            <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-green-500" />
+          )}
+          {!buscando[huesped.id] && erroresApi[huesped.id] && (
+            <AlertTriangle className="absolute right-3 top-2.5 h-4 w-4 text-amber-500" />
+          )}
+        </div>
+        {getDocumentError(huesped.tipo_documento, huesped.numero_documento) && (
+          <p className="text-[10px] text-red-500 font-medium mt-1">
+            {getDocumentError(huesped.tipo_documento, huesped.numero_documento)}
+          </p>
+        )}
+        {erroresApi[huesped.id] && (
+          <p className="text-[10px] text-amber-600 font-medium mt-1 flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" />
+            {erroresApi[huesped.id]}
+          </p>
+        )}
+        {huesped.es_existente && (
+          <Badge variant="secondary" className="mt-1 text-xs">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Huésped registrado
+          </Badge>
+        )}
+      </div>
+
+      {/* ===== FILA 2: NOMBRES + APELLIDOS ===== */}
+      <div>
+        <Label>
+          Nombres <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          value={huesped.nombres}
+          onChange={(e) =>
+            actualizarHuesped(huesped.id, 'nombres', e.target.value)
+          }
+          placeholder="Nombres del huésped"
+          required
+        />
+      </div>
+
+      <div>
+        <Label>
+          Apellidos <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          value={huesped.apellidos}
+          onChange={(e) =>
+            actualizarHuesped(huesped.id, 'apellidos', e.target.value)
+          }
+          placeholder="Apellidos del huésped"
+          required
+        />
+      </div>
+
+      {/* ===== FILA 3: SEXO + FECHA NACIMIENTO ===== */}
+      <div>
+        <Label>
+          Sexo (MINCETUR) <span className="text-red-500">*</span>
+        </Label>
+        <Select
+          value={huesped.sexo}
+          onValueChange={(value) =>
+            actualizarHuesped(huesped.id, 'sexo', value)
+          }
+          required
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Seleccionar" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="M">Masculino</SelectItem>
+            <SelectItem value="F">Femenino</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label>
+          Fecha Nacimiento <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          type="date"
+          value={huesped.fecha_nacimiento}
+          onChange={(e) =>
+            actualizarHuesped(huesped.id, 'fecha_nacimiento', e.target.value)
+          }
+          required
+        />
+      </div>
+
+      {/* ===== FILA 4: PAÍS + DEPARTAMENTO ===== */}
+      <div>
+        <Label>
+          País <span className="text-red-500">*</span>
+        </Label>
+        <NacionalidadCombobox
+          value={huesped.pais}
+          onValueChange={(value) =>
+            actualizarHuesped(huesped.id, 'pais', value)
+          }
+        />
+      </div>
+
+      <div>
+        <Label>
+          Departamento <span className="text-red-500">*</span>
+        </Label>
+        <DepartamentoCombobox
+          value={huesped.procedencia_departamento}
+          onValueChange={(value) =>
+            actualizarHuesped(huesped.id, 'procedencia_departamento', value)
+          }
+        />
+      </div>
+
+      {/* ===== FILA 5: CIUDAD + CORREO ===== */}
+      <div>
+        <Label>
+          Ciudad <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          value={huesped.procedencia_ciudad}
+          onChange={(e) =>
+            actualizarHuesped(huesped.id, 'procedencia_ciudad', e.target.value)
+          }
+          placeholder="Lima, Chachapoyas, etc."
+          required
+        />
+      </div>
+
+      <div>
+        <Label>Correo</Label>
+        <Input
+          type="email"
+          value={huesped.correo}
+          onChange={(e) =>
+            actualizarHuesped(huesped.id, 'correo', e.target.value)
+          }
+        />
+      </div>
+
+      {/* ===== FILA 6: TELÉFONO + NOTAS ===== */}
+      <div>
+        <Label>Teléfono</Label>
+        <Input
+          type="tel"
+          value={huesped.telefono}
+          onChange={(e) =>
+            actualizarHuesped(huesped.id, 'telefono', e.target.value)
+          }
+        />
+      </div>
+
+      <div>
+        <Label>
+          Notas / Parentesco
+        </Label>
+        <Input
+          value={huesped.notas}
+          onChange={(e) =>
+            actualizarHuesped(huesped.id, 'notas', e.target.value)
+          }
+          placeholder="Parentesco con menor, autorización..."
+        />
+      </div>
+    </div>
+  )
+
   const titular = huespedes.find((h) => h.es_titular)
 
   return (
@@ -317,206 +527,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="nombres-titular">
-                  Nombres <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="nombres-titular"
-                  value={titular.nombres}
-                  onChange={(e) =>
-                    actualizarHuesped(titular.id, 'nombres', e.target.value)
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="apellidos-titular">
-                  Apellidos <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="apellidos-titular"
-                  value={titular.apellidos}
-                  onChange={(e) =>
-                    actualizarHuesped(titular.id, 'apellidos', e.target.value)
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="tipo-doc-titular">Tipo Documento</Label>
-                <Select
-                  value={titular.tipo_documento}
-                  onValueChange={(value) =>
-                    actualizarHuesped(titular.id, 'tipo_documento', value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIPOS_DOCUMENTO.map((tipo) => (
-                      <SelectItem key={tipo.value} value={tipo.value}>
-                        {tipo.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="nro-doc-titular">
-                  Número Documento <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="nro-doc-titular"
-                    value={titular.numero_documento}
-                    onChange={(e) =>
-                      actualizarHuesped(titular.id, 'numero_documento', e.target.value)
-                    }
-                    onBlur={() => buscarHuesped(titular.id, titular.tipo_documento, titular.numero_documento)}
-                    placeholder="Ingrese documento y presione Tab para buscar"
-                    required
-                    className={getDocumentError(titular.tipo_documento, titular.numero_documento) ? 'border-red-500' : ''}
-                  />
-                  {buscando[titular.id] && (
-                    <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
-                  )}
-                  {titular.es_existente && !buscando[titular.id] && (
-                    <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-green-500" />
-                  )}
-                </div>
-                {getDocumentError(titular.tipo_documento, titular.numero_documento) && (
-                  <p className="text-[10px] text-red-500 font-medium mt-1">
-                    {getDocumentError(titular.tipo_documento, titular.numero_documento)}
-                  </p>
-                )}
-                {titular.es_existente && (
-                  <Badge variant="secondary" className="mt-1 text-xs">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Huésped frecuente
-                  </Badge>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="sexo-titular">
-                  Sexo (MINCETUR) <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={titular.sexo}
-                  onValueChange={(value) =>
-                    actualizarHuesped(titular.id, 'sexo', value)
-                  }
-                  required
-                >
-                  <SelectTrigger id="sexo-titular">
-                    <SelectValue placeholder="Seleccionar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="M">Masculino</SelectItem>
-                    <SelectItem value="F">Femenino</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="pais-titular">
-                  País <span className="text-red-500">*</span>
-                </Label>
-                <NacionalidadCombobox
-                  value={titular.pais}
-                  onValueChange={(value) =>
-                    actualizarHuesped(titular.id, 'pais', value)
-                  }
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="procedencia-titular">
-                  Departamento <span className="text-red-500">*</span>
-                </Label>
-                <DepartamentoCombobox
-                  value={titular.procedencia_departamento}
-                  onValueChange={(value) =>
-                    actualizarHuesped(titular.id, 'procedencia_departamento', value)
-                  }
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="ciudad-titular">
-                  Ciudad <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="ciudad-titular"
-                  value={titular.procedencia_ciudad}
-                  onChange={(e) =>
-                    actualizarHuesped(titular.id, 'procedencia_ciudad', e.target.value)
-                  }
-                  placeholder="Lima, Chachapoyas, etc."
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="fecha-nac-titular">
-                  Fecha Nacimiento <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="fecha-nac-titular"
-                  type="date"
-                  value={titular.fecha_nacimiento}
-                  onChange={(e) =>
-                    actualizarHuesped(titular.id, 'fecha_nacimiento', e.target.value)
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="correo-titular">Correo</Label>
-                <Input
-                  id="correo-titular"
-                  type="email"
-                  value={titular.correo}
-                  onChange={(e) =>
-                    actualizarHuesped(titular.id, 'correo', e.target.value)
-                  }
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="telefono-titular">Teléfono</Label>
-                <Input
-                  id="telefono-titular"
-                  type="tel"
-                  value={titular.telefono}
-                  onChange={(e) =>
-                    actualizarHuesped(titular.id, 'telefono', e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <Label htmlFor="notas-titular">
-                  Notas / Parentesco (Menores)
-                </Label>
-                <Textarea
-                  id="notas-titular"
-                  value={titular.notas}
-                  onChange={(e) =>
-                    actualizarHuesped(titular.id, 'notas', e.target.value)
-                  }
-                  placeholder="Ej: Parentesco con menor, autorización notarial, preferencias..."
-                  className="resize-none h-20"
-                />
-              </div>
-            </div>
+            {renderHuespedFields(titular, 'titular')}
           </CardContent>
         </Card>
       )}
@@ -558,198 +569,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>
-                      Nombres <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      value={acomp.nombres}
-                      onChange={(e) =>
-                        actualizarHuesped(acomp.id, 'nombres', e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label>
-                      Apellidos <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      value={acomp.apellidos}
-                      onChange={(e) =>
-                        actualizarHuesped(acomp.id, 'apellidos', e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Tipo Documento</Label>
-                    <Select
-                      value={acomp.tipo_documento}
-                      onValueChange={(value) =>
-                        actualizarHuesped(acomp.id, 'tipo_documento', value)
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIPOS_DOCUMENTO.map((tipo) => (
-                          <SelectItem key={tipo.value} value={tipo.value}>
-                            {tipo.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label>
-                      Número Documento <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        value={acomp.numero_documento}
-                        onChange={(e) =>
-                          actualizarHuesped(acomp.id, 'numero_documento', e.target.value)
-                        }
-                        onBlur={() => buscarHuesped(acomp.id, acomp.tipo_documento, acomp.numero_documento)}
-                        placeholder="Tab para buscar"
-                        required
-                        className={getDocumentError(acomp.tipo_documento, acomp.numero_documento) ? 'border-red-500' : ''}
-                      />
-                      {buscando[acomp.id] && (
-                        <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
-                      )}
-                      {acomp.es_existente && !buscando[acomp.id] && (
-                        <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-green-500" />
-                      )}
-                    </div>
-                    {getDocumentError(acomp.tipo_documento, acomp.numero_documento) && (
-                      <p className="text-[10px] text-red-500 font-medium mt-1">
-                        {getDocumentError(acomp.tipo_documento, acomp.numero_documento)}
-                      </p>
-                    )}
-                    {acomp.es_existente && (
-                      <Badge variant="secondary" className="mt-1 text-xs">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Existente
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label>
-                      Sexo (MINCETUR) <span className="text-red-500">*</span>
-                    </Label>
-                    <Select
-                      value={acomp.sexo}
-                      onValueChange={(value) =>
-                        actualizarHuesped(acomp.id, 'sexo', value)
-                      }
-                      required
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="M">Masculino</SelectItem>
-                        <SelectItem value="F">Femenino</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label>
-                      País <span className="text-red-500">*</span>
-                    </Label>
-                    <NacionalidadCombobox
-                      value={acomp.pais}
-                      onValueChange={(value) =>
-                        actualizarHuesped(acomp.id, 'pais', value)
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <Label>
-                      Departamento <span className="text-red-500">*</span>
-                    </Label>
-                    <DepartamentoCombobox
-                      value={acomp.procedencia_departamento}
-                      onValueChange={(value) =>
-                        actualizarHuesped(acomp.id, 'procedencia_departamento', value)
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <Label>
-                      Ciudad <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      value={acomp.procedencia_ciudad}
-                      onChange={(e) =>
-                        actualizarHuesped(acomp.id, 'procedencia_ciudad', e.target.value)
-                      }
-                      placeholder="Lima, Chachapoyas, etc."
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label>
-                      Fecha Nacimiento <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      type="date"
-                      value={acomp.fecha_nacimiento}
-                      onChange={(e) =>
-                        actualizarHuesped(acomp.id, 'fecha_nacimiento', e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Correo</Label>
-                    <Input
-                      type="email"
-                      value={acomp.correo}
-                      onChange={(e) =>
-                        actualizarHuesped(acomp.id, 'correo', e.target.value)
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Teléfono</Label>
-                    <Input
-                      type="tel"
-                      value={acomp.telefono}
-                      onChange={(e) =>
-                        actualizarHuesped(acomp.id, 'telefono', e.target.value)
-                      }
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <Label>
-                      Notas / Parentesco (Menores)
-                    </Label>
-                    <Textarea
-                      value={acomp.notas}
-                      onChange={(e) =>
-                        actualizarHuesped(acomp.id, 'notas', e.target.value)
-                      }
-                      placeholder="Ej: Hijo del titular, viaja con autorización..."
-                      className="resize-none h-20"
-                    />
-                  </div>
-                </div>
+                {renderHuespedFields(acomp, `acomp-${index}`)}
               </div>
             ))}
 
@@ -757,7 +577,7 @@ export function HuespedesForm({ onSubmit, initialData, submitButtonText = 'Guard
             <div className="text-center py-8 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p>No hay acompañantes registrados</p>
-              <p className="text-sm">Haz clic en "Agregar Acompañante" para añadir</p>
+              <p className="text-sm">Haz clic en &quot;Agregar Acompañante&quot; para añadir</p>
             </div>
           )}
         </CardContent>

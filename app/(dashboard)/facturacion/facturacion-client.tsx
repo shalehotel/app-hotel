@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getHistorialComprobantes, actualizarEstadoComprobante } from '@/lib/actions/comprobantes'
+import { getHistorialComprobantes, actualizarEstadoComprobante, anularComprobanteLocal } from '@/lib/actions/comprobantes'
 import { DataTable } from '@/components/tables/data-table'
 import { comprobantesColumns, type Comprobante } from './columns'
 import { ComprobanteDetailSheet } from '@/components/facturacion/comprobante-detail-sheet'
 import { ReservationDetailSheet } from '@/components/reservas/reservation-detail-sheet'
 import { EmitirNotaCreditoDialog } from './components/emitir-nota-credito-dialog'
+import { ReemitirComprobanteDialog } from './components/reemitir-comprobante-dialog'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import {
@@ -25,6 +26,7 @@ import { CalendarIcon, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 export function FacturacionClient() {
   const [comprobantes, setComprobantes] = useState<Comprobante[]>([])
@@ -44,7 +46,8 @@ export function FacturacionClient() {
   const [comprobanteParaNC, setComprobanteParaNC] = useState<Comprobante | null>(null)
 
   // Reemitir comprobante anulado
-  const [reemitirComprobante, setReemitirComprobante] = useState<Comprobante | null>(null)
+  const [reemitirComprobanteId, setReemitirComprobanteId] = useState<string | null>(null)
+  const [reemitirDialogOpen, setReemitirDialogOpen] = useState(false)
 
   useEffect(() => {
     cargarComprobantes()
@@ -107,13 +110,33 @@ export function FacturacionClient() {
   }
 
   function handleReemitir(comprobante: Comprobante) {
-    // Abrir la reserva original para que el usuario pueda reemitir desde ahí
-    if (comprobante.reserva_id) {
-      setReemitirComprobante(comprobante)
-      setSelectedReservaId(comprobante.reserva_id)
-      setReservaSheetOpen(true)
-    } else {
-      alert('Este comprobante no tiene reserva asociada.')
+    // Abrir dialog de reemisión con datos pre-llenados del comprobante anulado
+    setReemitirComprobanteId(comprobante.id)
+    setReemitirDialogOpen(true)
+  }
+
+  async function handleAnularLocal(comprobanteId: string) {
+    const comprobante = comprobantes.find(c => c.id === comprobanteId)
+    if (!comprobante) return
+
+    if (comprobante.estado_sunat === 'ACEPTADO') {
+      toast.error('No se puede anular localmente un comprobante aceptado. Use Nota de Crédito.')
+      return
+    }
+
+    const motivo = prompt('Motivo de anulación:')
+    if (!motivo) return
+
+    try {
+      const res = await anularComprobanteLocal(comprobanteId, motivo)
+      if (res.success) {
+        toast.success('Comprobante anulado localmente')
+        await cargarComprobantes()
+      } else {
+        toast.error(res.error || 'Error al anular')
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Error al anular')
     }
   }
 
@@ -144,6 +167,7 @@ export function FacturacionClient() {
           onAnular: handleAnular,
           onActualizarEstado: handleActualizarEstado,
           onReemitir: handleReemitir,
+          onAnularLocal: handleAnularLocal,
         }}
         toolbar={
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0">
@@ -217,7 +241,7 @@ export function FacturacionClient() {
         />
       )}
 
-      {/* Sheet de detalle de reserva (ver reserva o reemitir) */}
+      {/* Sheet de detalle de reserva */}
       {selectedReservaId && (
         <ReservationDetailSheet
           reservaId={selectedReservaId}
@@ -226,16 +250,22 @@ export function FacturacionClient() {
             setReservaSheetOpen(open)
             if (!open) {
               setSelectedReservaId(null)
-              if (reemitirComprobante) {
-                setReemitirComprobante(null)
-                cargarComprobantes() // Recargar por si emitió nuevo comprobante
-              }
             }
           }}
           onUpdate={() => { }}
-          defaultTab="cuenta"
         />
       )}
+
+      {/* Dialog para reemitir comprobante anulado */}
+      <ReemitirComprobanteDialog
+        comprobanteId={reemitirComprobanteId}
+        open={reemitirDialogOpen}
+        onOpenChange={(open) => {
+          setReemitirDialogOpen(open)
+          if (!open) setReemitirComprobanteId(null)
+        }}
+        onSuccess={cargarComprobantes}
+      />
 
       {/* Dialog para emitir Nota de Crédito */}
       <EmitirNotaCreditoDialog

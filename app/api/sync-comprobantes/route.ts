@@ -82,20 +82,23 @@ export async function POST(request: NextRequest) {
 
                 if (estadoNubefact.aceptada_por_sunat === true) {
                     // ACEPTADO
+                    const updateData: any = {
+                        estado_sunat: 'ACEPTADO',
+                        hash_cpe: estadoNubefact.hash,
+                        xml_url: estadoNubefact.enlace,
+                        cdr_url: estadoNubefact.enlace_del_cdr
+                    }
+                    if (estadoNubefact.enlace_pdf) updateData.pdf_url = estadoNubefact.enlace_pdf
+
                     await supabase
                         .from('comprobantes')
-                        .update({
-                            estado_sunat: 'ACEPTADO',
-                            hash_cpe: estadoNubefact.hash,
-                            xml_url: estadoNubefact.enlace,
-                            cdr_url: estadoNubefact.enlace_del_cdr
-                        })
+                        .update(updateData)
                         .eq('id', comprobante.id)
 
                     resultados.aceptados++
 
-                } else if (estadoNubefact.errors || estadoNubefact.codigo_sunat) {
-                    // RECHAZADO
+                } else if (estadoNubefact.errors || (estadoNubefact.codigo_sunat && estadoNubefact.codigo_sunat !== '0' && estadoNubefact.codigo_sunat !== '')) {
+                    // RECHAZADO (tiene errores SUNAT reales)
                     await supabase
                         .from('comprobantes')
                         .update({
@@ -107,7 +110,7 @@ export async function POST(request: NextRequest) {
                     resultados.rechazados++
 
                 } else {
-                    // Sigue PENDIENTE
+                    // Sigue PENDIENTE (boletas se envían al día siguiente)
                     resultados.pendientes++
                 }
 

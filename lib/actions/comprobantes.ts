@@ -367,7 +367,7 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
     })
 
     if (respuesta.success && respuesta.aceptada_por_sunat) {
-      // Actualizar con respuesta de NubeFact
+      // ACEPTADO por SUNAT
       await supabase
         .from('comprobantes')
         .update({
@@ -375,6 +375,7 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
           hash_cpe: respuesta.hash,
           xml_url: respuesta.enlace,
           cdr_url: respuesta.enlace_del_cdr,
+          pdf_url: respuesta.enlace_pdf,
           external_id: respuesta.enlace_pdf
         })
         .eq('id', comprobante.id)
@@ -383,8 +384,26 @@ export async function emitirComprobante(input: EmitirComprobanteInput) {
         comprobante_id: comprobante.id,
         hash: respuesta.hash
       })
+    } else if (respuesta.success && !respuesta.aceptada_por_sunat) {
+      // PENDIENTE — enviado OK pero SUNAT aún no confirma (boletas van al día siguiente)
+      await supabase
+        .from('comprobantes')
+        .update({
+          estado_sunat: 'PENDIENTE',
+          hash_cpe: respuesta.hash,
+          xml_url: respuesta.enlace,
+          cdr_url: respuesta.enlace_del_cdr,
+          pdf_url: respuesta.enlace_pdf,
+          external_id: respuesta.enlace_pdf,
+          observaciones: respuesta.mensaje
+        })
+        .eq('id', comprobante.id)
+
+      logger.info('Comprobante enviado, pendiente de SUNAT', {
+        comprobante_id: comprobante.id
+      })
     } else {
-      // Marcar como rechazado si SUNAT lo rechazó
+      // RECHAZADO — Nubefact/SUNAT rechazó el comprobante
       await supabase
         .from('comprobantes')
         .update({
@@ -853,6 +872,104 @@ export async function anularComprobante(comprobante_id: string, motivo: string) 
 }
 
 // ========================================
+// ANULAR COMPROBANTE LOCALMENTE (RECHAZADOS)
+// ========================================
+// Para comprobantes RECHAZADOS por SUNAT o que nunca llegaron.
+// No necesita comunicación con NubeFact/SUNAT porque SUNAT nunca los aceptó.
+// Solo marca como ANULADO en la base de datos local.
+export async function anularComprobanteLocal(comprobante_id: string, motivo: string) {
+  const supabase = await createClient()
+
+  // 1. Obtener comprobante
+  const { data: comprobante, error: comprobanteError } = await supabase
+    .from('comprobantes')
+    .select('id, estado_sunat, serie, numero')
+    .eq('id', comprobante_id)
+    .single()
+
+  if (comprobanteError || !comprobante) {
+    return { success: false, error: 'Comprobante no encontrado' }
+  }
+
+  if (comprobante.estado_sunat === 'ANULADO') {
+    return { success: false, error: 'El comprobante ya está anulado' }
+  }
+
+  if (comprobante.estado_sunat === 'ACEPTADO') {
+    return { success: false, error: 'No se puede anular localmente un comprobante aceptado por SUNAT. Use Nota de Crédito.' }
+  }
+
+  // 2. Marcar como anulado
+  const { error: updateError } = await supabase
+    .from('comprobantes')
+    .update({
+      estado_sunat: 'ANULADO',
+      observaciones: `ANULADO LOCALMENTE: ${motivo}`
+    })
+    .eq('id', comprobante_id)
+
+  if (updateError) {
+    console.error('Error al anular comprobante localmente:', updateError)
+    return { success: false, error: 'Error al anular el comprobante' }
+  }
+
+  logger.info('Comprobante anulado localmente', {
+    comprobante_id,
+    serie: comprobante.serie,
+    numero: comprobante.numero,
+    motivo
+  })
+
+  revalidatePath('/facturacion')
+  return { success: true, message: 'Comprobante anulado localmente' }
+}
+
+// ========================================
+// OBTENER DATOS DE COMPROBANTE PARA REEMISIÓN
+// ========================================
+// Carga todos los datos del comprobante anulado para pre-llenar el formulario de reemisión
+export async function getComprobanteParaReemision(comprobante_id: string) {
+  const supabase = await createClient()
+
+  const { data: comprobante, error } = await supabase
+    .from('comprobantes')
+    .select(`
+      id,
+      tipo_comprobante,
+      serie,
+      numero,
+      receptor_tipo_doc,
+      receptor_nro_doc,
+      receptor_razon_social,
+      receptor_direccion,
+      moneda,
+      op_gravadas,
+      op_exoneradas,
+      monto_igv,
+      total_venta,
+      estado_sunat,
+      reserva_id,
+      observaciones,
+      comprobante_detalles (
+        id,
+        descripcion,
+        cantidad,
+        precio_unitario,
+        subtotal,
+        codigo_afectacion_igv
+      )
+    `)
+    .eq('id', comprobante_id)
+    .single()
+
+  if (error || !comprobante) {
+    return { success: false, error: 'Comprobante no encontrado' }
+  }
+
+  return { success: true, comprobante }
+}
+
+// ========================================
 // OBTENER COMPROBANTES PENDIENTES DE ENVÍO A SUNAT
 // ========================================
 export async function getComprobantesPendientesSunat() {
@@ -1141,15 +1258,19 @@ export async function actualizarEstadoComprobante(comprobanteId: string) {
     return { success: false, message: resultado.mensaje || resultado.errors || 'Error al consultar Nubefact' }
   }
 
-  // 3. Actualizar BD según respuesta
-  const nuevoEstado = resultado.aceptada_por_sunat ? 'ACEPTADO' : 'PENDIENTE'
+  // 3. Determinar estado correcto según respuesta de NubeFact
+  let estadoFinal: string
+  const res = resultado as any // Para acceder a campos extendidos
 
-  // Detectar rechazo real
-  let estadoFinal = nuevoEstado
-  if (!resultado.aceptada_por_sunat && resultado.codigo_sunat && parseInt(resultado.codigo_sunat) > 0 && parseInt(resultado.codigo_sunat) < 4000) {
-    if (resultado.mensaje?.toUpperCase().includes('RECHAZADO')) {
-      estadoFinal = 'RECHAZADO'
-    }
+  if (res.es_anulado) {
+    estadoFinal = 'ANULADO'
+  } else if (resultado.aceptada_por_sunat === true) {
+    estadoFinal = 'ACEPTADO'
+  } else if (resultado.errors || (resultado.codigo_sunat && resultado.codigo_sunat !== '0' && resultado.codigo_sunat !== '')) {
+    estadoFinal = 'RECHAZADO'
+  } else {
+    // Sin errores y sin aceptación = sigue PENDIENTE (boletas enviadas al día siguiente)
+    estadoFinal = 'PENDIENTE'
   }
 
   const updates: any = {
@@ -1190,7 +1311,7 @@ export async function actualizarEstadoComprobante(comprobanteId: string) {
 async function validarPlazoSUNAT(comprobante: any): Promise<{ valid: boolean; error?: string }> {
   try {
     const diasTranscurridos = differenceInDays(new Date(), parseISO(comprobante.fecha_emision))
-    
+
     if (comprobante.tipo_comprobante === 'BOLETA') {
       if (diasTranscurridos > 7) {
         return {
@@ -1199,12 +1320,12 @@ async function validarPlazoSUNAT(comprobante: any): Promise<{ valid: boolean; er
         }
       }
     }
-    
+
     if (comprobante.tipo_comprobante === 'FACTURA') {
       const fechaEmision = parseISO(comprobante.fecha_emision)
       const mesEmision = format(fechaEmision, 'yyyy-MM')
       const mesActual = format(new Date(), 'yyyy-MM')
-      
+
       if (mesEmision !== mesActual) {
         return {
           valid: false,
@@ -1212,7 +1333,7 @@ async function validarPlazoSUNAT(comprobante: any): Promise<{ valid: boolean; er
         }
       }
     }
-    
+
     return { valid: true }
   } catch (error) {
     logger.error('Error validando plazo SUNAT', { error: getErrorMessage(error) })
@@ -1225,7 +1346,7 @@ export type EmitirNotaCreditoManualInput = {
   tipo_nota_credito: number // 1, 6, 9, 10
   monto_devolucion: number
   motivo: string
-  
+
   // Nuevos campos para flujo completo
   incluye_devolucion_dinero?: boolean
   metodo_devolucion?: 'EFECTIVO' | 'YAPE' | 'PLIN' | 'TRANSFERENCIA' | 'PENDIENTE'
@@ -1261,7 +1382,7 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
     if (comprobanteOriginal.estado_sunat === 'RECHAZADO') {
       return { success: false, error: 'No se puede emitir NC sobre un comprobante rechazado por SUNAT' }
     }
-    
+
     // Validar plazo SUNAT para Tipo 1 (Anulación de operación)
     if (input.tipo_nota_credito === 1) {
       const validacionPlazo = await validarPlazoSUNAT(comprobanteOriginal)
@@ -1313,7 +1434,7 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
     // 3. Si incluye devolución de dinero, procesarla
     if (input.incluye_devolucion_dinero && input.metodo_devolucion && comprobanteOriginal.reservas) {
       const reserva = comprobanteOriginal.reservas
-      
+
       // Obtener turno activo
       const { data: turnoActivo } = await supabase
         .from('caja_turnos')
@@ -1321,7 +1442,7 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
         .eq('estado', 'ABIERTA')
         .limit(1)
         .maybeSingle()
-      
+
       // Procesar devolución atomícamente (crea pago negativo + egreso si es EFECTIVO)
       const { data: resultadoRPC, error: rpcError } = await supabase.rpc('procesar_devolucion_atomica', {
         p_reserva_id: reserva.id,
@@ -1333,7 +1454,7 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
         p_turno_id: turnoActivo?.id || null,
         p_usuario_id: turnoActivo?.usuario_id || null
       })
-      
+
       if (rpcError) {
         logger.error('Error al procesar devolución en NC manual', {
           action: 'emitirNotaCreditoManual',
@@ -1341,33 +1462,33 @@ export async function emitirNotaCreditoManual(input: EmitirNotaCreditoManualInpu
         })
         // No fallar toda la operación, solo advertir
       }
-      
+
       logger.info('Devolución procesada en NC manual', {
         monto: input.monto_devolucion,
         metodo: input.metodo_devolucion,
         rpcResult: resultadoRPC
       })
     }
-    
+
     // 4. Si libera habitación
     if (input.liberar_habitacion && comprobanteOriginal.reservas?.habitacion_id) {
       await supabase
         .from('habitaciones')
         .update({ estado_ocupacion: 'LIBRE' })
         .eq('id', comprobanteOriginal.reservas.habitacion_id)
-      
+
       logger.info('Habitación liberada por NC', {
         habitacion_id: comprobanteOriginal.reservas.habitacion_id
       })
     }
-    
+
     // 5. Si cancela reserva
     if (input.cancelar_reserva && comprobanteOriginal.reservas?.id) {
       await supabase
         .from('reservas')
         .update({ estado: 'CANCELADA' })
         .eq('id', comprobanteOriginal.reservas.id)
-      
+
       logger.info('Reserva cancelada por NC', {
         reserva_id: comprobanteOriginal.reservas.id
       })

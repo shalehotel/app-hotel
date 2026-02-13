@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -19,11 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Loader2, Receipt, CreditCard, Banknote, ArrowRightLeft } from 'lucide-react'
+import { Loader2, Receipt, CreditCard, Banknote, ArrowRightLeft, Search, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cobrarYFacturar } from '@/lib/actions/pagos'
 import { getSeriesDisponibles } from '@/lib/actions/comprobantes'
+import { consultarDocumento } from '@/lib/actions/consulta-documento'
 import { differenceInCalendarDays } from 'date-fns'
 import { getDocumentError, isValidDNI, isValidRUC } from '@/lib/utils/validation'
 
@@ -72,6 +72,12 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
   const [clienteNombre, setClienteNombre] = useState(reserva.titular_nombre)
   const [clienteDireccion, setClienteDireccion] = useState('')
 
+  // Estado de búsqueda API
+  const [buscandoDoc, setBuscandoDoc] = useState(false)
+  const [errorApi, setErrorApi] = useState('')
+  const [advertenciaApi, setAdvertenciaApi] = useState('')
+  const [docVerificado, setDocVerificado] = useState(false)
+
   // Cálculos
   const montoNum = parseFloat(monto) || 0
   const recibidoNum = parseFloat(montoRecibido) || 0
@@ -87,8 +93,9 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
       setMontoRecibido('')
       setNumeroOperacion('')
       setNota('')
-      setClienteDoc(reserva.titular_numero_doc)
-      setClienteNombre(reserva.titular_nombre)
+      setErrorApi('')
+      setAdvertenciaApi('')
+      setDocVerificado(false)
     }
   }, [open, tipoComprobante])
 
@@ -110,20 +117,69 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
   // Auto-ajustar documento al cambiar tipo
   const handleTipoChange = (tipo: 'BOLETA' | 'FACTURA') => {
     setTipoComprobante(tipo)
+    setErrorApi('')
+    setAdvertenciaApi('')
+    setDocVerificado(false)
+
     if (tipo === 'FACTURA') {
-      // Limpiar para obligar ingreso de RUC si no parece RUC
-      if (clienteDoc.length !== 11) {
-        setClienteDoc('')
-        setClienteNombre('')
-      }
+      // Limpiar campos para factura
+      setClienteDoc('')
+      setClienteNombre('')
+      setClienteDireccion('')
     } else {
-      // Restaurar datos del huésped si vuelve a Boleta
-      if (!clienteDoc) {
-        setClienteDoc(reserva.titular_numero_doc)
-        setClienteNombre(reserva.titular_nombre)
-      }
+      // Restaurar datos del huésped para boleta
+      setClienteDoc(reserva.titular_numero_doc)
+      setClienteNombre(reserva.titular_nombre)
+      setClienteDireccion('')
     }
   }
+
+  // =====================================================
+  // CONSULTA APISPerú — DNI o RUC
+  // =====================================================
+  const buscarDocumentoAPI = useCallback(async (doc: string) => {
+    if (!doc) return
+
+    const tipo = tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI'
+
+    // Validar longitudes mínimas
+    if (tipo === 'DNI' && doc.length !== 8) return
+    if (tipo === 'RUC' && doc.length !== 11) return
+
+    setBuscandoDoc(true)
+    setErrorApi('')
+    setAdvertenciaApi('')
+    setDocVerificado(false)
+
+    try {
+      const result = await consultarDocumento(tipo, doc)
+
+      if (result.success && result.data) {
+        if (tipo === 'DNI') {
+          // Auto-llenar nombre con datos de RENIEC
+          if (result.data.nombres && result.data.apellidos) {
+            setClienteNombre(`${result.data.nombres} ${result.data.apellidos}`)
+          }
+        } else if (tipo === 'RUC') {
+          // Auto-llenar razón social y dirección con datos de SUNAT
+          if (result.data.razon_social) setClienteNombre(result.data.razon_social)
+          if (result.data.direccion) setClienteDireccion(result.data.direccion)
+        }
+
+        setDocVerificado(true)
+
+        if (result.advertencia) {
+          setAdvertenciaApi(result.advertencia)
+        }
+      } else {
+        setErrorApi(result.error || 'Documento no encontrado')
+      }
+    } catch (error) {
+      setErrorApi('Error de conexión con el servicio')
+    } finally {
+      setBuscandoDoc(false)
+    }
+  }, [tipoComprobante])
 
   async function handleSubmit() {
     if (montoNum <= 0) {
@@ -219,9 +275,6 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
         toast.success(`Pago registrado: ${result.comprobante.serie}-${result.comprobante.numero}`)
         onSuccess()
         onOpenChange(false)
-
-        // Abrir PDF en nueva pestaña (opcional, ya que el toast confirma)
-        // window.open(`/api/comprobantes/pdf/${result.comprobante.id}`, '_blank')
       } else {
         toast.error(result.error || 'Error al procesar el cobro')
       }
@@ -358,18 +411,63 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
               )}
             </div>
 
+            {/* DOCUMENTO — con búsqueda APISPerú */}
             <div className="space-y-2">
               <Label>{tipoComprobante === 'FACTURA' ? 'RUC *' : 'DNI / Documento'}</Label>
-              <Input
-                value={clienteDoc}
-                onChange={(e) => setClienteDoc(e.target.value)}
-                placeholder={tipoComprobante === 'FACTURA' ? '20...' : 'Documento'}
-                maxLength={tipoComprobante === 'FACTURA' ? 11 : 20}
-                className={getDocumentError(tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI', clienteDoc) ? 'border-red-500' : ''}
-              />
+              <div className="relative">
+                <Input
+                  value={clienteDoc}
+                  onChange={(e) => {
+                    setClienteDoc(e.target.value)
+                    setErrorApi('')
+                    setAdvertenciaApi('')
+                    setDocVerificado(false)
+                  }}
+                  onBlur={() => buscarDocumentoAPI(clienteDoc)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      buscarDocumentoAPI(clienteDoc)
+                    }
+                  }}
+                  placeholder={tipoComprobante === 'FACTURA' ? '20...' : 'Documento'}
+                  maxLength={tipoComprobante === 'FACTURA' ? 11 : 20}
+                  className={`pr-10 ${errorApi || getDocumentError(tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI', clienteDoc) ? 'border-red-500' : ''}`}
+                />
+                {buscandoDoc && (
+                  <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-blue-500" />
+                )}
+                {!buscandoDoc && docVerificado && !advertenciaApi && (
+                  <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-green-500" />
+                )}
+                {!buscandoDoc && advertenciaApi && (
+                  <AlertTriangle className="absolute right-3 top-2.5 h-4 w-4 text-amber-500" />
+                )}
+                {!buscandoDoc && errorApi && (
+                  <AlertTriangle className="absolute right-3 top-2.5 h-4 w-4 text-red-500" />
+                )}
+              </div>
               {getDocumentError(tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI', clienteDoc) && (
                 <p className="text-[10px] text-red-500 font-medium mt-1">
                   {getDocumentError(tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI', clienteDoc)}
+                </p>
+              )}
+              {errorApi && (
+                <p className="text-[10px] text-red-500 font-medium mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  {errorApi}
+                </p>
+              )}
+              {advertenciaApi && (
+                <p className="text-[10px] text-amber-600 font-medium mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  {advertenciaApi}
+                </p>
+              )}
+              {docVerificado && !errorApi && !advertenciaApi && (
+                <p className="text-[10px] text-green-600 font-medium mt-1 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Documento verificado
                 </p>
               )}
             </div>
@@ -384,7 +482,7 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
             </div>
 
             <div className="space-y-2">
-              <Label>Dirección (Opcional)</Label>
+              <Label>Dirección {tipoComprobante === 'FACTURA' ? '(Fiscal)' : '(Opcional)'}</Label>
               <Input
                 value={clienteDireccion}
                 onChange={(e) => setClienteDireccion(e.target.value)}

@@ -488,19 +488,39 @@ export async function consultarEstadoNubefact(
 
     const data = await response.json()
 
-    // Usar la misma lógica de "Pendiente vs Rechazo"
-    const aceptada = data.aceptada_por_sunat !== false
-    const esPendiente = !aceptada && !data.sunat_description && !data.errors
+    // Lógica correcta de estados NubeFact:
+    // - aceptada_por_sunat === true  → ACEPTADO (SUNAT confirmó)
+    // - aceptada_por_sunat === false → RECHAZADO (SUNAT rechazó) o aún no enviado
+    // - aceptada_por_sunat === null  → PENDIENTE (aún no procesado por SUNAT)
+    // - anulado === true             → ANULADO vía comunicación de baja
+    const aceptada = data.aceptada_por_sunat === true
+    const anulado = data.anulado === true
+
+    // Es PENDIENTE si no está aceptado Y no hay errores SUNAT (boletas se envían al día siguiente)
+    const tieneErrorSunat = !!(data.sunat_responsecode && data.sunat_responsecode !== '0' && data.sunat_responsecode !== '')
+    const tieneErrorSoap = !!data.sunat_soap_error
+    const esRechazoReal = !aceptada && (tieneErrorSunat || tieneErrorSoap)
+    const esPendiente = !aceptada && !anulado && !esRechazoReal
+
+    let mensaje = data.sunat_description || ''
+    if (anulado) mensaje = 'Comprobante anulado en SUNAT'
+    else if (aceptada) mensaje = data.sunat_description || 'Aceptado por SUNAT'
+    else if (esRechazoReal) mensaje = data.sunat_description || data.sunat_soap_error || 'Rechazado por SUNAT'
+    else if (esPendiente) mensaje = 'Pendiente - Aún no procesado por SUNAT'
 
     return {
       success: true, // La consulta en sí fue exitosa
-      mensaje: data.sunat_description || (esPendiente ? 'En Proceso' : 'Estado consultado'),
+      mensaje,
       aceptada_por_sunat: aceptada,
       codigo_sunat: data.sunat_responsecode,
       enlace_del_cdr: data.enlace_del_cdr,
       enlace: data.enlace,
-      enlace_pdf: data.enlace_del_pdf // Corregido: campo correcto según doc Nubefact
-    }
+      enlace_pdf: data.enlace_del_pdf,
+      // Campos adicionales para mejor detección
+      errors: esRechazoReal ? (data.sunat_soap_error || data.sunat_description) : undefined,
+      es_anulado: anulado,
+      es_pendiente: esPendiente
+    } as NubefactResponse & { es_anulado?: boolean; es_pendiente?: boolean }
 
   } catch (error: any) {
     logger.error('Error al consultar estado en NubeFact', {
