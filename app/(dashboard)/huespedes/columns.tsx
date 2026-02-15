@@ -5,7 +5,7 @@ import { DirectorioHuesped } from "@/lib/actions/huespedes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTableColumnHeader } from "@/components/tables/data-table-column-header"
-import { Star, AlertCircle, Eye, Mail, Phone } from "lucide-react"
+import { Star, AlertCircle, Eye, Mail, Phone, Pencil } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -56,10 +56,17 @@ export const columns: ColumnDef<DirectorioHuesped>[] = [
     },
   },
   {
-    accessorKey: "procedencia_departamento",
+    accessorKey: "procedencia",
     header: "Procedencia",
     cell: ({ row }) => {
-      return row.original.procedencia_departamento || (
+      const { procedencia_ciudad, procedencia_departamento, pais } = row.original
+      const parts = [procedencia_ciudad, procedencia_departamento, pais].filter(Boolean)
+
+      return parts.length > 0 ? (
+        <div className="flex flex-col">
+          <span className="text-sm">{parts.join(", ")}</span>
+        </div>
+      ) : (
         <span className="text-muted-foreground">-</span>
       )
     },
@@ -154,7 +161,17 @@ export const columns: ColumnDef<DirectorioHuesped>[] = [
       const meta = table.options.meta as any
 
       return (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              meta?.onEditar?.(huesped)
+            }}
+          >
+            <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"

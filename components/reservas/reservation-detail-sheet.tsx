@@ -32,7 +32,8 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
-  Printer
+  Printer,
+  Pencil
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -50,6 +51,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { RegistrarPagoDialog } from '@/components/cajas/registrar-pago-dialog'
+import { EditarReservaDialog } from './editar-reserva-dialog'
+import { EditarHuespedDialog } from '@/components/huespedes/editar-huesped-dialog'
 
 type ReservationDetailSheetProps = {
   reservaId: string
@@ -72,7 +75,12 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
   const [checkinDialogOpen, setCheckinDialogOpen] = useState(false)
   const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false)
   const [pagoDialogOpen, setPagoDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [forceCheckout, setForceCheckout] = useState(false)
+
+  // Edición de Huésped individual
+  const [selectedGuest, setSelectedGuest] = useState<any>(null)
+  const [editGuestDialogOpen, setEditGuestDialogOpen] = useState(false)
 
   useEffect(() => {
     if (open && reservaId) {
@@ -183,9 +191,16 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
           <SheetHeader className="p-6 pb-2">
             <div className="flex items-center justify-between">
               <SheetTitle className="text-xl">Reserva {reserva.codigo_reserva}</SheetTitle>
-              <Badge variant={esCheckedIn ? 'default' : esReservada ? 'outline' : 'secondary'} className="capitalize">
-                {reserva.estado.replace('_', ' ').toLowerCase()}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {!readonly && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditDialogOpen(true)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+                <Badge variant={esCheckedIn ? 'default' : esReservada ? 'outline' : 'secondary'} className="capitalize">
+                  {reserva.estado.replace('_', ' ').toLowerCase()}
+                </Badge>
+              </div>
             </div>
             <SheetDescription>
               Habitación {reserva.habitacion_numero} • {reserva.tipo_habitacion}
@@ -290,13 +305,28 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
                       return (
                         <div key={idx} className={`flex flex-col p-4 rounded-lg border ${esTitular ? 'bg-muted/40 border-primary/20' : 'bg-background'}`}>
                           <div className="flex justify-between items-start mb-2">
-                            <div>
+                            <div className="flex-1">
                               <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${esTitular ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
                                 {esTitular ? 'Titular' : 'Acompañante'}
                               </span>
-                              <p className="font-semibold text-base mt-1">
-                                {datos.nombres} {datos.apellidos}
-                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="font-semibold text-base">
+                                  {datos.nombres} {datos.apellidos}
+                                </p>
+                                {!readonly && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => {
+                                      setSelectedGuest(datos)
+                                      setEditGuestDialogOpen(true)
+                                    }}
+                                  >
+                                    <Pencil className="h-3 w-3 text-muted-foreground hover:text-primary" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                             <div className="text-right">
                               <p className="font-mono text-sm font-medium">{datos.numero_documento}</p>
@@ -563,6 +593,30 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
         }}
         onSuccess={cargarDatos}
       />
+
+      {/* Dialog: Editar Reserva */}
+      <EditarReservaDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        reserva={reserva}
+        titular={huespedes.find(h => h.es_titular)?.huespedes}
+        onSuccess={() => {
+          cargarDatos()
+          onUpdate?.()
+        }}
+      />
+
+      {selectedGuest && (
+        <EditarHuespedDialog
+          open={editGuestDialogOpen}
+          onOpenChange={setEditGuestDialogOpen}
+          huesped={selectedGuest}
+          onSuccess={() => {
+            cargarDatos()
+            onUpdate?.()
+          }}
+        />
+      )}
     </>
   )
 }
