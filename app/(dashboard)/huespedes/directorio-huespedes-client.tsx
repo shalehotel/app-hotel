@@ -5,6 +5,7 @@ import { DirectorioHuesped } from "@/lib/actions/huespedes"
 import { DataTable } from '@/components/tables/data-table'
 import { columns } from "./columns"
 import { HuespedDetailSheet } from "@/components/huespedes/huesped-detail-sheet"
+import { EditarHuespedDialog } from "@/components/huespedes/editar-huesped-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -25,6 +26,10 @@ export function DirectorioHuespedesClient({ huespedes }: Props) {
   const [filtroAlertas, setFiltroAlertas] = useState(false)
   const [filtroTipoDoc, setFiltroTipoDoc] = useState<string>("TODOS")
   const [filtroPais, setFiltroPais] = useState<string>("TODOS")
+
+  // Estado para edición
+  const [huespedParaEditar, setHuespedParaEditar] = useState<DirectorioHuesped | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
 
   // Obtener países únicos para el selector
   const paisesUnicos = useMemo(() => {
@@ -146,6 +151,10 @@ export function DirectorioHuespedesClient({ huespedes }: Props) {
         toolbar={FiltersToolbar}
         meta={{
           onVerDetalle: setHuespedSeleccionado,
+          onEditar: (huesped: DirectorioHuesped) => {
+            setHuespedParaEditar(huesped)
+            setEditDialogOpen(true)
+          }
         }}
       />
 
@@ -154,6 +163,22 @@ export function DirectorioHuespedesClient({ huespedes }: Props) {
           huespedId={huespedSeleccionado}
           open={!!huespedSeleccionado}
           onClose={() => setHuespedSeleccionado(null)}
+        />
+      )}
+
+      {huespedParaEditar && (
+        <EditarHuespedDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          huesped={huespedParaEditar}
+          onSuccess={() => {
+            // El router.refresh() o revalidatePath en el server action se encargará de actualizar la data
+            // Si el componente usa data inyectada x props desde server component, 
+            // necesitamos refrescar la ruta.
+            // Como es un cliente con props, la revalidación del server action 
+            // recargará la página y traerá los nuevos props.
+            window.location.reload() // Fuerza bruta para ver cambios si revalidatePath no es suficiente en modo desarrollo
+          }}
         />
       )}
     </>

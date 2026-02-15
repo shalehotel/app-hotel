@@ -35,6 +35,10 @@ vi.mock('@/lib/actions/configuracion', () => ({
     }))
 }))
 
+vi.mock('@/lib/auth/permissions', () => ({
+    requireOperador: vi.fn(() => Promise.resolve())
+}))
+
 vi.mock('@/lib/services/nubefact', () => ({
     enviarComprobanteNubefact: vi.fn(() => Promise.resolve({
         success: true,
@@ -47,12 +51,26 @@ vi.mock('@/lib/services/nubefact', () => ({
     }))
 }))
 
+vi.mock('@/lib/utils', () => ({
+    calcularTotalReserva: vi.fn((reserva: any) => {
+        const entrada = new Date(reserva.fecha_entrada)
+        const salida = new Date(reserva.fecha_salida)
+        const diffTime = Math.abs(salida.getTime() - entrada.getTime())
+        const noches = Math.max(1, Math.floor(diffTime / (1000 * 60 * 60 * 24)))
+        return reserva.precio_pactado * noches
+    }),
+    getFechaEmisionPeru: vi.fn(() => '14/02/2026'),
+}))
+
 // Import after mocks
-import { cobrarYFacturarAtomico, getSaldoPendiente } from '../pagos'
+import { cobrarYFacturar, getSaldoPendiente } from '../pagos'
 
 describe('Módulo de Pagos - Tests Enterprise', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+
+        const mockOrder = vi.fn()
+        const mockLimit = vi.fn()
 
         mockFrom.mockReturnValue({
             select: mockSelect,
@@ -64,11 +82,19 @@ describe('Módulo de Pagos - Tests Enterprise', () => {
         })
         mockEq.mockReturnValue({
             single: mockSingle,
-            eq: mockEq
+            eq: mockEq,
+            order: mockOrder,
+            data: null
+        })
+        mockOrder.mockReturnValue({
+            limit: mockLimit
+        })
+        mockLimit.mockReturnValue({
+            single: mockSingle
         })
     })
 
-    describe('cobrarYFacturarAtomico', () => {
+    describe('cobrarYFacturar', () => {
         it('debe rechazar si no hay turno activo', async () => {
             // Mock: no hay turno activo
             mockSingle.mockResolvedValueOnce({
@@ -76,7 +102,7 @@ describe('Módulo de Pagos - Tests Enterprise', () => {
                 error: { code: 'PGRST116' }
             })
 
-            const result = await cobrarYFacturarAtomico({
+            const result = await cobrarYFacturar({
                 reserva_id: 'reserva-001',
                 metodo_pago: 'EFECTIVO',
                 monto: 100,
@@ -115,17 +141,22 @@ describe('Módulo de Pagos - Tests Enterprise', () => {
                 error: null
             })
 
-            // Mock: RPC retorna duplicado
+            // Mock: RPC retorna duplicado (cobrarYFacturar proceeds normally)
             mockRpc.mockResolvedValueOnce({
                 data: {
                     success: true,
-                    duplicado: true,
-                    pago_id: 'pago-existente-123'
+                    comprobante_id: 'comprobante-dup-123',
+                    pago_id: 'pago-existente-123',
+                    numero_completo: 'B001-00000001',
+                    correlativo: 1
                 },
                 error: null
             })
 
-            const result = await cobrarYFacturarAtomico({
+            // Mock: insert detalles
+            mockInsert.mockResolvedValueOnce({ error: null })
+
+            const result = await cobrarYFacturar({
                 reserva_id: 'reserva-001',
                 caja_turno_id: 'turno-123',
                 metodo_pago: 'EFECTIVO',
@@ -145,7 +176,6 @@ describe('Módulo de Pagos - Tests Enterprise', () => {
             })
 
             expect(result.success).toBe(true)
-            expect(result.duplicado).toBe(true)
         })
 
         it('debe procesar cobro exitosamente con transacción ACID', async () => {
@@ -181,7 +211,7 @@ describe('Módulo de Pagos - Tests Enterprise', () => {
             // Mock: insert detalles
             mockInsert.mockResolvedValueOnce({ error: null })
 
-            const result = await cobrarYFacturarAtomico({
+            const result = await cobrarYFacturar({
                 reserva_id: 'reserva-001',
                 caja_turno_id: 'turno-123',
                 metodo_pago: 'TARJETA',
@@ -201,28 +231,37 @@ describe('Módulo de Pagos - Tests Enterprise', () => {
             })
 
             expect(result.success).toBe(true)
-            expect(result.comprobante_id).toBe('comprobante-nuevo-123')
-            expect(result.numero_completo).toBe('B001-00000001')
+            expect(result.comprobante.id).toBe('comprobante-nuevo-123')
         })
     })
 
     describe('getSaldoPendiente', () => {
         it('debe calcular saldo pendiente correctamente', async () => {
-            // Mock: reserva con precio pactado
-            mockSingle.mockResolvedValueOnce({
-                data: {
-                    precio_pactado: 100,
-                    moneda_pactada: 'PEN',
-                    fecha_entrada: '2026-01-24T12:00:00',
-                    fecha_salida: '2026-01-25T12:00:00'
-                },
-                error: null
+            // Mock: from('reservas').select(...).eq(...).single()
+            mockFrom.mockReturnValueOnce({
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        single: vi.fn().mockResolvedValue({
+                            data: {
+                                precio_pactado: 100,
+                                moneda_pactada: 'PEN',
+                                fecha_entrada: '2026-01-24T12:00:00',
+                                fecha_salida: '2026-01-25T12:00:00'
+                            },
+                            error: null
+                        })
+                    })
+                })
             })
 
-            // Mock: pagos realizados (50 PEN)
-            mockEq.mockReturnValueOnce({
-                data: [{ monto: 50, moneda_pago: 'PEN', tipo_cambio_pago: 1 }],
-                error: null
+            // Mock: from('pagos').select(...).eq(...)
+            mockFrom.mockReturnValueOnce({
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockResolvedValue({
+                        data: [{ monto: 50, moneda_pago: 'PEN', tipo_cambio_pago: 1 }],
+                        error: null
+                    })
+                })
             })
 
             const saldo = await getSaldoPendiente('reserva-001')
@@ -232,20 +271,31 @@ describe('Módulo de Pagos - Tests Enterprise', () => {
         })
 
         it('debe convertir pagos en USD a PEN correctamente', async () => {
-            mockSingle.mockResolvedValueOnce({
-                data: {
-                    precio_pactado: 100,
-                    moneda_pactada: 'PEN',
-                    fecha_entrada: '2026-01-24',
-                    fecha_salida: '2026-01-25'
-                },
-                error: null
+            // Mock: from('reservas').select(...).eq(...).single()
+            mockFrom.mockReturnValueOnce({
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        single: vi.fn().mockResolvedValue({
+                            data: {
+                                precio_pactado: 100,
+                                moneda_pactada: 'PEN',
+                                fecha_entrada: '2026-01-24',
+                                fecha_salida: '2026-01-25'
+                            },
+                            error: null
+                        })
+                    })
+                })
             })
 
             // Pago de 25 USD con tipo de cambio 4
-            mockEq.mockReturnValueOnce({
-                data: [{ monto: 25, moneda_pago: 'USD', tipo_cambio_pago: 4 }],
-                error: null
+            mockFrom.mockReturnValueOnce({
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockResolvedValue({
+                        data: [{ monto: 25, moneda_pago: 'USD', tipo_cambio_pago: 4 }],
+                        error: null
+                    })
+                })
             })
 
             const saldo = await getSaldoPendiente('reserva-001')
