@@ -13,6 +13,18 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { toast } from 'sonner'
+import { corregirMontoApertura, getDetalleTurnoActivo } from '@/lib/actions/cajas'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
@@ -30,7 +42,9 @@ import {
     RotateCcw,
     Plus,
     LogOut,
-    ExternalLink
+    ExternalLink,
+    ShieldAlert,
+    Loader2
 } from 'lucide-react'
 import Link from 'next/link'
 import { RegistrarMovimientoDialog } from '@/components/cajas/registrar-movimiento-dialog'
@@ -63,10 +77,55 @@ type TurnoActivo = {
 type Props = {
     turnoId: string
     turnoInicial: TurnoActivo
+    esAdmin?: boolean
 }
 
-export function DetalleTurnoActivoClient({ turnoId, turnoInicial }: Props) {
+export function DetalleTurnoActivoClient({ turnoId, turnoInicial, esAdmin = false }: Props) {
     const [turno, setTurno] = useState<TurnoActivo>(turnoInicial)
+
+    const [showCorreccionApertura, setShowCorreccionApertura] = useState(false)
+    const [nuevoMontoApertura, setNuevoMontoApertura] = useState('')
+    const [motivoCorreccion, setMotivoCorreccion] = useState('')
+    const [loadingCorreccionApertura, setLoadingCorreccionApertura] = useState(false)
+
+    const recargarTurno = async () => {
+        try {
+            const data = await getDetalleTurnoActivo(turnoId)
+            if (data) setTurno(data)
+        } catch (error) {
+            console.error('Error al recargar turno:', error)
+        }
+    }
+
+    const handleCorregirApertura = async () => {
+        if (!nuevoMontoApertura || parseFloat(nuevoMontoApertura) < 0) {
+            toast.error('Ingresa un monto válido')
+            return
+        }
+        if (motivoCorreccion.length < 5) {
+            toast.error('El motivo debe tener al menos 5 caracteres')
+            return
+        }
+        setLoadingCorreccionApertura(true)
+        try {
+            const result = await corregirMontoApertura({
+                turno_id: turnoId,
+                nuevo_monto_apertura: parseFloat(nuevoMontoApertura),
+                motivo_correccion: motivoCorreccion,
+            })
+            if (result.success) {
+                toast.success('Monto de apertura corregido correctamente')
+                setShowCorreccionApertura(false)
+                setNuevoMontoApertura('')
+                setMotivoCorreccion('')
+                await recargarTurno()
+            } else {
+                toast.error('Error', { description: result.error })
+            }
+        } finally {
+            setLoadingCorreccionApertura(false)
+        }
+    }
 
     // Por método de pago - usar datos reales del servidor o fallback a 0
     const porMetodo = turno.estadisticas.desglose_metodos_pago || {
@@ -114,6 +173,87 @@ export function DetalleTurnoActivoClient({ turnoId, turnoInicial }: Props) {
                     Sesión Activa
                 </Badge>
             </div>
+
+            {/* ===== PANEL ADMIN: CORRECCIONES ===== */}
+            {esAdmin && (
+                <div className="border border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-700 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                        <ShieldAlert className="h-4 w-4 text-amber-600" />
+                        <span className="text-sm font-semibold text-amber-800 dark:text-amber-400">Panel de Administrador</span>
+                    </div>
+                    <p className="text-xs text-amber-700 dark:text-amber-500">
+                        Cualquier corrección queda registrada en la base de datos para auditoría.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {/* Corregir monto apertura */}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2 border-amber-300 text-amber-800 hover:bg-amber-100 dark:text-amber-400"
+                            onClick={() => {
+                                setNuevoMontoApertura(turno.turno.monto_apertura_efectivo.toString())
+                                setMotivoCorreccion('')
+                                setShowCorreccionApertura(true)
+                            }}
+                        >
+                            <Wallet className="h-4 w-4" />
+                            Corregir Apertura (S/ {turno.turno.monto_apertura_efectivo.toFixed(2)})
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Dialog Corregir Monto Apertura */}
+            <Dialog open={showCorreccionApertura} onOpenChange={setShowCorreccionApertura}>
+                <DialogContent className="sm:max-w-[420px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Wallet className="h-4 w-4 text-amber-600" />
+                            Corregir Monto de Apertura
+                        </DialogTitle>
+                        <DialogDescription>
+                            Cambia el monto de caja inicial reportado. Esto ajustará todos los balances generados por el sistema.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-1">
+                            <Label htmlFor="nuevo-monto-apertura">Nuevo monto de apertura (S/)</Label>
+                            <Input
+                                id="nuevo-monto-apertura"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={nuevoMontoApertura}
+                                onChange={(e) => setNuevoMontoApertura(e.target.value)}
+                                placeholder="0.00"
+                                className="text-lg font-bold"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="motivo-correccion-apertura">Motivo de la corrección *</Label>
+                            <Input
+                                id="motivo-correccion-apertura"
+                                value={motivoCorreccion}
+                                onChange={(e) => setMotivoCorreccion(e.target.value)}
+                                placeholder="Ej: El cajero se equivocó en el saldo inicial"
+                                minLength={5}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowCorreccionApertura(false)} disabled={loadingCorreccionApertura}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleCorregirApertura}
+                            disabled={loadingCorreccionApertura || !nuevoMontoApertura || motivoCorreccion.length < 5}
+                            className="bg-amber-600 hover:bg-amber-700 text-white"
+                        >
+                            {loadingCorreccionApertura ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : 'Confirmar Corrección'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Hora de apertura */}
             <div className="bg-blue-50/50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-700">

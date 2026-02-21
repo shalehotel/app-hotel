@@ -441,7 +441,7 @@ export async function getCajasDisponibles(): Promise<Result<Caja[]>> {
       .from('cajas')
       .select('*')
       .eq('estado', true)
-    
+
     console.log('[getCajasDisponibles] Test simple - cajas:', testCajas?.length, 'error:', testError)
 
     // Una sola query: cajas activas + sus turnos abiertos (si existen)
@@ -1286,9 +1286,9 @@ export async function cerrarCajaAtomico(input: {
     console.error('Error RPC validar_y_cerrar_caja:', rpcError)
     // Detectar race condition específica
     if (rpcError.message?.includes('no encontrado') || rpcError.message?.includes('not found')) {
-      return { 
-        success: false, 
-        error: '⚠️ Este turno ya fue cerrado por otro usuario. Actualiza la página.' 
+      return {
+        success: false,
+        error: '⚠️ Este turno ya fue cerrado por otro usuario. Actualiza la página.'
       }
     }
     return { success: false, error: `Error en cierre: ${rpcError.message}` }
@@ -1297,9 +1297,9 @@ export async function cerrarCajaAtomico(input: {
   if (!resultado?.success) {
     // Manejo específico de errores de race condition
     if (resultado?.error?.includes('no encontrado') || resultado?.error?.includes('not found')) {
-      return { 
-        success: false, 
-        error: '⚠️ Este turno ya fue cerrado. Otro usuario procesó el cierre primero.' 
+      return {
+        success: false,
+        error: '⚠️ Este turno ya fue cerrado. Otro usuario procesó el cierre primero.'
       }
     }
     return { success: false, error: resultado?.error || 'Error desconocido en cierre' }
@@ -2002,6 +2002,58 @@ export async function corregirMontoDeclarado(input: {
 
   if (error) {
     console.error('Error al corregir monto declarado:', error)
+    return { success: false, error: 'Error al corregir el monto' }
+  }
+
+  revalidatePath('/cajas')
+  revalidatePath('/cajas/historial')
+  revalidatePath(`/cajas/historial/${input.turno_id}`)
+  return { success: true }
+}
+
+/**
+ * Corregir el monto de apertura de un turno.
+ * Solo ADMIN. Sirve por si el cajero se equivocó al ingresar con cuánto inicializaba.
+ */
+export async function corregirMontoApertura(input: {
+  turno_id: string
+  nuevo_monto_apertura: number
+  motivo_correccion: string
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'No autenticado' }
+
+  // Verificar rol ADMIN
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single()
+
+  if (!usuario || usuario.rol !== 'ADMIN') {
+    return { success: false, error: 'Acceso denegado: Se requiere rol ADMIN' }
+  }
+
+  if (input.motivo_correccion.length < 5) {
+    return { success: false, error: 'El motivo de corrección debe tener al menos 5 caracteres' }
+  }
+
+  if (input.nuevo_monto_apertura < 0) {
+    return { success: false, error: 'El monto de apertura no puede ser negativo' }
+  }
+
+  // Actualizar el turno
+  const { error } = await supabase
+    .from('caja_turnos')
+    .update({
+      monto_apertura_efectivo: input.nuevo_monto_apertura,
+    })
+    .eq('id', input.turno_id)
+
+  if (error) {
+    console.error('Error al corregir monto de apertura:', error)
     return { success: false, error: 'Error al corregir el monto' }
   }
 
