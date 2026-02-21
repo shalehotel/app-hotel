@@ -23,7 +23,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { toast } from 'sonner'
-import { registrarMovimiento } from '@/lib/actions/cajas'
+import { registrarMovimiento, registrarMovimientoAdmin } from '@/lib/actions/cajas'
 import { PlusCircle, MinusCircle, Loader2, AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -48,7 +48,7 @@ const CATEGORIAS = {
   ]
 }
 
-export function RegistrarMovimientoDialog() {
+export function RegistrarMovimientoDialog({ turnoId, onSuccess }: { turnoId?: string; onSuccess?: () => void | Promise<void> } = {}) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
@@ -82,15 +82,24 @@ export function RegistrarMovimientoDialog() {
         motivoFinal = `RETIRO ADMINISTRATIVO - Entregado a: ${formData.receptor_nombre}. ${formData.motivo}`
       }
 
-      const result = await registrarMovimiento({
-        tipo: formData.tipo,
-        categoria: formData.categoria || undefined,
-        moneda: formData.moneda,
-        monto: parseFloat(formData.monto),
-        motivo: motivoFinal,
-        comprobante_referencia: formData.comprobante_referencia || undefined
-        // TODO: Subir evidencia a storage y guardar URL
-      })
+      const result = turnoId
+        ? await registrarMovimientoAdmin({
+          turno_id: turnoId,
+          tipo: formData.tipo,
+          categoria: formData.categoria || undefined,
+          moneda: formData.moneda,
+          monto: parseFloat(formData.monto),
+          motivo: motivoFinal,
+          comprobante_referencia: formData.comprobante_referencia || undefined
+        })
+        : await registrarMovimiento({
+          tipo: formData.tipo,
+          categoria: formData.categoria || undefined,
+          moneda: formData.moneda,
+          monto: parseFloat(formData.monto),
+          motivo: motivoFinal,
+          comprobante_referencia: formData.comprobante_referencia || undefined
+        })
 
       if (result.success) {
         toast.success('Movimiento registrado', {
@@ -98,6 +107,7 @@ export function RegistrarMovimientoDialog() {
         })
         setOpen(false)
         resetForm()
+        if (onSuccess) await onSuccess()
         router.refresh()
       } else {
         toast.error('Error', {

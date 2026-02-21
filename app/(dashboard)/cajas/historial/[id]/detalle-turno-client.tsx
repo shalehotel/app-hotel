@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import {
   Table,
@@ -13,7 +15,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { getDetalleTurnoCerrado, getReporteMetodosPago, type DetalleTurno } from '@/lib/actions/cajas'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { getDetalleTurnoCerrado, getReporteMetodosPago, corregirMontoDeclarado, type DetalleTurno } from '@/lib/actions/cajas'
+import { RegistrarMovimientoDialog } from '@/components/cajas/registrar-movimiento-dialog'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
@@ -31,13 +42,18 @@ import {
   Receipt,
   DollarSign,
   RotateCcw,
-  ExternalLink
+  ExternalLink,
+  ShieldAlert,
+  Pencil,
+  Loader2
 } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 type Props = {
   turnoId: string
   turnoInicial: DetalleTurno
+  esAdmin?: boolean
 }
 
 function RenderMotivo({ motivo }: { motivo: string }) {
@@ -67,9 +83,14 @@ function RenderMotivo({ motivo }: { motivo: string }) {
   return <span>{motivo}</span>
 }
 
-export function DetalleTurnoClient({ turnoId, turnoInicial }: Props) {
+export function DetalleTurnoClient({ turnoId, turnoInicial, esAdmin = false }: Props) {
   const [turno, setTurno] = useState<DetalleTurno>(turnoInicial)
   const [desglosePagos, setDesglosePagos] = useState<any>(null)
+  // Estado dialog corrección de monto
+  const [showCorreccion, setShowCorreccion] = useState(false)
+  const [nuevoMonto, setNuevoMonto] = useState('')
+  const [motivoCorreccion, setMotivoCorreccion] = useState('')
+  const [loadingCorreccion, setLoadingCorreccion] = useState(false)
 
   useEffect(() => {
     cargarDatosAdicionales()
@@ -88,6 +109,36 @@ export function DetalleTurnoClient({ turnoId, turnoInicial }: Props) {
       }
     } catch (error) {
       console.error("Error cargando datos adicionales", error)
+    }
+  }
+
+  const handleCorregirMonto = async () => {
+    if (!nuevoMonto || parseFloat(nuevoMonto) < 0) {
+      toast.error('Ingresa un monto válido')
+      return
+    }
+    if (motivoCorreccion.length < 5) {
+      toast.error('El motivo debe tener al menos 5 caracteres')
+      return
+    }
+    setLoadingCorreccion(true)
+    try {
+      const result = await corregirMontoDeclarado({
+        turno_id: turnoId,
+        nuevo_monto_declarado: parseFloat(nuevoMonto),
+        motivo_correccion: motivoCorreccion,
+      })
+      if (result.success) {
+        toast.success('Monto corregido correctamente')
+        setShowCorreccion(false)
+        setNuevoMonto('')
+        setMotivoCorreccion('')
+        await cargarDatosAdicionales()
+      } else {
+        toast.error('Error', { description: result.error })
+      }
+    } finally {
+      setLoadingCorreccion(false)
     }
   }
 
@@ -150,6 +201,91 @@ export function DetalleTurnoClient({ turnoId, turnoInicial }: Props) {
           Esta sesión fue cerrada el {format(new Date(t.fecha_cierre), "d 'de' MMMM, yyyy, h:mm a", { locale: es })}
         </div>
       )}
+
+      {/* ===== PANEL ADMIN: CORRECCIONES POST-CIERRE ===== */}
+      {esAdmin && esCerrada && (
+        <div className="border border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-700 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-amber-600" />
+            <span className="text-sm font-semibold text-amber-800 dark:text-amber-400">Panel de Administrador — Correcciones post-cierre</span>
+          </div>
+          <p className="text-xs text-amber-700 dark:text-amber-500">
+            Solo visible para administradores. Cualquier corrección queda registrada con el prefijo <strong>[CORRECCIÓN ADMIN]</strong>.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {/* Registrar movimiento (ingreso o egreso) post-cierre */}
+            <RegistrarMovimientoDialog
+              turnoId={turnoId}
+              onSuccess={cargarDatosAdicionales}
+            />
+            {/* Corregir monto declarado */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-amber-300 text-amber-800 hover:bg-amber-100 dark:text-amber-400"
+              onClick={() => {
+                setNuevoMonto((t.monto_cierre_real_efectivo || 0).toString())
+                setShowCorreccion(true)
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+              Corregir Arqueo (S/ {(t.monto_cierre_real_efectivo || 0).toFixed(2)})
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog Corregir Monto Declarado */}
+      <Dialog open={showCorreccion} onOpenChange={setShowCorreccion}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-amber-600" />
+              Corregir Monto Declarado
+            </DialogTitle>
+            <DialogDescription>
+              Cambia el monto que el cajero declaró al cerrar. El efectivo teórico del sistema <strong>no cambia</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="nuevo-monto">Nuevo monto declarado (S/)</Label>
+              <Input
+                id="nuevo-monto"
+                type="number"
+                step="0.01"
+                min="0"
+                value={nuevoMonto}
+                onChange={(e) => setNuevoMonto(e.target.value)}
+                placeholder="0.00"
+                className="text-lg font-bold"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="motivo-correccion">Motivo de la corrección *</Label>
+              <Input
+                id="motivo-correccion"
+                value={motivoCorreccion}
+                onChange={(e) => setMotivoCorreccion(e.target.value)}
+                placeholder="Ej: El cajero contó mal los billetes de S/50"
+                minLength={5}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCorreccion(false)} disabled={loadingCorreccion}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCorregirMonto}
+              disabled={loadingCorreccion || !nuevoMonto || motivoCorreccion.length < 5}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {loadingCorreccion ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : 'Confirmar Corrección'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* CÁLCULO DE BALANCE TOTAL */}
       {(() => {
@@ -397,15 +533,22 @@ export function DetalleTurnoClient({ turnoId, turnoInicial }: Props) {
                         {format(new Date(mov.created_at), 'HH:mm', { locale: es })}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={mov.tipo === 'INGRESO'
-                            ? 'bg-green-100 text-green-700 border-green-200'
-                            : 'bg-red-100 text-red-700 border-red-200'
-                          }
-                        >
-                          {mov.tipo === 'INGRESO' ? '→' : '←'} {mov.tipo}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge
+                            variant="outline"
+                            className={mov.tipo === 'INGRESO'
+                              ? 'bg-green-100 text-green-700 border-green-200'
+                              : 'bg-red-100 text-red-700 border-red-200'
+                            }
+                          >
+                            {mov.tipo === 'INGRESO' ? '→' : '←'} {mov.tipo}
+                          </Badge>
+                          {mov.motivo?.startsWith('[CORRECCIÓN ADMIN]') && (
+                            <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 text-[10px] px-1.5">
+                              Admin
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <RenderMotivo motivo={mov.motivo} />

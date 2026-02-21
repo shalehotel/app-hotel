@@ -5,7 +5,6 @@ import { logger } from '@/lib/logger'
 import { getErrorMessage } from '@/lib/errors'
 import { esTransicionValida } from '@/lib/utils/validaciones-reservas'
 import { requireOperador } from '@/lib/auth/permissions'
-import { revalidatePath } from 'next/cache'
 
 // ========================================
 // CANCELAR RESERVA
@@ -128,6 +127,7 @@ export type UpdateReservaInput = {
     precio_pactado: number
     moneda_pactada: 'PEN' | 'USD'
     nota?: string
+    habitacion_id?: string // Opcional: cambiar la habitación asignada
   }
   titular?: {
     nombres: string
@@ -164,7 +164,25 @@ export async function updateReserva(input: UpdateReservaInput) {
       throw new Error('No se puede editar una reserva cancelada o finalizada')
     }
 
-    // 2. Actualizar Reserva
+    // 2. Si viene nueva habitación, validar que no tenga conflicto de fechas
+    const nuevaHabitacionId = input.reserva.habitacion_id
+    if (nuevaHabitacionId && nuevaHabitacionId !== reserva.habitacion_id) {
+      const { data: conflicto } = await supabase
+        .from('reservas')
+        .select('id')
+        .eq('habitacion_id', nuevaHabitacionId)
+        .not('id', 'eq', input.reservaId)
+        .not('estado', 'in', '(CANCELADA,CHECKED_OUT)')
+        .lt('fecha_entrada', input.reserva.fecha_salida.toISOString())
+        .gt('fecha_salida', input.reserva.fecha_entrada.toISOString())
+        .limit(1)
+
+      if (conflicto && conflicto.length > 0) {
+        return { success: false, error: 'La habitación seleccionada no está disponible en esas fechas' }
+      }
+    }
+
+    // 3. Actualizar Reserva
     const { error: updateError } = await supabase
       .from('reservas')
       .update({
@@ -172,13 +190,29 @@ export async function updateReserva(input: UpdateReservaInput) {
         fecha_salida: input.reserva.fecha_salida.toISOString(),
         precio_pactado: input.reserva.precio_pactado,
         moneda_pactada: input.reserva.moneda_pactada,
+        ...(nuevaHabitacionId ? { habitacion_id: nuevaHabitacionId } : {}),
         updated_at: new Date().toISOString()
       })
       .eq('id', input.reservaId)
 
     if (updateError) throw new Error(`Error al actualizar reserva: ${updateError.message}`)
 
-    // 3. Actualizar Titular (si se envió)
+    // 4. Si había cambio de habitación y el huésped ya hizo check-in,
+    //    actualizar estados de ocupación entre las dos habitaciones
+    if (nuevaHabitacionId && nuevaHabitacionId !== reserva.habitacion_id && reserva.estado === 'CHECKED_IN') {
+      // Liberar habitación anterior
+      if (reserva.habitacion_id) {
+        await supabase.from('habitaciones').update({
+          estado_ocupacion: 'LIBRE',
+          estado_limpieza: 'SUCIA'
+        }).eq('id', reserva.habitacion_id)
+      }
+      // Ocupar habitación nueva
+      await supabase.from('habitaciones').update({
+        estado_ocupacion: 'OCUPADA',
+      }).eq('id', nuevaHabitacionId)
+    }
+
     if (input.titular) {
       // Buscar el ID del titular actual
       const { data: relacionHuesped } = await supabase
@@ -211,10 +245,6 @@ export async function updateReserva(input: UpdateReservaInput) {
       }
     }
 
-    // 4. Revalidar
-    revalidatePath('/rack')
-    revalidatePath('/reservas')
-    revalidatePath(`/reservas/${input.reservaId}`)
 
     logger.info('Reserva actualizada', {
       action: 'updateReserva',
@@ -230,4 +260,49 @@ export async function updateReserva(input: UpdateReservaInput) {
     })
     return { success: false, error: getErrorMessage(error) }
   }
+}
+
+// ========================================
+// HABITACIONES DISPONIBLES PARA SELECTOR DE EDICIÓN
+// ========================================
+export type HabitacionParaEdicion = {
+  id: string
+  numero: string
+  piso: number
+  categoria_nombre: string
+  disponible: boolean // false si hay conflicto con otras reservas en esas fechas
+}
+
+export async function getHabitacionesDisponiblesParaEdicion(
+  reservaId: string,
+  _fechaEntrada: string,
+  _fechaSalida: string
+): Promise<HabitacionParaEdicion[]> {
+  const supabase = await createClient()
+
+  // Obtener el habitacion_id actual de la reserva
+  const { data: reservaActual } = await supabase
+    .from('reservas')
+    .select('habitacion_id')
+    .eq('id', reservaId)
+    .single()
+
+  const habitacionActualId = reservaActual?.habitacion_id
+
+  // Obtener todas las habitaciones con su estado de ocupación
+  const { data: habitaciones, error } = await supabase
+    .from('habitaciones')
+    .select('id, numero, piso, estado_ocupacion, categorias_habitacion(nombre)')
+    .order('numero')
+
+  if (error || !habitaciones) return []
+
+  return habitaciones.map((h: any) => ({
+    id: h.id,
+    numero: h.numero,
+    piso: h.piso,
+    categoria_nombre: h.categorias_habitacion?.nombre || 'Sin categoría',
+    // Disponible si es la habitación actual (siempre seleccionable) o está LIBRE
+    disponible: h.id === habitacionActualId || h.estado_ocupacion === 'LIBRE',
+  }))
 }

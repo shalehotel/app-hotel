@@ -1869,3 +1869,144 @@ export async function cerrarTurnoEmergencia(turnoId: string): Promise<Result<voi
     return { success: false, error: error.message }
   }
 }
+
+// =============================================
+// ADMIN: CORRECCIONES EN TURNOS CERRADOS
+// =============================================
+
+/**
+ * Registrar un movimiento (ingreso o egreso) en un turno ya CERRADO.
+ * Solo ADMIN. Útil para correcciones post-cierre por error humano.
+ */
+export async function registrarMovimientoAdmin(input: {
+  turno_id: string
+  tipo: 'INGRESO' | 'EGRESO'
+  categoria?: string
+  moneda: 'PEN' | 'USD'
+  monto: number
+  motivo: string
+  comprobante_referencia?: string
+  metodo_pago?: string
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'No autenticado' }
+
+  // Verificar rol ADMIN
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single()
+
+  if (!usuario || usuario.rol !== 'ADMIN') {
+    return { success: false, error: 'Acceso denegado: Se requiere rol ADMIN' }
+  }
+
+  // Verificar que el turno existe (sin importar si está abierto o cerrado)
+  const { data: turno, error: turnoError } = await supabase
+    .from('caja_turnos')
+    .select('id, estado')
+    .eq('id', input.turno_id)
+    .single()
+
+  if (turnoError || !turno) {
+    return { success: false, error: 'Turno no encontrado' }
+  }
+
+  if (input.monto <= 0) {
+    return { success: false, error: 'El monto debe ser mayor a 0' }
+  }
+
+  if (input.motivo.length < 5) {
+    return { success: false, error: 'El motivo debe tener al menos 5 caracteres' }
+  }
+
+  const { error } = await supabase
+    .from('caja_movimientos')
+    .insert({
+      caja_turno_id: input.turno_id,
+      usuario_id: user.id,
+      tipo: input.tipo,
+      categoria: input.categoria,
+      moneda: input.moneda,
+      monto: input.monto,
+      motivo: `[CORRECCIÓN ADMIN] ${input.motivo}`,
+      comprobante_referencia: input.comprobante_referencia,
+      metodo_pago: input.metodo_pago,
+    })
+
+  if (error) {
+    console.error('Error al registrar movimiento admin:', error)
+    return { success: false, error: 'Error al registrar movimiento' }
+  }
+
+  revalidatePath('/cajas')
+  revalidatePath('/cajas/historial')
+  revalidatePath(`/cajas/historial/${input.turno_id}`)
+  return { success: true }
+}
+
+/**
+ * Corregir el monto declarado (arqueo) de un turno ya CERRADO.
+ * Solo ADMIN. El monto teórico del sistema NO cambia.
+ */
+export async function corregirMontoDeclarado(input: {
+  turno_id: string
+  nuevo_monto_declarado: number
+  motivo_correccion: string
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'No autenticado' }
+
+  // Verificar rol ADMIN
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('rol')
+    .eq('id', user.id)
+    .single()
+
+  if (!usuario || usuario.rol !== 'ADMIN') {
+    return { success: false, error: 'Acceso denegado: Se requiere rol ADMIN' }
+  }
+
+  if (input.motivo_correccion.length < 5) {
+    return { success: false, error: 'El motivo de corrección debe tener al menos 5 caracteres' }
+  }
+
+  if (input.nuevo_monto_declarado < 0) {
+    return { success: false, error: 'El monto declarado no puede ser negativo' }
+  }
+
+  // Verificar que el turno existe y está CERRADA
+  const { data: turno, error: turnoError } = await supabase
+    .from('caja_turnos')
+    .select('id, estado, monto_cierre_real_efectivo')
+    .eq('id', input.turno_id)
+    .eq('estado', 'CERRADA')
+    .single()
+
+  if (turnoError || !turno) {
+    return { success: false, error: 'Turno no encontrado o no está cerrado' }
+  }
+
+  const { error } = await supabase
+    .from('caja_turnos')
+    .update({
+      monto_cierre_real_efectivo: input.nuevo_monto_declarado,
+    })
+    .eq('id', input.turno_id)
+
+  if (error) {
+    console.error('Error al corregir monto declarado:', error)
+    return { success: false, error: 'Error al corregir el monto' }
+  }
+
+  revalidatePath('/cajas')
+  revalidatePath('/cajas/historial')
+  revalidatePath(`/cajas/historial/${input.turno_id}`)
+  return { success: true }
+}

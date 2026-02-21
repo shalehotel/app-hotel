@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { DashboardHeader } from '@/components/dashboard-header'
 import { DetalleTurnoClient } from './detalle-turno-client'
 import { getDetalleTurnoCerrado } from '@/lib/actions/cajas'
+import { createClient } from '@/lib/supabase/server'
 
 export default async function DetalleTurnoPage({
   params
@@ -18,6 +19,19 @@ export default async function DetalleTurnoPage({
     notFound()
   }
 
+  // Detectar rol ADMIN para mostrar panel de correcciones
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  let esAdmin = false
+  if (user) {
+    const { data: usuario } = await supabase
+      .from('usuarios')
+      .select('rol')
+      .eq('id', user.id)
+      .single()
+    esAdmin = usuario?.rol === 'ADMIN'
+  }
+
   return (
     <>
       <DashboardHeader
@@ -31,7 +45,7 @@ export default async function DetalleTurnoPage({
 
       <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <Suspense fallback={<div>Cargando detalle...</div>}>
-          <DetalleTurnoClient turnoId={id} turnoInicial={turno} />
+          <DetalleTurnoClient turnoId={id} turnoInicial={turno} esAdmin={esAdmin} />
         </Suspense>
       </div>
     </>

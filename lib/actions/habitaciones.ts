@@ -174,3 +174,32 @@ export async function updateEstadoLimpieza(habitacionId: string, estado: 'LIMPIA
         return { error: 'Error al actualizar limpieza' }
     }
 }
+
+// ========================================
+// SELECTOR DE HABITACIONES (para diálogos de edición)
+// ========================================
+
+export type HabitacionSelector = {
+    id: string
+    numero: string
+    piso: number
+    categoria_nombre: string
+}
+
+export async function getHabitacionesParaSelector(): Promise<HabitacionSelector[]> {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('habitaciones')
+        .select('id, numero, piso, categorias(nombre)')
+        .order('numero')
+
+    if (error || !data) return []
+
+    return data.map((h: any) => ({
+        id: h.id,
+        numero: h.numero,
+        piso: h.piso,
+        categoria_nombre: h.categorias?.nombre || 'Sin categoría',
+    }))
+}
