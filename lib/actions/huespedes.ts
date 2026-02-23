@@ -217,6 +217,76 @@ export async function registrarHuespedesEnReserva(
   }
 }
 
+/**
+ * Añadir un único huésped acompañante a una reserva existente
+ */
+export async function agregarAcompananteReserva(
+  reservaId: string,
+  huesped: HuespedConRelacion
+) {
+  const supabase = await createClient()
+
+  try {
+    // 1. Crear/actualizar el huésped
+    const result = await upsertHuesped({
+      nombres: huesped.nombres,
+      apellidos: huesped.apellidos,
+      tipo_documento: huesped.tipo_documento,
+      numero_documento: huesped.numero_documento,
+      pais: huesped.pais,
+      procedencia_departamento: huesped.procedencia_departamento,
+      procedencia_ciudad: huesped.procedencia_ciudad,
+      correo: huesped.correo,
+      telefono: huesped.telefono,
+      fecha_nacimiento: huesped.fecha_nacimiento || null,
+      sexo: huesped.sexo,
+      notas_internas: huesped.notas_internas,
+    })
+
+    if (!result.success || !result.data) {
+      return {
+        success: false,
+        error: `Error al registrar acompañante: ${result.error}`,
+      }
+    }
+
+    const huespedId = result.data.id
+
+    // 2. Comprobar si ya está en esta reserva
+    const { data: existingVinculo } = await supabase
+      .from('reserva_huespedes')
+      .select('huesped_id')
+      .eq('reserva_id', reservaId)
+      .eq('huesped_id', huespedId)
+      .maybeSingle()
+
+    // 3. Vincular si no existe
+    if (!existingVinculo) {
+      const { error: insertError } = await supabase
+        .from('reserva_huespedes')
+        .insert({
+          reserva_id: reservaId,
+          huesped_id: huespedId,
+          es_titular: false, // Siempre forzamos a acompañante por seguridad
+        })
+
+      if (insertError) {
+        return {
+          success: false,
+          error: `Error al vincular acompañante a la reserva: ${insertError.message}`,
+        }
+      }
+    }
+
+    revalidatePath('/rack')
+    revalidatePath(`/reservas/${reservaId}`)
+    return { success: true, huespedId }
+  } catch (error: unknown) {
+    logger.error('Error en agregarAcompananteReserva', { action: 'agregarAcompananteReserva', reservaId, originalError: getErrorMessage(error) })
+    return { success: false, error: getErrorMessage(error) }
+  }
+}
+
 // ========================================
 // OBTENER HUÉSPEDES DE UNA RESERVA
 // ========================================

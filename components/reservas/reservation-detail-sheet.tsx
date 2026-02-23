@@ -33,7 +33,8 @@ import {
   CheckCircle,
   AlertCircle,
   Printer,
-  Pencil
+  Pencil,
+  Plus
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -53,6 +54,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RegistrarPagoDialog } from '@/components/cajas/registrar-pago-dialog'
 import { EditarReservaDialog } from './editar-reserva-dialog'
 import { EditarHuespedDialog } from '@/components/huespedes/editar-huesped-dialog'
+import { AgregarAcompananteDialog } from '@/components/huespedes/agregar-acompanante-dialog'
 
 type ReservationDetailSheetProps = {
   reservaId: string
@@ -81,6 +83,7 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
   // Edición de Huésped individual
   const [selectedGuest, setSelectedGuest] = useState<any>(null)
   const [editGuestDialogOpen, setEditGuestDialogOpen] = useState(false)
+  const [agregarAcompananteDialogOpen, setAgregarAcompananteDialogOpen] = useState(false)
 
   useEffect(() => {
     if (open && reservaId) {
@@ -101,7 +104,7 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
       setReserva(detalleData)
       setHuespedes(huespedesData)
       setPagos(pagosData)
-      setHotelConfig(configData || null)
+      setHotelConfig(configData || undefined)
     } catch (error) {
       console.error('Error al cargar datos:', error)
       toast.error('Error al cargar los detalles de la reserva')
@@ -370,6 +373,20 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
                       )
                     })}
                   </div>
+
+                  {!readonly && reserva && !esCheckedOut && reserva.estado !== 'CANCELADA' && (
+                    <div className="mt-4 flex justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-dashed"
+                        onClick={() => setAgregarAcompananteDialogOpen(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Agregar Acompañante
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Metadatos (Check-out info, created_at) */}
@@ -617,6 +634,17 @@ export function ReservationDetailSheet({ reservaId, open, onOpenChange, onUpdate
           }}
         />
       )}
+
+      {/* Dialog: Agregar Acompañante */}
+      <AgregarAcompananteDialog
+        reservaId={reserva.id}
+        open={agregarAcompananteDialogOpen}
+        onOpenChange={setAgregarAcompananteDialogOpen}
+        onSuccess={() => {
+          cargarDatos()
+          onUpdate?.()
+        }}
+      />
     </>
   )
 }

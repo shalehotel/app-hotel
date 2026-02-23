@@ -6,11 +6,11 @@
  * 
  * Documentación: https://peruapi.com/documentacion
  * 
- * Endpoints:
- * - DNI: GET /api/dni/{numero}
- * - RUC: GET /api/ruc/{numero}
+ * Endpoints (apis.net.pe v1 público + Fallback RUC Sunat):
+ * - DNI: GET /v1/dni?numero={numero}
+ * - RUC: GET /v1/ruc?numero={numero}
  * 
- * Auth: Header X-API-KEY
+ * Auth: Ninguna (Público)
  */
 
 // =====================================================
@@ -51,15 +51,22 @@ export type ResultadoConsultaRUC = ResultadoRUC | ResultadoError
 // CONFIG
 // =====================================================
 
-const API_BASE_URL = 'https://peruapi.com/api'
-const TIMEOUT_MS = 8000
+const API_BASE_URL = 'https://api.apis.net.pe/v1'
+const TIMEOUT_MS = 6000
 
-function getToken(): string {
-    const token = process.env.PERU_API_TOKEN
-    if (!token) {
-        throw new Error('PERU_API_TOKEN no está configurado en las variables de entorno')
+// =====================================================
+// HELPER: GENERAR RUC A PARTIR DE DNI (Módulo 11 SUNAT)
+// =====================================================
+function calcularRucDesdeDni(dni: string): string {
+    const rucBase = '10' + dni
+    const factores = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
+    let suma = 0
+    for (let i = 0; i < 10; i++) {
+        suma += parseInt(rucBase[i]) * factores[i]
     }
-    return token
+    const rem = 11 - (suma % 11)
+    const digito = rem === 10 ? 0 : rem === 11 ? 1 : rem
+    return rucBase + digito
 }
 
 // =====================================================
@@ -73,54 +80,60 @@ export async function consultarDNI(numero: string): Promise<ResultadoConsultaDNI
     }
 
     try {
-        const token = getToken()
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
-        const response = await fetch(
-            `${API_BASE_URL}/dni/${numero}?summary=0&plan=0`,
+        // 1. Intentar consultar primeramente en RENIEC
+        let response = await fetch(
+            `${API_BASE_URL}/dni?numero=${numero}`,
             {
                 signal: controller.signal,
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-API-KEY': token
-                }
+                headers: { 'Accept': 'application/json' }
             }
         )
 
+        let data = response.ok ? await response.json() : null
+
+        // 2. Si falla o no se encuentra (404/429/etc), usar FALLBACK (Consultar RUC en SUNAT)
+        if (!response.ok || !data || !data.nombre) {
+            const rucGenerado = calcularRucDesdeDni(numero)
+            const responseRuc = await fetch(
+                `${API_BASE_URL}/ruc?numero=${rucGenerado}`,
+                {
+                    signal: controller.signal,
+                    headers: { 'Accept': 'application/json' }
+                }
+            )
+
+            if (responseRuc.ok) {
+                const rucData = await responseRuc.json()
+                if (rucData && rucData.nombre) {
+                    // Mapear los datos de SUNAT como si fueran de RENIEC
+                    data = rucData
+                    data.numeroDocumento = numero // Asegurar que el DNI original se mantenga
+                }
+            }
+        }
+
         clearTimeout(timeoutId)
 
-        if (!response.ok) {
-            if (response.status === 404) {
-                return { success: false, error: 'DNI no encontrado en RENIEC' }
-            }
-            if (response.status === 401) {
-                return { success: false, error: 'Token de PeruAPI inválido o IP no autorizada' }
-            }
-            if (response.status === 429) {
-                return { success: false, error: 'Demasiadas consultas. Intente en unos segundos' }
-            }
-            if (response.status === 400) {
-                return { success: false, error: 'Formato de DNI inválido' }
-            }
-            return { success: false, error: `Error del servicio (código ${response.status})` }
+        if (!data || !data.nombre) {
+            return { success: false, error: 'DNI no encontrado en registros públicos' }
         }
 
-        const data = await response.json()
-
-        // PeruAPI devuelve code "200" para éxito
-        if (!data || data.code === '404' || (!data.nombres && !data.cliente)) {
-            return { success: false, error: 'DNI no encontrado en RENIEC' }
-        }
+        // Parsear el nombre ("SALAZAR ALVA JUAN CARLOS")
+        const partes = data.nombre.split(' ')
+        const apellidoPaterno = partes[0] || ''
+        const apellidoMaterno = partes.length > 2 ? partes[1] : ''
+        const nombres = partes.length > 2 ? partes.slice(2).join(' ') : (partes[1] || '')
 
         return {
             success: true,
-            dni: data.dni || numero,
-            nombres: data.nombres || '',
-            apellidoPaterno: data.apellido_paterno || '',
-            apellidoMaterno: data.apellido_materno || '',
-            nombreCompleto: data.cliente || `${data.nombres} ${data.apellido_paterno} ${data.apellido_materno}`.trim(),
+            dni: data.numeroDocumento || numero,
+            nombres: nombres,
+            apellidoPaterno: apellidoPaterno,
+            apellidoMaterno: apellidoMaterno,
+            nombreCompleto: data.nombre.trim(),
         }
 
     } catch (error: any) {
@@ -150,18 +163,15 @@ export async function consultarRUC(numero: string): Promise<ResultadoConsultaRUC
     }
 
     try {
-        const token = getToken()
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
         const response = await fetch(
-            `${API_BASE_URL}/ruc/${numero}?summary=0&plan=0`,
+            `${API_BASE_URL}/ruc?numero=${numero}`,
             {
                 signal: controller.signal,
                 headers: {
                     'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-API-KEY': token
                 }
             }
         )
@@ -172,28 +182,22 @@ export async function consultarRUC(numero: string): Promise<ResultadoConsultaRUC
             if (response.status === 404) {
                 return { success: false, error: 'RUC no encontrado en SUNAT' }
             }
-            if (response.status === 401) {
-                return { success: false, error: 'Token de PeruAPI inválido o IP no autorizada' }
-            }
             if (response.status === 429) {
                 return { success: false, error: 'Demasiadas consultas. Intente en unos segundos' }
-            }
-            if (response.status === 400) {
-                return { success: false, error: 'Formato de RUC inválido' }
             }
             return { success: false, error: `Error del servicio (código ${response.status})` }
         }
 
         const data = await response.json()
 
-        if (!data || data.code === '404' || !data.razon_social) {
+        if (!data || !data.nombre) {
             return { success: false, error: 'RUC no encontrado en SUNAT' }
         }
 
         return {
             success: true,
-            ruc: data.ruc || numero,
-            razonSocial: data.razon_social || '',
+            ruc: data.numeroDocumento || numero,
+            razonSocial: data.nombre || '',
             direccion: data.direccion || '',
             estado: data.estado || '',
             condicion: data.condicion || '',
