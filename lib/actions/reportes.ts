@@ -15,6 +15,9 @@ export interface LibroHuespedesItem {
     fecha_salida: string
     tarifa: string
     tarifa_numero: number
+    total: string
+    total_numero: number
+    noches: number
     moneda: string
     es_titular: boolean
 }
@@ -88,6 +91,13 @@ export async function getLibroHuespedes(filtros: FiltrosLibro) {
         const simboloMoneda = moneda === 'PEN' ? 'S/' : '$'
         const tarifa = `${simboloMoneda} ${tarifaNumero.toFixed(2)}`
 
+        // Calcular noches
+        const msIngreso = new Date(fechaIngreso).getTime()
+        const msSalida = new Date(fechaSalida).getTime()
+        const noches = Math.max(1, Math.round((msSalida - msIngreso) / (1000 * 60 * 60 * 24)))
+        const totalNumero = tarifaNumero * noches
+        const total = `${simboloMoneda} ${totalNumero.toFixed(2)}`
+
         // Por cada huésped en la reserva, una línea en el libro
         reserva.reserva_huespedes.forEach((rh: any) => {
             const h = rh.huespedes
@@ -104,6 +114,9 @@ export async function getLibroHuespedes(filtros: FiltrosLibro) {
                 fecha_salida: fechaSalida,
                 tarifa,
                 tarifa_numero: tarifaNumero,
+                total,
+                total_numero: totalNumero,
+                noches,
                 moneda,
                 es_titular: rh.es_titular
             })

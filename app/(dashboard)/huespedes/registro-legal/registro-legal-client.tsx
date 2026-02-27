@@ -55,7 +55,7 @@ export function RegistroLegalClient() {
                 if (result.data.length === 0) {
                     toast.info('No se encontraron registros para este periodo')
                 } else {
-                    const periodo = mesInicioNum === mesFinNum 
+                    const periodo = mesInicioNum === mesFinNum
                         ? `${meses[mesInicioNum].label} ${anio}`
                         : `${meses[mesInicioNum].label} - ${meses[mesFinNum].label} ${anio}`
                     toast.success(`${result.data.length} registros encontrados (${periodo})`)
@@ -91,6 +91,7 @@ export function RegistroLegalClient() {
                 { width: 10 },  // Hora Salida
                 { width: 14 },  // Fecha Salida
                 { width: 14 },  // Tarifa
+                { width: 14 },  // Total
                 { width: 40 },  // Nombres y Apellidos
                 { width: 10 },  // Tipo
                 { width: 15 },  // Número
@@ -109,10 +110,12 @@ export function RegistroLegalClient() {
                 'FECHA PROBABLE\nDE SALIDA',
                 '',
                 'TARIFA',
+                'TOTAL',
                 'HUÉSPED (ES)\nNOMBRES Y APELLIDOS',
                 'DOCUMENTOS',
                 '',
                 'LUGAR DE NACIMIENTO',
+                '',
                 '',
                 ''
             ]
@@ -120,32 +123,33 @@ export function RegistroLegalClient() {
             // FILA 2: Sub-encabezados
             const headerRow2 = worksheet.getRow(2)
             headerRow2.height = 20
-            headerRow2.values = ['', 'HORA', 'FECHA', 'HORA', 'FECHA', '', '', 'TIPO', 'NÚMERO', 'CIUDAD', 'DEPARTAMENTO', 'PAÍS']
+            headerRow2.values = ['', 'HORA', 'FECHA', 'HORA', 'FECHA', '', '', '', 'TIPO', 'NÚMERO', 'CIUDAD', 'DEPARTAMENTO', 'PAÍS']
 
             // COMBINAR CELDAS
             worksheet.mergeCells('A1:A2')  // Habitac N°
             worksheet.mergeCells('B1:C1')  // INGRESO
             worksheet.mergeCells('D1:E1')  // FECHA PROBABLE DE SALIDA
             worksheet.mergeCells('F1:F2')  // TARIFA
-            worksheet.mergeCells('G1:G2')  // HUÉSPED
-            worksheet.mergeCells('H1:I1')  // DOCUMENTOS
-            worksheet.mergeCells('J1:L1')  // LUGAR DE NACIMIENTO
+            worksheet.mergeCells('G1:G2')  // TOTAL
+            worksheet.mergeCells('H1:H2')  // HUÉSPED
+            worksheet.mergeCells('I1:J1')  // DOCUMENTOS
+            worksheet.mergeCells('K1:M1')  // LUGAR DE NACIMIENTO
 
             // Estilo para encabezados
-            const headerStyle = {
+            const headerStyle: Partial<ExcelJS.Style> = {
                 font: { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 },
-                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } },
-                alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } } as ExcelJS.FillPattern,
+                alignment: { horizontal: 'center' as const, vertical: 'middle' as const, wrapText: true },
                 border: {
-                    top: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    left: { style: 'thin' },
-                    right: { style: 'thin' }
+                    top: { style: 'thin' as const },
+                    bottom: { style: 'thin' as const },
+                    left: { style: 'thin' as const },
+                    right: { style: 'thin' as const }
                 }
             }
 
             // Aplicar estilo a encabezados
-            for (let col = 1; col <= 12; col++) {
+            for (let col = 1; col <= 13; col++) {
                 worksheet.getCell(1, col).style = headerStyle
                 worksheet.getCell(2, col).style = headerStyle
             }
@@ -159,6 +163,7 @@ export function RegistroLegalClient() {
                     format(new Date(fila.fecha_salida), 'HH:mm'),
                     format(new Date(fila.fecha_salida), 'd/MM/yyyy'),
                     fila.es_titular ? fila.tarifa : '',
+                    fila.es_titular ? fila.total : '',
                     fila.nombre_completo,
                     fila.tipo_documento,
                     fila.numero_documento,
@@ -178,7 +183,7 @@ export function RegistroLegalClient() {
                         right: { style: 'thin' }
                     }
                     cell.alignment = {
-                        horizontal: colNumber === 7 ? 'left' : 'center',  // Nombres a la izquierda
+                        horizontal: colNumber === 8 ? 'left' : 'center',  // Nombres a la izquierda (col 8 ahora)
                         vertical: 'middle'
                     }
                     cell.font = { size: 10 }
@@ -191,14 +196,14 @@ export function RegistroLegalClient() {
             const url = window.URL.createObjectURL(blob)
             const link = document.createElement('a')
             link.href = url
-            
+
             // Nombre de archivo según rango
             const mesInicioNum = parseInt(mesInicio)
             const mesFinNum = parseInt(mesFin)
-            const nombrePeriodo = mesInicioNum === mesFinNum 
+            const nombrePeriodo = mesInicioNum === mesFinNum
                 ? `${meses[mesInicioNum].label}_${anio}`
                 : `${meses[mesInicioNum].label}-${meses[mesFinNum].label}_${anio}`
-            
+
             link.download = `Libro_Huespedes_${nombrePeriodo}.xlsx`
             link.click()
             window.URL.revokeObjectURL(url)
@@ -302,7 +307,7 @@ export function RegistroLegalClient() {
                             Registro de Huéspedes
                         </h1>
                         <p className="text-xs sm:text-sm mt-2">
-                            Periodo: {parseInt(mesInicio) === parseInt(mesFin) 
+                            Periodo: {parseInt(mesInicio) === parseInt(mesFin)
                                 ? `${meses[parseInt(mesInicio)].label.toUpperCase()} ${anio}`
                                 : `${meses[parseInt(mesInicio)].label.toUpperCase()} - ${meses[parseInt(mesFin)].label.toUpperCase()} ${anio}`
                             }
@@ -313,11 +318,12 @@ export function RegistroLegalClient() {
                         <table className="w-full text-[9px] sm:text-xs border-collapse min-w-[1000px]">
                             <thead>
                                 <tr className="bg-muted print:bg-transparent">
-                                    <th rowSpan={2} className="border border-black p-1 text-center w-12 font-semibold align-middle">Habitac.<br/>N°</th>
+                                    <th rowSpan={2} className="border border-black p-1 text-center w-12 font-semibold align-middle">Habitac.<br />N°</th>
                                     <th colSpan={2} className="border border-black p-1 text-center font-semibold">INGRESO</th>
-                                    <th colSpan={2} className="border border-black p-1 text-center font-semibold">FECHA PROBABLE<br/>DE SALIDA</th>
+                                    <th colSpan={2} className="border border-black p-1 text-center font-semibold">FECHA PROBABLE<br />DE SALIDA</th>
                                     <th rowSpan={2} className="border border-black p-1 text-center w-16 font-semibold align-middle">TARIFA</th>
-                                    <th rowSpan={2} className="border border-black p-1 text-center font-semibold align-middle">HUÉSPED (ES)<br/>NOMBRES Y APELLIDOS</th>
+                                    <th rowSpan={2} className="border border-black p-1 text-center w-16 font-semibold align-middle">TOTAL</th>
+                                    <th rowSpan={2} className="border border-black p-1 text-center font-semibold align-middle">HUÉSPED (ES)<br />NOMBRES Y APELLIDOS</th>
                                     <th colSpan={2} className="border border-black p-1 text-center font-semibold">DOCUMENTOS</th>
                                     <th colSpan={3} className="border border-black p-1 text-center font-semibold">LUGAR DE NACIMIENTO</th>
                                 </tr>
@@ -336,7 +342,7 @@ export function RegistroLegalClient() {
                             <tbody>
                                 {datos.length === 0 ? (
                                     <tr>
-                                        <td colSpan={12} className="border border-black p-6 sm:p-8 text-center text-muted-foreground italic text-xs sm:text-sm">
+                                        <td colSpan={13} className="border border-black p-6 sm:p-8 text-center text-muted-foreground italic text-xs sm:text-sm">
                                             No hay registros de ingreso en este periodo.
                                         </td>
                                     </tr>
@@ -358,6 +364,9 @@ export function RegistroLegalClient() {
                                             </td>
                                             <td className="border border-black p-1 text-center">
                                                 {fila.es_titular ? fila.tarifa : ''}
+                                            </td>
+                                            <td className="border border-black p-1 text-center font-medium">
+                                                {fila.es_titular ? fila.total : ''}
                                             </td>
                                             <td className="border border-black p-1 text-left">
                                                 {fila.nombre_completo}

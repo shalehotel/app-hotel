@@ -101,6 +101,45 @@ export async function POST(request: NextRequest) {
         // Crear cliente Supabase
         const supabase = await createClient()
 
+        // ========================================================
+        // IDEMPOTENCIA ESTRICTA: Solo actualizamos si está PENDIENTE
+        // Si ya fue aceptado/rechazado, devolvemos 200 sin tocar nada
+        // ========================================================
+        const { data: comprobante, error: fetchError } = await supabase
+            .from('comprobantes')
+            .select('id, estado_sunat, serie, numero')
+            .eq('serie', body.serie)
+            .eq('numero', parseInt(body.numero))
+            .single()
+
+        if (fetchError || !comprobante) {
+            logger.warn('Webhook SUNAT: Comprobante no encontrado', {
+                serie: body.serie,
+                numero: body.numero
+            })
+            // Devolvemos 200 igual — no queremos que NubeFact reintente indefinidamente
+            return NextResponse.json({
+                success: false,
+                error: 'Comprobante no encontrado',
+                processed: false
+            })
+        }
+
+        // Si ya está en estado final, no hacer nada (idempotencia)
+        if (comprobante.estado_sunat !== 'PENDIENTE') {
+            logger.info('Webhook SUNAT: Comprobante ya procesado (idempotente)', {
+                comprobante_id: comprobante.id,
+                estado_actual: comprobante.estado_sunat
+            })
+            return NextResponse.json({
+                success: true,
+                comprobante_id: comprobante.id,
+                estado_actual: comprobante.estado_sunat,
+                processed: false,
+                message: 'Ya estaba procesado, sin cambios'
+            })
+        }
+
         // Determinar nuevo estado
         let nuevoEstado: 'PENDIENTE' | 'ACEPTADO' | 'RECHAZADO' | 'ANULADO' = 'PENDIENTE'
 
@@ -112,12 +151,20 @@ export async function POST(request: NextRequest) {
                 nuevoEstado = 'ACEPTADO'
             }
         } else if (body.aceptada_por_sunat === false) {
-            nuevoEstado = 'RECHAZADO'
+            // Solo marcamos como RECHAZADO si hay código de error real
+            // (sunat_responsecode distinto de "0" o vacío)
+            const codigoRespuesta = body.sunat_responsecode?.toString()
+            if (codigoRespuesta && codigoRespuesta !== '0' && codigoRespuesta !== '') {
+                nuevoEstado = 'RECHAZADO'
+            }
+            // Si no hay código, puede ser que el lote todavía no fue procesado
         }
 
         // Actualizar comprobante en BD
         const updateData: Record<string, unknown> = {
-            estado_sunat: nuevoEstado
+            estado_sunat: nuevoEstado,
+            // Guardamos la fecha de procesamiento SUNAT para auditoría
+            ...(nuevoEstado === 'ACEPTADO' ? { updated_at: new Date().toISOString() } : {})
         }
 
         // Solo actualizar campos si vienen en el webhook
@@ -130,8 +177,7 @@ export async function POST(request: NextRequest) {
         const { data, error } = await supabase
             .from('comprobantes')
             .update(updateData)
-            .eq('serie', body.serie)
-            .eq('numero', parseInt(body.numero))
+            .eq('id', comprobante.id)  // Usamos ID para ser más precisos
             .select('id, serie, numero')
             .single()
 
@@ -145,7 +191,7 @@ export async function POST(request: NextRequest) {
             // No retornar 500 para evitar reintentos infinitos de Nubefact
             return NextResponse.json({
                 success: false,
-                error: 'Comprobante no encontrado o error de BD',
+                error: 'Error de BD al actualizar',
                 processed: false
             })
         }
@@ -157,6 +203,8 @@ export async function POST(request: NextRequest) {
             serie: body.serie,
             numero: body.numero,
             nuevo_estado: nuevoEstado,
+            sunat_code: body.sunat_responsecode,
+            sunat_desc: body.sunat_description,
             processing_time_ms: processingTime
         })
 

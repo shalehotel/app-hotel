@@ -12,7 +12,7 @@ import { getErrorMessage } from '@/lib/errors'
 export type HuespedData = {
   nombres: string
   apellidos: string
-  tipo_documento: 'DNI' | 'PASAPORTE' | 'CE' | 'OTRO'
+  tipo_documento: 'DNI' | 'RUC' | 'PASAPORTE' | 'CE' | 'DOC_EXTRANJERO' | 'SIN_RUC' | 'OTRO'
   numero_documento: string
   pais: string
   procedencia_departamento?: string | null

@@ -43,7 +43,7 @@ import { DepartamentoCombobox } from '@/components/custom/departamento-combobox'
 const formSchema = z.object({
     nombres: z.string().min(1, 'El nombre es requerido'),
     apellidos: z.string().min(1, 'Los apellidos son requeridos'),
-    tipo_documento: z.enum(['DNI', 'PASAPORTE', 'CE', 'OTRO']),
+    tipo_documento: z.enum(['DNI', 'RUC', 'PASAPORTE', 'CE', 'DOC_EXTRANJERO', 'SIN_RUC', 'OTRO']),
     numero_documento: z.string().min(1, 'El número de documento es requerido'),
     pais: z.string().min(1, 'El país es requerido'),
     procedencia_ciudad: z.string().min(1, 'La ciudad es requerida'),
@@ -51,7 +51,7 @@ const formSchema = z.object({
     correo: z.string().email('Correo inválido').optional().or(z.literal('')),
     telefono: z.string().optional(),
     fecha_nacimiento: z.string().optional(),
-    sexo: z.enum(['M', 'F']),
+    sexo: z.enum(['M', 'F']).optional(),
     notas_internas: z.string().optional(),
 })
 
@@ -198,8 +198,11 @@ export function AgregarAcompananteDialog({
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value="DNI">DNI</SelectItem>
+                                                <SelectItem value="RUC">RUC</SelectItem>
                                                 <SelectItem value="PASAPORTE">Pasaporte</SelectItem>
                                                 <SelectItem value="CE">Carnet Ext.</SelectItem>
+                                                <SelectItem value="DOC_EXTRANJERO">Doc. Extranjero</SelectItem>
+                                                <SelectItem value="SIN_RUC">Sin RUC</SelectItem>
                                                 <SelectItem value="OTRO">Otro</SelectItem>
                                             </SelectContent>
                                         </Select>

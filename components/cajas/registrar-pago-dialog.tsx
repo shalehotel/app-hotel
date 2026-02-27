@@ -63,11 +63,23 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
   const [numeroOperacion, setNumeroOperacion] = useState('')
   const [nota, setNota] = useState('')
 
+  // =====================================================
+  // HELPERS DE TIPO DE DOCUMENTO
+  // =====================================================
+  const ES_EXPORTACION = ['PASAPORTE', 'DOC_EXTRANJERO', 'CEDULA_DIPLOMATICA', 'SIN_RUC']
+
+  function getTipoComprobanteParaDoc(tipoDoc: string): 'BOLETA' | 'FACTURA' {
+    if (ES_EXPORTACION.includes(tipoDoc) || tipoDoc === 'RUC') return 'FACTURA'
+    return 'BOLETA'
+  }
+
   // Facturación
-  const [tipoComprobante, setTipoComprobante] = useState<'BOLETA' | 'FACTURA'>('BOLETA')
+  const tipoComprobanteInicial = getTipoComprobanteParaDoc(reserva.titular_tipo_doc || 'DNI')
+  const [tipoComprobante, setTipoComprobante] = useState<'BOLETA' | 'FACTURA'>(tipoComprobanteInicial)
   const [serieId, setSerieId] = useState('')
 
   // Datos Cliente
+  const [clienteTipoDoc, setClienteTipoDoc] = useState(reserva.titular_tipo_doc || 'DNI')
   const [clienteDoc, setClienteDoc] = useState(reserva.titular_numero_doc)
   const [clienteNombre, setClienteNombre] = useState(reserva.titular_nombre)
   const [clienteDireccion, setClienteDireccion] = useState('')
@@ -87,8 +99,21 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
   // Efecto: Cargar series y resetear al abrir
   useEffect(() => {
     if (open) {
-      loadSeries(tipoComprobante)
-      // Resetear valores
+      // 1. Calcular el tipo de comprobante correcto según el doc del titular
+      const tipoDocTitular = reserva.titular_tipo_doc || 'DNI'
+      const tipoCorrectoAlAbrir = getTipoComprobanteParaDoc(tipoDocTitular)
+
+      // 2. Inicializar doc + nombre del titular
+      setClienteTipoDoc(tipoDocTitular)
+      setClienteDoc(reserva.titular_numero_doc)
+      setClienteNombre(reserva.titular_nombre)
+      setClienteDireccion('')
+
+      // 3. Si necesitamos cambiar el tipo de comprobante, forzarlo
+      setTipoComprobante(tipoCorrectoAlAbrir)
+      loadSeries(tipoCorrectoAlAbrir)
+
+      // Resetear pagos
       setMonto(reserva.saldo_pendiente.toString())
       setMontoRecibido('')
       setNumeroOperacion('')
@@ -97,7 +122,7 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
       setAdvertenciaApi('')
       setDocVerificado(false)
     }
-  }, [open, tipoComprobante])
+  }, [open]) // Solo dep de `open` para no recargar al cambiar tipoComprobante interactivamente
 
   async function loadSeries(tipo: 'BOLETA' | 'FACTURA') {
     try {
@@ -140,7 +165,10 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
   const buscarDocumentoAPI = useCallback(async (doc: string) => {
     if (!doc) return
 
-    const tipo = tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI'
+    // Solo buscamos en API si es peruano
+    if (clienteTipoDoc !== 'DNI' && clienteTipoDoc !== 'RUC') return
+
+    const tipo = clienteTipoDoc // Ya viene como 'DNI' o 'RUC'
 
     // Validar longitudes mínimas
     if (tipo === 'DNI' && doc.length !== 8) return
@@ -263,7 +291,7 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
 
         tipo_comprobante: tipoComprobante,
         serie: serieId,
-        cliente_tipo_doc: tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI',
+        cliente_tipo_doc: clienteTipoDoc,
         cliente_numero_doc: clienteDoc,
         cliente_nombre: clienteNombre,
         cliente_direccion: clienteDireccion,
@@ -386,7 +414,13 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
                     type="button"
                     variant={tipoComprobante === 'BOLETA' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => handleTipoChange('BOLETA')}
+                    disabled={['RUC', 'PASAPORTE', 'DOC_EXTRANJERO', 'CEDULA_DIPLOMATICA', 'SIN_RUC'].includes(clienteTipoDoc)}
+                    onClick={() => {
+                      if (clienteTipoDoc === 'RUC') {
+                        setClienteTipoDoc('DNI')
+                      }
+                      handleTipoChange('BOLETA')
+                    }}
                   >
                     Boleta
                   </Button>
@@ -394,7 +428,12 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
                     type="button"
                     variant={tipoComprobante === 'FACTURA' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => handleTipoChange('FACTURA')}
+                    onClick={() => {
+                      if (clienteTipoDoc === 'DNI') {
+                        setClienteTipoDoc('RUC')
+                      }
+                      handleTipoChange('FACTURA')
+                    }}
                   >
                     Factura
                   </Button>
@@ -411,45 +450,80 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
               )}
             </div>
 
-            {/* DOCUMENTO — con búsqueda APISPerú */}
+            {/* DOCUMENTO — con búsqueda APISPerú y Select de Tipo */}
             <div className="space-y-2">
-              <Label>{tipoComprobante === 'FACTURA' ? 'RUC *' : 'DNI / Documento'}</Label>
-              <div className="relative">
-                <Input
-                  value={clienteDoc}
-                  onChange={(e) => {
-                    setClienteDoc(e.target.value)
+              <Label>Documento del Comprobante</Label>
+              <div className="flex gap-2">
+                <Select
+                  value={clienteTipoDoc}
+                  onValueChange={(val) => {
+                    setClienteTipoDoc(val)
                     setErrorApi('')
                     setAdvertenciaApi('')
                     setDocVerificado(false)
-                  }}
-                  onBlur={() => buscarDocumentoAPI(clienteDoc)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      buscarDocumentoAPI(clienteDoc)
+                    setClienteNombre('')
+                    setClienteDoc('')
+
+                    // LÓGICA DE NEGOCIO NUBEFACT: Si es Extranjero, FORZAR FACTURA
+                    const esExtranjeroParaExportacion = ['PASAPORTE', 'DOC_EXTRANJERO', 'CEDULA_DIPLOMATICA', 'SIN_RUC'].includes(val)
+                    if (esExtranjeroParaExportacion || val === 'RUC') {
+                      handleTipoChange('FACTURA')
+                    }
+                    if (val === 'DNI' && tipoComprobante === 'FACTURA') {
+                      handleTipoChange('BOLETA')
                     }
                   }}
-                  placeholder={tipoComprobante === 'FACTURA' ? '20...' : 'Documento'}
-                  maxLength={tipoComprobante === 'FACTURA' ? 11 : 20}
-                  className={`pr-10 ${errorApi || getDocumentError(tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI', clienteDoc) ? 'border-red-500' : ''}`}
-                />
-                {buscandoDoc && (
-                  <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-blue-500" />
-                )}
-                {!buscandoDoc && docVerificado && !advertenciaApi && (
-                  <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-green-500" />
-                )}
-                {!buscandoDoc && advertenciaApi && (
-                  <AlertTriangle className="absolute right-3 top-2.5 h-4 w-4 text-amber-500" />
-                )}
-                {!buscandoDoc && errorApi && (
-                  <AlertTriangle className="absolute right-3 top-2.5 h-4 w-4 text-red-500" />
-                )}
+                >
+                  <SelectTrigger className="w-[110px] shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DNI">DNI</SelectItem>
+                    <SelectItem value="RUC">RUC</SelectItem>
+                    <SelectItem value="PASAPORTE">Pasaporte</SelectItem>
+                    <SelectItem value="CE">C.E.</SelectItem>
+                    <SelectItem value="DOC_EXTRANJERO">Doc. Ext.</SelectItem>
+                    <SelectItem value="SIN_RUC">Sin RUC</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="relative flex-1">
+                  <Input
+                    value={clienteDoc}
+                    onChange={(e) => {
+                      setClienteDoc(e.target.value)
+                      setErrorApi('')
+                      setAdvertenciaApi('')
+                      setDocVerificado(false)
+                    }}
+                    onBlur={() => buscarDocumentoAPI(clienteDoc)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        buscarDocumentoAPI(clienteDoc)
+                      }
+                    }}
+                    placeholder={clienteTipoDoc === 'RUC' ? '20...' : 'Número'}
+                    maxLength={clienteTipoDoc === 'RUC' ? 11 : 20}
+                    className={`pr-10 ${errorApi || getDocumentError(clienteTipoDoc, clienteDoc) ? 'border-red-500' : ''}`}
+                  />
+                  {buscandoDoc && (
+                    <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-blue-500" />
+                  )}
+                  {!buscandoDoc && docVerificado && !advertenciaApi && (
+                    <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-green-500" />
+                  )}
+                  {!buscandoDoc && advertenciaApi && (
+                    <AlertTriangle className="absolute right-3 top-2.5 h-4 w-4 text-amber-500" />
+                  )}
+                  {!buscandoDoc && errorApi && (
+                    <AlertTriangle className="absolute right-3 top-2.5 h-4 w-4 text-red-500" />
+                  )}
+                </div>
               </div>
-              {getDocumentError(tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI', clienteDoc) && (
+              {getDocumentError(clienteTipoDoc, clienteDoc) && (
                 <p className="text-[10px] text-red-500 font-medium mt-1">
-                  {getDocumentError(tipoComprobante === 'FACTURA' ? 'RUC' : 'DNI', clienteDoc)}
+                  {getDocumentError(clienteTipoDoc, clienteDoc)}
                 </p>
               )}
               {errorApi && (
@@ -473,7 +547,7 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
             </div>
 
             <div className="space-y-2">
-              <Label>{tipoComprobante === 'FACTURA' ? 'Razón Social *' : 'Nombre Cliente'}</Label>
+              <Label>{clienteTipoDoc === 'RUC' ? 'Razón Social *' : 'Nombre Cliente *'}</Label>
               <Input
                 value={clienteNombre}
                 onChange={(e) => setClienteNombre(e.target.value)}
@@ -482,7 +556,7 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
             </div>
 
             <div className="space-y-2">
-              <Label>Dirección {tipoComprobante === 'FACTURA' ? '(Fiscal)' : '(Opcional)'}</Label>
+              <Label>Dirección {clienteTipoDoc === 'RUC' ? '(Fiscal)' : '(Opcional)'}</Label>
               <Input
                 value={clienteDireccion}
                 onChange={(e) => setClienteDireccion(e.target.value)}

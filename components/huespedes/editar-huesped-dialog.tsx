@@ -40,14 +40,14 @@ const formSchema = z.object({
     id: z.string().optional(), // ID si es edición
     nombres: z.string().min(1, 'El nombre es requerido'),
     apellidos: z.string().min(1, 'Los apellidos son requeridos'),
-    tipo_documento: z.enum(['DNI', 'PASAPORTE', 'CE', 'OTRO']),
+    tipo_documento: z.enum(['DNI', 'RUC', 'PASAPORTE', 'CE', 'DOC_EXTRANJERO', 'SIN_RUC', 'OTRO']),
     numero_documento: z.string().min(1, 'El número de documento es requerido'),
     pais: z.string().min(1, 'El país es requerido'),
     procedencia_ciudad: z.string().optional(),
     procedencia_departamento: z.string().optional(),
     correo: z.string().email('Correo inválido').optional().or(z.literal('')),
     telefono: z.string().optional(),
-    sexo: z.enum(['M', 'F'], { required_error: 'Seleccione el sexo' }).optional(),
+    sexo: z.enum(['M', 'F']).optional(),
     notas_internas: z.string().optional(),
 })
 
@@ -178,8 +178,11 @@ export function EditarHuespedDialog({
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value="DNI">DNI</SelectItem>
+                                                <SelectItem value="RUC">RUC</SelectItem>
                                                 <SelectItem value="PASAPORTE">Pasaporte</SelectItem>
                                                 <SelectItem value="CE">Carnet Ext.</SelectItem>
+                                                <SelectItem value="DOC_EXTRANJERO">Doc. Extranjero</SelectItem>
+                                                <SelectItem value="SIN_RUC">Sin RUC</SelectItem>
                                                 <SelectItem value="OTRO">Otro</SelectItem>
                                             </SelectContent>
                                         </Select>

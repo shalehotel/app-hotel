@@ -162,7 +162,10 @@ function mapearTipoDocumento(tipo: string): string {
     'RUC': '6',
     'PASAPORTE': '7',
     'CE': '4',
-    'CARNET_EXTRANJERIA': '4'
+    'CARNET_EXTRANJERIA': '4',
+    'DOC_EXTRANJERO': 'B',
+    'CEDULA_DIPLOMATICA': 'A',
+    'SIN_RUC': '0'
   }
   return mapeo[tipo] || '1'
 }
@@ -205,9 +208,22 @@ export async function enviarComprobanteNubefact(
     // Si es Amazonía, forzamos la lógica de exoneración
     let total_gravada = input.total_gravada
     let total_exonerada = input.total_exonerada
-    const total_igv = esAmazonia ? 0 : input.total_igv
+    let total_exportacion = 0
+    let total_igv = esAmazonia ? 0 : input.total_igv
+    let sunat_transaction = 1
 
-    if (esAmazonia) {
+    // 1. EVALUAR SI ES EXPORTACIÓN A TURISTAS EXTRANJEROS
+    const esExportacion = ['PASAPORTE', 'DOC_EXTRANJERO', 'CEDULA_DIPLOMATICA', 'SIN_RUC'].includes(input.cliente_tipo_documento)
+
+    if (esExportacion) {
+      sunat_transaction = 2 // 2 = Exportación de Servicios
+      total_exportacion = input.total // Todo el monto va a Exportación
+      total_gravada = 0
+      total_exonerada = 0
+      total_igv = 0
+    }
+    // 2. SI NO ES EXPORTACIÓN Y ES AMAZONÍA
+    else if (esAmazonia) {
       // CORRECCIÓN IMPORTANTE:
       // En Amazonía, el precio final (Total) se mantiene (ej: 118), pero todo se vuelve Exonerado.
       // Antes: 100 Base + 18 IGV = 118 Total
@@ -217,14 +233,19 @@ export async function enviarComprobanteNubefact(
       total_gravada = 0
     }
 
-    // Construir items con lógica Amazonía
+    // Construir items con lógica Amazonía o Exportación
     const itemsProcesados = input.items.map(item => {
       let tipo_igv_final = item.tipo_de_igv
       let igv_final = item.igv
       let valor_unitario_final = item.valor_unitario
       let subtotal_final = item.subtotal
 
-      if (esAmazonia) {
+      if (esExportacion) {
+        tipo_igv_final = 16 // 16 = Exportación
+        igv_final = 0
+        valor_unitario_final = item.precio_unitario
+        subtotal_final = item.total
+      } else if (esAmazonia) {
         // CORRECCIÓN: Según Doc Nubefact V1, el código para Exonerado - Operación Onerosa es 8.
         // El código 20 corresponde a Inafecto - Transferencia Gratuita (Tributo 9996), lo que causaba el error con la leyenda Selva.
         // Al usar 8, Nubefact genera Tributo 9997 (Exonerado), que sí es compatible con Amazonía.
@@ -255,10 +276,10 @@ export async function enviarComprobanteNubefact(
     // Construir payload según especificación NubeFact
     const payload = {
       operacion: 'generar_comprobante',
-      tipo_de_comprobante: mapearTipoComprobante(input.tipo_comprobante),
+      tipo_de_comprobante: esExportacion ? 1 : mapearTipoComprobante(input.tipo_comprobante), // Extranjeros DEBEN ser Facturitas
       serie: input.serie,
       numero: input.numero,
-      sunat_transaction: 1, // 1 = enviar a SUNAT inmediatamente
+      sunat_transaction: sunat_transaction, // 1 Interna, 2 Exportación
 
       // Emisor (NubeFact lo obtiene del RUC configurado)
       // No es necesario enviar nombre_comercial, dirección, etc.
@@ -275,9 +296,10 @@ export async function enviarComprobanteNubefact(
       tipo_de_cambio: input.tipo_cambio,
 
       // Montos
-      porcentaje_de_igv: esAmazonia ? 0 : input.porcentaje_igv,
+      porcentaje_de_igv: (esAmazonia || esExportacion) ? 0 : input.porcentaje_igv,
       total_gravada: total_gravada,
       total_exonerada: total_exonerada,
+      total_exportacion: total_exportacion,
       total_inafecta: 0,
       total_igv: total_igv,
       total: input.total,
@@ -287,8 +309,8 @@ export async function enviarComprobanteNubefact(
       enviar_automaticamente_al_cliente: false,
 
       // Flags Amazonía
-      bienes_region_selva: esAmazonia,
-      servicios_region_selva: esAmazonia,
+      bienes_region_selva: esExportacion ? false : esAmazonia, // Si es export, no aplica doble beneficio
+      servicios_region_selva: esExportacion ? false : esAmazonia,
 
       // Items
       items: itemsProcesados
