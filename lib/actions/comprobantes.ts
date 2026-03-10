@@ -7,6 +7,7 @@ import { enviarComprobanteNubefact, consultarEstadoNubefact } from '@/lib/servic
 import { logger } from '@/lib/logger'
 import { getErrorMessage } from '@/lib/errors'
 import { getFechaEmisionPeru } from '@/lib/utils'
+import { differenceInDays, parseISO, format } from 'date-fns'
 
 // ========================================
 // TYPES
@@ -80,7 +81,7 @@ type InsertarComprobanteParams = {
   serie: string
   tipo_comprobante: 'BOLETA' | 'FACTURA' | 'NOTA_CREDITO'
   turno_caja_id: string
-  reserva_id: string
+  reserva_id: string | null
   receptor_tipo_doc: string
   receptor_nro_doc: string
   receptor_razon_social: string
@@ -1854,4 +1855,244 @@ export async function reintentarEnvio(comprobanteId: string) {
     console.error('Error reintentando envío:', error)
     return { success: false, error: error.message }
   }
+}
+
+// ========================================
+// EMITIR COMPROBANTE MANUAL (Sin reserva obligatoria)
+// ========================================
+// Para emitir Boleta o Factura directamente desde la página de
+// Facturación, sin que provenga de un flujo de reserva/checkout.
+// Toda la lógica de impuestos se lee de hotel_config (NO hardcodeado).
+// ========================================
+
+export type EmitirComprobanteManualInput = {
+  tipo_comprobante: 'BOLETA' | 'FACTURA'
+  serie: string
+
+  // Datos del cliente
+  cliente_tipo_doc: string // DNI, RUC, PASAPORTE, CE, DOC_EXTRANJERO, SIN_RUC
+  cliente_numero_doc: string
+  cliente_nombre: string
+  cliente_direccion?: string
+
+  // Items — los precios ya incluyen IGV (precio al público)
+  items: ComprobanteItem[]
+
+  // Reserva (opcional)
+  reserva_id?: string | null
+
+  observaciones?: string
+}
+
+export async function emitirComprobanteManual(input: EmitirComprobanteManualInput) {
+  const supabase = await createClient()
+
+  // 1. Obtener usuario autenticado
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Usuario no autenticado')
+
+  // 2. Obtener turno de caja activo del usuario
+  const { data: turnoActivo, error: turnoError } = await supabase
+    .from('caja_turnos')
+    .select('id')
+    .eq('usuario_id', user.id)
+    .eq('estado', 'ABIERTA')
+    .maybeSingle()
+
+  if (turnoError || !turnoActivo) {
+    throw new Error('No hay un turno de caja abierto. Debes abrir caja para emitir comprobantes.')
+  }
+
+  // 3. Validar que la serie existe y corresponde al tipo
+  const { data: serieValida, error: serieError } = await supabase
+    .from('series_comprobante')
+    .select('id, tipo_comprobante')
+    .eq('serie', input.serie)
+    .eq('tipo_comprobante', input.tipo_comprobante)
+    .single()
+
+  if (serieError || !serieValida) {
+    throw new Error(`La serie ${input.serie} no existe para el tipo ${input.tipo_comprobante}. Verifique Configuración > Cajas`)
+  }
+
+  // 4. Obtener configuración fiscal — TODO viene de hotel_config, nada hardcodeado
+  const config = await getHotelConfig()
+  if (!config) {
+    throw new Error('⚠️ Configure su hotel en /configuracion antes de emitir comprobantes')
+  }
+
+  if (!config.facturacion_activa) {
+    throw new Error('La facturación electrónica no está activada. Active esta opción en Configuración > General.')
+  }
+
+  if (!config.ruc || config.ruc === '20000000001') {
+    throw new Error('Debe configurar un RUC válido en Configuración antes de emitir comprobantes.')
+  }
+
+  // 5. Validaciones de negocio por tipo de comprobante
+  if (input.tipo_comprobante === 'FACTURA') {
+    if (input.cliente_tipo_doc !== 'RUC') {
+      throw new Error('Las facturas requieren que el cliente tenga RUC')
+    }
+    if (input.cliente_numero_doc.length !== 11) {
+      throw new Error('El RUC del cliente debe tener 11 dígitos')
+    }
+  } else if (input.tipo_comprobante === 'BOLETA') {
+    if (input.cliente_tipo_doc === 'DNI' && input.cliente_numero_doc.length !== 8) {
+      throw new Error('El DNI debe tener 8 dígitos')
+    }
+  }
+
+  if (!input.items || input.items.length === 0) {
+    throw new Error('Debe agregar al menos un ítem al comprobante')
+  }
+
+  // 6. Calcular totales fiscales usando tasa_igv y es_exonerado_igv de hotel_config
+  const TASA_IGV = config.es_exonerado_igv ? 0 : (config.tasa_igv || 18.00) / 100
+
+  let op_gravadas = 0
+  let op_exoneradas = 0
+  let monto_igv = 0
+
+  for (const item of input.items) {
+    // Si el hotel es en Región Selva → forzar exonerado sin importar lo que diga el item
+    const codigoAfectacion = config.es_exonerado_igv ? '20' : (item.codigo_afectacion_igv || '10')
+
+    if (codigoAfectacion === '10') {
+      // Gravado: el subtotal incluye IGV → descomponer base e IGV
+      const base = item.subtotal / (1 + TASA_IGV)
+      op_gravadas += base
+      monto_igv += (item.subtotal - base)
+    } else {
+      op_exoneradas += item.subtotal
+    }
+  }
+
+  const total_venta = op_gravadas + monto_igv + op_exoneradas
+
+  // 7. Crear comprobante con correlativo atómico
+  const comprobante = await insertarComprobanteAtomico({
+    serie: input.serie,
+    tipo_comprobante: input.tipo_comprobante,
+    turno_caja_id: turnoActivo.id,
+    reserva_id: (input.reserva_id as string) || null,
+    receptor_tipo_doc: input.cliente_tipo_doc,
+    receptor_nro_doc: input.cliente_numero_doc,
+    receptor_razon_social: input.cliente_nombre,
+    receptor_direccion: input.cliente_direccion || null,
+    moneda: 'PEN',
+    tipo_cambio: 1.0,
+    op_gravadas,
+    op_exoneradas,
+    monto_igv,
+    total_venta
+  })
+
+  // 8. Guardar detalles del comprobante
+  const itemsToInsert = input.items.map(item => ({
+    comprobante_id: comprobante.id,
+    descripcion: item.descripcion,
+    cantidad: item.cantidad,
+    precio_unitario: item.precio_unitario,
+    subtotal: item.subtotal,
+    codigo_afectacion_igv: config.es_exonerado_igv ? '20' : (item.codigo_afectacion_igv || '10')
+  }))
+
+  const { error: itemsError } = await supabase
+    .from('comprobante_detalles')
+    .insert(itemsToInsert)
+
+  if (itemsError) {
+    // Rollback del comprobante si fallan los detalles
+    await supabase.from('comprobantes').delete().eq('id', comprobante.id)
+    throw new Error('Error al registrar ítems del comprobante')
+  }
+
+  // 9. Enviar a Nubefact — idéntica lógica que cobrarYFacturar
+  try {
+    const fechaFormateada = getFechaEmisionPeru()
+
+    const respuestaNubefact = await enviarComprobanteNubefact({
+      tipo_comprobante: input.tipo_comprobante,
+      serie: input.serie,
+      numero: comprobante.numero,
+
+      cliente_tipo_documento: input.cliente_tipo_doc,
+      cliente_numero_documento: input.cliente_numero_doc,
+      cliente_denominacion: input.cliente_nombre,
+      cliente_direccion: input.cliente_direccion,
+
+      fecha_emision: fechaFormateada,
+      moneda: 'PEN',
+      tipo_cambio: 1.0,
+      porcentaje_igv: config.tasa_igv ?? 18,
+      total_gravada: op_gravadas,
+      total_exonerada: op_exoneradas,
+      total_igv: monto_igv,
+      total: total_venta,
+
+      items: input.items.map(item => {
+        const esExonerado = config.es_exonerado_igv || item.codigo_afectacion_igv === '20'
+        const tasaIgv = esExonerado ? 0 : TASA_IGV
+        const valorUnitario = item.precio_unitario / (1 + tasaIgv)
+        const subtotalItem = valorUnitario * item.cantidad
+        const igvLinea = subtotalItem * tasaIgv
+
+        return {
+          unidad_de_medida: 'ZZ',   // ZZ = Servicio según catálogo SUNAT
+          codigo: '90101501',        // Servicios de alojamiento según SUNAT
+          descripcion: item.descripcion,
+          cantidad: item.cantidad,
+          valor_unitario: Number(valorUnitario.toFixed(10)),
+          precio_unitario: Number(item.precio_unitario.toFixed(2)),
+          subtotal: Number(subtotalItem.toFixed(2)),
+          tipo_de_igv: esExonerado ? 8 : 1, // 1=Gravado, 8=Exonerado (Selva)
+          igv: Number(igvLinea.toFixed(2)),
+          total: Number((subtotalItem + igvLinea).toFixed(2))
+        }
+      })
+    })
+
+    // 10. Actualizar estado en BD según respuesta de Nubefact
+    if (respuestaNubefact.success) {
+      const estadoFinal = respuestaNubefact.aceptada_por_sunat ? 'ACEPTADO' : 'PENDIENTE'
+      await supabase.from('comprobantes').update({
+        estado_sunat: estadoFinal,
+        hash_cpe: respuestaNubefact.hash,
+        xml_url: respuestaNubefact.enlace,
+        cdr_url: respuestaNubefact.enlace_del_cdr,
+        pdf_url: respuestaNubefact.enlace_pdf,
+        external_id: respuestaNubefact.enlace_pdf,
+        observaciones: respuestaNubefact.mensaje
+      }).eq('id', comprobante.id)
+
+      logger.info(`Comprobante manual emitido (${estadoFinal})`, {
+        action: 'emitirComprobanteManual',
+        comprobanteId: comprobante.id,
+        numero_completo: comprobante.numero_completo
+      })
+    } else if ((respuestaNubefact as any).es_error_red) {
+      // Error de red → queda PENDIENTE para reintento (no es rechazo fiscal)
+      await supabase.from('comprobantes').update({
+        observaciones: `Error de conexión: ${respuestaNubefact.errors || respuestaNubefact.mensaje} (Pendiente de Reintento)`
+      }).eq('id', comprobante.id)
+    } else {
+      // Rechazo fiscal de SUNAT/Nubefact
+      await supabase.from('comprobantes').update({
+        estado_sunat: 'RECHAZADO',
+        observaciones: respuestaNubefact.errors || respuestaNubefact.mensaje
+      }).eq('id', comprobante.id)
+    }
+  } catch (nubefactError) {
+    // Nubefact falla → comprobante queda PENDIENTE (se puede reenviar después)
+    logger.error('Error al enviar comprobante manual a Nubefact (queda PENDIENTE)', {
+      action: 'emitirComprobanteManual',
+      comprobanteId: comprobante.id,
+      error: getErrorMessage(nubefactError)
+    })
+  }
+
+  revalidatePath('/facturacion')
+
+  return comprobante
 }
