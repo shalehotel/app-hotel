@@ -142,6 +142,7 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
   // Auto-ajustar documento al cambiar tipo
   const handleTipoChange = (tipo: 'BOLETA' | 'FACTURA') => {
     setTipoComprobante(tipo)
+    loadSeries(tipo) // <-- Añadido: Cargar las series del nuevo tipo
     setErrorApi('')
     setAdvertenciaApi('')
     setDocVerificado(false)
