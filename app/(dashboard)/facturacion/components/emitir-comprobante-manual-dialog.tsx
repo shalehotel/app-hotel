@@ -167,8 +167,8 @@ export function EmitirComprobanteManualDialog({
         } else {
             setSerie('')
         }
-        // Factura fuerza RUC
-        if (tipoComprobante === 'FACTURA') {
+        // Factura fuerza RUC si estaba en DNI (pero permite dejar pasaporte if needed)
+        if (tipoComprobante === 'FACTURA' && tipoDoc === 'DNI') {
             setTipoDoc('RUC')
         }
     }, [tipoComprobante, seriesBoleta, seriesFactura])
@@ -325,7 +325,8 @@ export function EmitirComprobanteManualDialog({
             errs.direccion = 'La dirección es obligatoria para facturas'
         }
 
-        if (tipoDoc !== 'RUC' && tipoDoc !== 'DNI' && tipoComprobante === 'FACTURA') {
+        const esExportacion = ['PASAPORTE', 'CE', 'DOC_EXTRANJERO', 'SIN_RUC'].includes(tipoDoc)
+        if (!esExportacion && tipoDoc !== 'RUC' && tipoComprobante === 'FACTURA') {
             errs.tipoDoc = 'Las facturas requieren RUC'
         }
 
@@ -553,8 +554,9 @@ export function EmitirComprobanteManualDialog({
                                         <Select
                                             value={tipoDoc}
                                             onValueChange={v => {
-                                                // Factura solo permite RUC
-                                                if (tipoComprobante === 'FACTURA' && v !== 'RUC') return
+                                                const esExport = ['PASAPORTE', 'CE', 'DOC_EXTRANJERO', 'SIN_RUC'].includes(v)
+                                                // Factura no permite DNI
+                                                if (tipoComprobante === 'FACTURA' && v === 'DNI') return
                                                 setTipoDoc(v as TipoDoc)
                                             }}
                                         >
@@ -564,10 +566,10 @@ export function EmitirComprobanteManualDialog({
                                             <SelectContent>
                                                 <SelectItem value="DNI" disabled={tipoComprobante === 'FACTURA'}>DNI</SelectItem>
                                                 <SelectItem value="RUC">RUC</SelectItem>
-                                                <SelectItem value="PASAPORTE" disabled={tipoComprobante === 'FACTURA'}>Pasaporte</SelectItem>
-                                                <SelectItem value="CE" disabled={tipoComprobante === 'FACTURA'}>Carnet de Extranjería</SelectItem>
-                                                <SelectItem value="DOC_EXTRANJERO" disabled={tipoComprobante === 'FACTURA'}>Doc. Extranjero (sin RUC)</SelectItem>
-                                                <SelectItem value="SIN_RUC" disabled={tipoComprobante === 'FACTURA'}>Sin doc. (ventas &lt; S/700)</SelectItem>
+                                                <SelectItem value="PASAPORTE">Pasaporte</SelectItem>
+                                                <SelectItem value="CE">Carnet de Extranjería</SelectItem>
+                                                <SelectItem value="DOC_EXTRANJERO">Doc. Extranjero (sin RUC)</SelectItem>
+                                                <SelectItem value="SIN_RUC">Sin doc. (ventas &lt; S/700)</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         {erroresPaso2.tipoDoc && (

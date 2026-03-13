@@ -1930,12 +1930,16 @@ export async function emitirComprobanteManual(input: EmitirComprobanteManualInpu
   }
 
   // 5. Validaciones de negocio por tipo de comprobante
+  const esExportacion = ['PASAPORTE', 'CE', 'DOC_EXTRANJERO', 'SIN_RUC', 'CEDULA_DIPLOMATICA'].includes(input.cliente_tipo_doc)
+
   if (input.tipo_comprobante === 'FACTURA') {
-    if (input.cliente_tipo_doc !== 'RUC') {
-      throw new Error('Las facturas requieren que el cliente tenga RUC')
-    }
-    if (input.cliente_numero_doc.length !== 11) {
-      throw new Error('El RUC del cliente debe tener 11 dígitos')
+    if (!esExportacion) {
+      if (input.cliente_tipo_doc !== 'RUC') {
+        throw new Error('Las facturas requieren que el cliente tenga RUC o documento extranjero válido')
+      }
+      if (input.cliente_numero_doc.length !== 11) {
+        throw new Error('El RUC del cliente debe tener 11 dígitos')
+      }
     }
   } else if (input.tipo_comprobante === 'BOLETA') {
     if (input.cliente_tipo_doc === 'DNI' && input.cliente_numero_doc.length !== 8) {
