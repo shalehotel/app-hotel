@@ -227,16 +227,21 @@ export function RegistrarPagoDialog({ open, onOpenChange, reserva, onSuccess }: 
     }
 
     if (tipoComprobante === 'FACTURA') {
-      if (clienteDoc.length !== 11) {
-        toast.error('Para factura, el RUC debe tener 11 dígitos')
-        return
+      const esExport = ['PASAPORTE', 'DOC_EXTRANJERO', 'CEDULA_DIPLOMATICA', 'SIN_RUC', 'CE'].includes(clienteTipoDoc)
+
+      if (!esExport) {
+        if (clienteDoc.length !== 11) {
+          toast.error('Para factura, el RUC debe tener 11 dígitos')
+          return
+        }
+        if (!isValidRUC(clienteDoc)) {
+          toast.error('El RUC ingresado no es válido')
+          return
+        }
       }
+      
       if (!clienteNombre) {
-        toast.error('La Razón Social es obligatoria para factura')
-        return
-      }
-      if (!isValidRUC(clienteDoc)) {
-        toast.error('El RUC ingresado no es válido')
+        toast.error('La Razón Social o Nombre es obligatoria para factura')
         return
       }
     } else {
